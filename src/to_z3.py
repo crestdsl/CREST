@@ -113,7 +113,12 @@ def get_z3_var_for_port(port, name):
 
 @to_z3.register(ast.Name)
 def _(obj, z3_vars):
-    return obj.id
+    # if our parent is an Attribute, then we just return the string
+    if isinstance(obj.parent, ast.Attribute):
+        return obj.id
+    #otherwise we dereference so we get the port or variable
+    else:
+        return to_z3(obj.id, z3_vars)
 
 @to_z3.register(ast.Num)
 def _(obj, z3_vars):
@@ -121,7 +126,7 @@ def _(obj, z3_vars):
 
 @to_z3.register(ast.Str)
 def _(obj, z3_vars):
-    return "\""+obj.s+"\""
+    return obj.s
 
 @to_z3.register(ast.Attribute)
 def _(obj, z3_vars):
@@ -133,15 +138,12 @@ def _(obj, z3_vars):
         ret = to_z3(ret, z3_vars)
     return ret
 
-    # return "{}.{}".format(to_z3(obj.value, z3_vars), obj.attr)
-
 @to_z3.register(ast.Assign)
 def _(obj, z3_vars):
     z3_constraints = []
-    value = to_z3(to_z3(obj.value, z3_vars), z3_vars)
+    value = to_z3(obj.value, z3_vars)
     for target in obj.targets:
         assignee = to_z3(target, z3_vars)
-        assignee = to_z3(assignee, z3_vars) # to dereference if we received a string
         z3_constraints.append(assignee == value)
     return z3_constraints
 
@@ -161,47 +163,34 @@ def _(obj, z3_vars):
 
 @to_z3.register(ast.UnaryOp)
 def _(obj, z3_vars):
-    operand = to_z3(to_z3(obj.operand, z3_vars), z3_vars)
+    operand = to_z3(obj.operand, z3_vars)
     operation = operator_to_operation[type(obj.op)]
     return operation(operand)
 
 @to_z3.register(ast.BinOp)
 def _(obj, z3_vars):
-    # import pdb;pdb.set_trace()
-    right = to_z3(to_z3(obj.right, z3_vars), z3_vars)
-    left = to_z3(to_z3(obj.left, z3_vars), z3_vars)
+    right = to_z3(obj.right, z3_vars)
+    left = to_z3(obj.left, z3_vars)
     operation = operator_to_operation[type(obj.op)]
     return operation(left, right)
 
 @to_z3.register(ast.BoolOp)
 def _(obj, z3_vars):
-    # import pdb;pdb.set_trace()
-    vals = [to_z3(to_z3(v, z3_vars), z3_vars) for v in obj.values]
+    vals = [to_z3(v, z3_vars) for v in obj.values]
     if type(obj.op) == ast.And:
         return z3.And(*vals)
     elif type(obj.op) == ast.Or:
         return z3.Or(*vals)
     else:
         raise Exception("We shouldn't be here!!!!")
-    #
-    # operation = operator_to_operation[type(obj.op)]
-    # ret = to_z3(to_z3(obj.values[0], z3_vars), z3_vars)
-    # for val in obj.values[1:]:
-    #     z3_val = to_z3(to_z3(val, z3_vars), z3_vars)
-    #     ret = operation(ret, z3_val)
-    #
-    # return ret
 
 @to_z3.register(ast.Compare)
 def _(obj, z3_vars):
     left = to_z3(obj.left, z3_vars)
-    left = to_z3(left, z3_vars) # call again, to dereference if it was a string
 
     for op, comparator in zip(obj.ops, obj.comparators):
         operation = operator_to_operation[type(op)]
         right = to_z3(comparator, z3_vars)
-        # right = to_z3(right, z3_vars)
         # we iteratively apply to "left"
-        import pdb;pdb.set_trace()
         left = operation(left, right)
     return left
