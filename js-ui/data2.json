@@ -1,0 +1,615 @@
+[
+    {
+        "data": {
+            "id": 4407048456,
+            "label": "my_office <<Office>>"
+        },
+        "classes": "entity"
+    },
+    {
+        "data": {
+            "id": 4407048400,
+            "parent": 4407048456,
+            "label": "electricity"
+        },
+        "group": "nodes",
+        "classes": "input"
+    },
+    {
+        "data": {
+            "id": 4407048792,
+            "label": "fish <<Fish>>",
+            "parent": 4407048456
+        },
+        "classes": "entity"
+    },
+    {
+        "data": {
+            "id": 4407049688,
+            "parent": 4407048792,
+            "label": "electricity"
+        },
+        "group": "nodes",
+        "classes": "input"
+    },
+    {
+        "data": {
+            "id": 4407049856,
+            "parent": 4407048792,
+            "label": "in_dark"
+        },
+        "group": "nodes",
+        "classes": "state"
+    },
+    {
+        "data": {
+            "id": 4407049968,
+            "parent": 4407048792,
+            "label": "in_light"
+        },
+        "group": "nodes",
+        "classes": "state"
+    },
+    {
+        "data": {
+            "id": 4407050080,
+            "parent": 4407048792,
+            "label": "in_shadow"
+        },
+        "group": "nodes",
+        "classes": "state"
+    },
+    {
+        "data": {
+            "id": 4407050192,
+            "parent": 4407048792,
+            "label": "light"
+        },
+        "group": "nodes",
+        "classes": "input"
+    },
+    {
+        "data": {
+            "id": 4407049576,
+            "label": "gs <<GrowStation>>",
+            "parent": 4407048456
+        },
+        "classes": "entity"
+    },
+    {
+        "data": {
+            "id": 4407061248,
+            "label": "chili <<Plant>>",
+            "parent": 4407049576
+        },
+        "classes": "entity"
+    },
+    {
+        "data": {
+            "id": 4407069272,
+            "parent": 4407061248,
+            "label": "darkness_exposure"
+        },
+        "group": "nodes",
+        "classes": "local"
+    },
+    {
+        "data": {
+            "id": 4407069496,
+            "parent": 4407061248,
+            "label": "in_light"
+        },
+        "group": "nodes",
+        "classes": "state"
+    },
+    {
+        "data": {
+            "id": 4407069608,
+            "parent": 4407061248,
+            "label": "in_shadow"
+        },
+        "group": "nodes",
+        "classes": "state"
+    },
+    {
+        "data": {
+            "id": 4407070616,
+            "source": 4407069496,
+            "target": 4407069944
+        },
+        "group": "edges",
+        "classes": "update"
+    },
+    {
+        "data": {
+            "id": 4407074888,
+            "source": 4407069608,
+            "target": 4407069272
+        },
+        "group": "edges",
+        "classes": "update"
+    },
+    {
+        "data": {
+            "id": 4407069720,
+            "parent": 4407061248,
+            "label": "light"
+        },
+        "group": "nodes",
+        "classes": "input"
+    },
+    {
+        "data": {
+            "id": 4407069944,
+            "parent": 4407061248,
+            "label": "light_exposure"
+        },
+        "group": "nodes",
+        "classes": "local"
+    },
+    {
+        "data": {
+            "id": 4407070168,
+            "parent": 4407061248,
+            "label": "light_threshold"
+        },
+        "group": "nodes",
+        "classes": "local"
+    },
+    {
+        "data": {
+            "id": 4407075000,
+            "source": 4407069496,
+            "target": 4407069608
+        },
+        "group": "edges",
+        "classes": "transition"
+    },
+    {
+        "data": {
+            "id": 4407075112,
+            "source": 4407069608,
+            "target": 4407069496
+        },
+        "group": "edges",
+        "classes": "transition"
+    },
+    {
+        "data": {
+            "id": 4407070392,
+            "parent": 4407061248,
+            "label": "water"
+        },
+        "group": "nodes",
+        "classes": "input"
+    },
+    {
+        "data": {
+            "id": 4407069216,
+            "parent": 4407049576,
+            "label": "electricity"
+        },
+        "group": "nodes",
+        "classes": "input"
+    },
+    {
+        "data": {
+            "id": 4407078584,
+            "source": 4407069216,
+            "target": 4407076792
+        },
+        "group": "edges",
+        "classes": "influence"
+    },
+    {
+        "data": {
+            "id": 4407078360,
+            "source": 4407068880,
+            "target": 4407092112
+        },
+        "group": "edges",
+        "classes": "influence"
+    },
+    {
+        "data": {
+            "id": 4407075952,
+            "source": 4407068880,
+            "target": 4407069720
+        },
+        "group": "edges",
+        "classes": "influence"
+    },
+    {
+        "data": {
+            "id": 4407091552,
+            "source": 4407077688,
+            "target": 4407092112
+        },
+        "group": "edges",
+        "classes": "influence"
+    },
+    {
+        "data": {
+            "id": 4407091496,
+            "source": 4407077688,
+            "target": 4407069720
+        },
+        "group": "edges",
+        "classes": "influence"
+    },
+    {
+        "data": {
+            "id": 4407091384,
+            "source": 4407075280,
+            "target": 4407092784
+        },
+        "group": "edges",
+        "classes": "influence"
+    },
+    {
+        "data": {
+            "id": 4407093456,
+            "source": 4407075280,
+            "target": 4407070392
+        },
+        "group": "edges",
+        "classes": "influence"
+    },
+    {
+        "data": {
+            "id": 4407069104,
+            "label": "lamp <<ChiliLamp>>",
+            "parent": 4407049576
+        },
+        "classes": "entity"
+    },
+    {
+        "data": {
+            "id": 4407076456,
+            "parent": 4407069104,
+            "label": "consumption"
+        },
+        "group": "nodes",
+        "classes": "local"
+    },
+    {
+        "data": {
+            "id": 4407076792,
+            "parent": 4407069104,
+            "label": "electricity"
+        },
+        "group": "nodes",
+        "classes": "input"
+    },
+    {
+        "data": {
+            "id": 4407077016,
+            "parent": 4407069104,
+            "label": "heat"
+        },
+        "group": "nodes",
+        "classes": "output"
+    },
+    {
+        "data": {
+            "id": 4407077240,
+            "parent": 4407069104,
+            "label": "lighting_power"
+        },
+        "group": "nodes",
+        "classes": "local"
+    },
+    {
+        "data": {
+            "id": 4407077464,
+            "parent": 4407069104,
+            "label": "off"
+        },
+        "group": "nodes",
+        "classes": "state"
+    },
+    {
+        "data": {
+            "id": 4407078136,
+            "source": 4407077464,
+            "target": 4407077576
+        },
+        "group": "edges",
+        "classes": "transition"
+    },
+    {
+        "data": {
+            "id": 4407077576,
+            "parent": 4407069104,
+            "label": "on"
+        },
+        "group": "nodes",
+        "classes": "state"
+    },
+    {
+        "data": {
+            "id": 4407078248,
+            "source": 4407077576,
+            "target": 4407077464
+        },
+        "group": "edges",
+        "classes": "transition"
+    },
+    {
+        "data": {
+            "id": 4407077688,
+            "parent": 4407069104,
+            "label": "output"
+        },
+        "group": "nodes",
+        "classes": "output"
+    },
+    {
+        "data": {
+            "id": 4407077912,
+            "parent": 4407069104,
+            "label": "switch"
+        },
+        "group": "nodes",
+        "classes": "input"
+    },
+    {
+        "data": {
+            "id": 4407068880,
+            "parent": 4407049576,
+            "label": "light"
+        },
+        "group": "nodes",
+        "classes": "input"
+    },
+    {
+        "data": {
+            "id": 4407075840,
+            "label": "salad <<Iceberg>>",
+            "parent": 4407049576
+        },
+        "classes": "entity"
+    },
+    {
+        "data": {
+            "id": 4407091664,
+            "parent": 4407075840,
+            "label": "darkness_exposure"
+        },
+        "group": "nodes",
+        "classes": "local"
+    },
+    {
+        "data": {
+            "id": 4407091888,
+            "parent": 4407075840,
+            "label": "in_light"
+        },
+        "group": "nodes",
+        "classes": "state"
+    },
+    {
+        "data": {
+            "id": 4407092000,
+            "parent": 4407075840,
+            "label": "in_shadow"
+        },
+        "group": "nodes",
+        "classes": "state"
+    },
+    {
+        "data": {
+            "id": 4407093008,
+            "source": 4407091888,
+            "target": 4407092336
+        },
+        "group": "edges",
+        "classes": "update"
+    },
+    {
+        "data": {
+            "id": 4407093120,
+            "source": 4407092000,
+            "target": 4407091664
+        },
+        "group": "edges",
+        "classes": "update"
+    },
+    {
+        "data": {
+            "id": 4407092112,
+            "parent": 4407075840,
+            "label": "light"
+        },
+        "group": "nodes",
+        "classes": "input"
+    },
+    {
+        "data": {
+            "id": 4407092336,
+            "parent": 4407075840,
+            "label": "light_exposure"
+        },
+        "group": "nodes",
+        "classes": "local"
+    },
+    {
+        "data": {
+            "id": 4407092560,
+            "parent": 4407075840,
+            "label": "light_threshold"
+        },
+        "group": "nodes",
+        "classes": "local"
+    },
+    {
+        "data": {
+            "id": 4407093232,
+            "source": 4407091888,
+            "target": 4407092000
+        },
+        "group": "edges",
+        "classes": "transition"
+    },
+    {
+        "data": {
+            "id": 4407093344,
+            "source": 4407092000,
+            "target": 4407091888
+        },
+        "group": "edges",
+        "classes": "transition"
+    },
+    {
+        "data": {
+            "id": 4407092784,
+            "parent": 4407075840,
+            "label": "water"
+        },
+        "group": "nodes",
+        "classes": "input"
+    },
+    {
+        "data": {
+            "id": 4407075280,
+            "parent": 4407049576,
+            "label": "water"
+        },
+        "group": "nodes",
+        "classes": "input"
+    },
+    {
+        "data": {
+            "id": 4407061584,
+            "source": 4407048400,
+            "target": 4407059680
+        },
+        "group": "edges",
+        "classes": "influence"
+    },
+    {
+        "data": {
+            "id": 4407060912,
+            "source": 4407048400,
+            "target": 4407049688
+        },
+        "group": "edges",
+        "classes": "influence"
+    },
+    {
+        "data": {
+            "id": 4407061808,
+            "source": 4407048400,
+            "target": 4407069216
+        },
+        "group": "edges",
+        "classes": "influence"
+    },
+    {
+        "data": {
+            "id": 4407060128,
+            "source": 4407050648,
+            "target": 4407068880
+        },
+        "group": "edges",
+        "classes": "influence"
+    },
+    {
+        "data": {
+            "id": 4407062312,
+            "source": 4407050648,
+            "target": 4407050192
+        },
+        "group": "edges",
+        "classes": "influence"
+    },
+    {
+        "data": {
+            "id": 4407066696,
+            "label": "light <<Lamp>>",
+            "parent": 4407048456
+        },
+        "classes": "entity"
+    },
+    {
+        "data": {
+            "id": 4407060240,
+            "parent": 4407066696,
+            "label": "consumption"
+        },
+        "group": "nodes",
+        "classes": "local"
+    },
+    {
+        "data": {
+            "id": 4407059680,
+            "parent": 4407066696,
+            "label": "electricity"
+        },
+        "group": "nodes",
+        "classes": "input"
+    },
+    {
+        "data": {
+            "id": 4407059344,
+            "parent": 4407066696,
+            "label": "lighting_power"
+        },
+        "group": "nodes",
+        "classes": "local"
+    },
+    {
+        "data": {
+            "id": 4407052384,
+            "parent": 4407066696,
+            "label": "off"
+        },
+        "group": "nodes",
+        "classes": "state"
+    },
+    {
+        "data": {
+            "id": 4407053392,
+            "source": 4407052384,
+            "target": 4407054008
+        },
+        "group": "edges",
+        "classes": "transition"
+    },
+    {
+        "data": {
+            "id": 4407054008,
+            "parent": 4407066696,
+            "label": "on"
+        },
+        "group": "nodes",
+        "classes": "state"
+    },
+    {
+        "data": {
+            "id": 4407052832,
+            "source": 4407054008,
+            "target": 4407052384
+        },
+        "group": "edges",
+        "classes": "transition"
+    },
+    {
+        "data": {
+            "id": 4407050648,
+            "parent": 4407066696,
+            "label": "output"
+        },
+        "group": "nodes",
+        "classes": "output"
+    },
+    {
+        "data": {
+            "id": 4407053616,
+            "parent": 4407066696,
+            "label": "switch"
+        },
+        "group": "nodes",
+        "classes": "input"
+    }
+]
