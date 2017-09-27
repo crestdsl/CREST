@@ -22,7 +22,8 @@ def plot(object_to_dot, name=""):
     body = generate(object_to_dot, name)
     s = Source(src.safe_substitute(body=body), filename='graph.gv', engine='dot')
     # print(src.safe_substitute(body=body))
-    s.view(cleanup=True)
+    # s.view(cleanup=True)
+    return s
 
 @singledispatch
 def generate(object, name, parent=None):
