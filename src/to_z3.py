@@ -1,5 +1,6 @@
 from src.model.model import *
 from src.model.helpers import *
+import src.model.sourcehelper as SH
 from functools import singledispatch
 import ast
 import z3
@@ -25,7 +26,6 @@ operator_to_operation = {
 @singledispatch
 def to_z3(obj, z3_vars):
     print("\t\t","Nothing special for node of type", type(obj))
-    # import pdb;pdb.set_trace()
     return obj
 
 """ GENERAL TYPES """
@@ -52,18 +52,13 @@ def _(obj, z3_vars):
     """
     # this is the encoding for a standard string, we use it for comparison with enums
     if obj.startswith("\""):
+        """FIXME: Legacy, I hope we can remove this clause soon"""
+        raise Exception("We are here but we should not be here... I thought I avoided this one!")
         return obj[1:-1]
 
-    # we assume that ports are all either self.abc.value or lamp.abc.value
-    portname = obj.split(".")
-    if len(portname) > 1:
-        return z3_vars[portname[1]][0]
-    else:
-        # it's not a portname, so it must be a temporary variable
-        # let's create a z3-var for it
-        if obj not in z3_vars:
-            z3_vars[obj] = (z3.Real(obj), None)
-        return z3_vars[obj][0]
+    if obj not in z3_vars:
+        z3_vars[obj] = (z3.Real(obj), None)
+    return z3_vars[obj][0]
 
 
 @to_z3.register(types.FunctionType)
@@ -72,9 +67,11 @@ def _(obj, z3_vars):
     param_name = body_ast = None
 
     if obj.__name__ == (lambda:0).__name__:
-        param_name, body_ast = SourceHelper().get_ast_from_lambda_transition_guard(obj)
+        # this means we're a lambda
+        param_name, body_ast = SH.get_ast_from_lambda_transition_guard(obj)
     else:
-        body_ast = SourceHelper().get_ast_from_function_definition(obj)
+        # this is a "normal" function def
+        body_ast = SH.get_ast_from_function_definition(obj)
 
     return to_z3(body_ast, z3_vars)
 
@@ -111,15 +108,6 @@ def get_z3_var_for_port(port, name):
 
 """ AST TYPES """
 
-@to_z3.register(ast.Name)
-def _(obj, z3_vars):
-    # if our parent is an Attribute, then we just return the string
-    if isinstance(obj.parent, ast.Attribute):
-        return obj.id
-    #otherwise we dereference so we get the port or variable
-    else:
-        return to_z3(obj.id, z3_vars)
-
 @to_z3.register(ast.Num)
 def _(obj, z3_vars):
     return obj.n
@@ -128,15 +116,133 @@ def _(obj, z3_vars):
 def _(obj, z3_vars):
     return obj.s
 
+def count_previous_assignments_with_name_on_left(name, obj):
+    ancestor_assign = SH.get_ancestor_of_type(obj, (ast.Assign, ast.AugAssign))
+    previous_siblings = SH.get_all_previous_siblings(ancestor_assign)
+    matching_assignments = extract_assignments_with_name_on_left(name, previous_siblings)
+    # following_assignments = list(filter((lambda x: isinstance(x, (ast.Assign, ast.AugAssign))), following_siblings))
+    # following_assignments_variable_targets = [t for fa in following_assignments for t in SH.get_targets_from_assignment(fa) if isinstance(t, ast.Name)]
+    # following_with_matching_name = [var_target for var_target in following_assignments_variable_targets if var_target.id == obj.id]
+    # following_assigns_to_var_count = len(following_with_matching_name)
+    return len(matching_assignments)
+    #
+    # previous_assignments = list(filter((lambda x: isinstance(x, (ast.Assign, ast.AugAssign))), previous_siblings))
+    # previous_assignments_variable_targets = [t for pa in previous_assignments for t in SH.get_targets_from_assignment(pa) if isinstance(t, ast.Name)]
+    # previous_with_matching_name = [var_target for var_target in previous_assignments_variable_targets if var_target.id == obj.id]
+    # previous_assigns_to_var_count = len(previous_with_matching_name)
+    # return previous_assigns_to_var_count
+
+def count_following_assignments_with_name_on_left(name, obj):
+    ancestor_assign = SH.get_ancestor_of_type(obj, (ast.Assign, ast.AugAssign))
+    following_siblings = SH.get_all_following_siblings(ancestor_assign)
+    matching_assignments = extract_assignments_with_name_on_left(name, following_siblings)
+    # following_assignments = list(filter((lambda x: isinstance(x, (ast.Assign, ast.AugAssign))), following_siblings))
+    # following_assignments_variable_targets = [t for fa in following_assignments for t in SH.get_targets_from_assignment(fa) if isinstance(t, ast.Name)]
+    # following_with_matching_name = [var_target for var_target in following_assignments_variable_targets if var_target.id == obj.id]
+    # following_assigns_to_var_count = len(following_with_matching_name)
+    return len(matching_assignments)
+
+def extract_assignments_with_name_on_left(name, siblings):
+    assignments = list(filter((lambda x: isinstance(x, (ast.Assign, ast.AugAssign))), siblings))
+    assignments_variable_targets = [t for fa in assignments for t in SH.get_targets_from_assignment(fa) if isinstance(t, (ast.Name, ast.Attribute))]
+    with_matching_name = [var_target for var_target in assignments_variable_targets if get_identifier_from_target(var_target) == name]
+    return with_matching_name
+
+def get_identifier_from_target(target):
+    """Returns the name (variable) or the name.name.name (attribute/port) from a target"""
+
+    if isinstance(target, ast.Name):
+        return target.id
+    elif isinstance(target, ast.Attribute):
+        return "{}.{}".format(get_identifier_from_target(target.value), target.attr)
+    elif type(target) == str:
+        return target
+
+    raise Exception("Don't know how we got here... something's off")
+
+
+@to_z3.register(ast.Name)
+def _(obj, z3_vars):
+    # if our parent is an Attribute, then we just return the string
+    if isinstance(obj.parent, ast.Attribute):
+        return obj.id
+    # special treatment for dt, we dereference directly, no need for checking weird things
+    elif obj.id == "dt":
+        return to_z3(obj.id, z3_vars)
+    #otherwise we dereference so we get the variable
+    else:
+        ancestor_assign = SH.get_ancestor_of_type(obj, (ast.Assign, ast.AugAssign))
+        # are we part of an assignment?
+        # yes (part of assignment):
+        if ancestor_assign:
+            in_value = SH.is_decendant_of(obj, ancestor_assign.value)
+            # right:
+            if in_value:
+                # count occurrences on the left of assignments
+                # that's our variable name
+                return to_z3("{}_{}".format(obj.id, count_previous_assignments_with_name_on_left(obj.id, obj)), z3_vars)
+            # left:
+            else:
+                # if last assignment:
+                if count_following_assignments_with_name_on_left(obj.id, obj) == 0:
+                    # don't add anything
+                    return to_z3(obj.id, z3_vars)
+                else:
+                    # increment count by one
+                    # that's our variable name
+                    return to_z3("{}_{}".format(obj.id, count_previous_assignments_with_name_on_left(obj.id, obj)+1), z3_vars)
+
+        # no (not part of assignment):
+        else:
+            raise NotImplementedError("First time we come across a variable not part of an assignment")
+        return to_z3(obj.id, z3_vars)
+
+def clean_port_identifier(full_port_string):
+    # our parent is NOT another attribute, hence we can safely clean it
+    # we assume that everything in dot-notation (a.b.c) is actually a port reference:
+    # entity.port.value or entity.subentity.port.value
+    # we will clean the entity (first part) and the last one (.value)
+    portname = full_port_string.split(".", 1)[1]
+    suffix = ".value"
+    if portname.endswith(suffix):
+        portname = portname[:-len(suffix)]
+    return portname
+
 @to_z3.register(ast.Attribute)
 def _(obj, z3_vars):
     # this means we first assemble the entire string (a.b.c)
-    ret = "{}.{}".format(to_z3(obj.value, z3_vars), obj.attr)
+    attr_name = "{}.{}".format(to_z3(obj.value, z3_vars), obj.attr)
+    # if our parent is an Attribute, then we just return the string
+    if isinstance(obj.parent, ast.Attribute):
+        return attr_name
+    #otherwise we dereference so we get the variable
+    else:
+        attr_name = clean_port_identifier(attr_name)
 
-    # if our parent is not an Attribute, then we probably work with a port...
-    if not isinstance(obj.parent, ast.Attribute):
-        ret = to_z3(ret, z3_vars)
-    return ret
+        ancestor_assign = SH.get_ancestor_of_type(obj, (ast.Assign, ast.AugAssign))
+        # are we part of an assignment?
+        # yes (part of assignment):
+        if ancestor_assign:
+            in_value = SH.is_decendant_of(obj, ancestor_assign.value)
+            # right:
+            if in_value:
+                # count occurrences on the left of assignments
+                # that's our port name
+                new_varname = "{}_{}".format(attr_name, count_previous_assignments_with_name_on_left(attr_name, obj))
+                return to_z3(new_varname, z3_vars)
+            # left:
+            else:
+                # if last assignment:
+                if count_following_assignments_with_name_on_left(attr_name, obj) == 0:
+                    # don't add anything
+                    return to_z3(attr_name, z3_vars)
+                else:
+                    # increment count by one
+                    # that's our port name
+                    return to_z3("{}_{}".format(attr_name, count_previous_assignments_with_name_on_left(attr_name, obj)+1), z3_vars)
+        # no (not part of assignment):
+        else:
+            return to_z3(attr_name, z3_vars)
 
 @to_z3.register(ast.Assign)
 def _(obj, z3_vars):

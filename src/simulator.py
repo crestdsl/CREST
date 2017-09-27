@@ -1,8 +1,11 @@
 
 from src.model.model import *
 from src.model.helpers import *
-from src.to_z3 import to_z3
+from src.to_z3 import to_z3, get_z3_var_for_input
 import z3
+
+import logging
+logger = logging.getLogger()
 
 class Simulator(object):
 
@@ -10,15 +13,24 @@ class Simulator(object):
         self.entity = entity
         self.timeunit = timeunit
         self.plotter = plotter
+        self.global_time = 0
 
     def plot(self, entity=None):
         if not entity:
             entity = self.entity
         if self.plotter:
-            self.plotter.plot(self.entity)
+            return self.plotter.plot(entity, name="(t = %d)" % self.global_time)
         else:
-            print("No plotter defined!!!")
+            logging.ERROR("No plotter defined!!!")
 
+    def step(self, entity=None, entity_name=""):
+        """calculates next transition time, then advances to it"""
+        next_trans = self.get_next_transition_time(entity, entity_name)
+        if next_trans:
+            self.advance(next_trans[2])
+            return next_trans
+        else:
+            logging.warn("No transition through time advance found")
 
     def get_next_transition_time(self, entity=None, entity_name=""):
         """calculates the time until one of the transitions can fire"""
@@ -34,7 +46,7 @@ class Simulator(object):
         for subentity_name, subentity in get_entities(entity, as_dict=True).items():
             subentity_dt = self.get_next_transition_time(entity=subentity, entity_name=subentity_name)
             dts.append(subentity_dt)
-            print(dts)
+            logging.debug(dts)
 
         dts = list(filter(lambda x : x != None, dts)) # filter None values
         dts = list(filter(lambda t: t[2] != None, dts)) # filter values with None as dt
@@ -54,29 +66,30 @@ class Simulator(object):
         s = z3.Optimize()
         # -) create variables for all ports
         z3_vars = {name: to_z3(port, name) for name, port in get_ports(entity, as_dict=True).items()}
-        # print(z3_vars)
+        # list of vars with init vlaue
+        z3_vars_0 = {name+"_0": get_z3_var_for_input(port, name+"_0") for name, port in get_ports(entity, as_dict=True).items()}
+        z3_vars.update(z3_vars_0)
 
         # depending on whether we use int or float as time unit
         if self.timeunit == int:
             z3_vars['dt'] = (z3.Int('dt'), None)
         else:
             z3_vars['dt'] = (z3.Real('dt'), None)
-        # s.add(z3_vars['dt'][0] > 0)
+        s.add(z3_vars['dt'][0] >= 0)
         # parse all update functions and add their variables into the solver
         for update in get_updates(entity):
             if update.state == entity.current:
                 constraint = to_z3(update.function, z3_vars)
-                # print(constraint)
+                # logging.debug(constraint)
                 s.add(constraint)
 
         # add the guard expression
         guard_constraint = to_z3(transition.guard, z3_vars)
-        # print(guard_constraint)
+        # logging.debug(guard_constraint)
         s.add(guard_constraint)
 
-        # print(s)
-        # print("$$$", s.model())
-        s.minimize(z3_vars['dt'][0]) # find minimal value of dt
+        # logging.debug(s)
+        x = s.minimize(z3_vars['dt'][0]) # find minimal value of dt
         if s.check() == z3.sat:
             min_dt = s.model()[z3_vars['dt'][0]]
             if z3.is_int_value(min_dt):
@@ -87,37 +100,33 @@ class Simulator(object):
             return None
 
     def advance(self, dt=0):
-        # self.plot();import pdb; pdb.set_trace()
-        print("Advance time, total dt = ", dt)
+        logging.debug("Advance time, total dt = %s", dt)
         advanced = 0
 
         # step first with dt = 0 to make sure everything is up to date
-        self.step(0)
-        # self.plot();import pdb; pdb.set_trace()
+        self._advance(0)
 
         while advanced < dt:
             dt_left = dt - advanced  # how much time we have left in this advancement
             next_transition = self.get_next_transition_time()
             next_transition_time = next_transition[2]
-            print("next transition: ", next_transition, "advanced so far:", advanced)
+            logging.debug("next transition: %s - advanced so far: %s", next_transition, advanced)
             # if the next_transition_time is smaller than
             # the total time minus what we already advanced
             # (we have time for the next transition)
             if next_transition_time <= dt_left:
                 advanced += next_transition_time
-                self.step(next_transition_time)
-                print("predicted step in ", next_transition_time, "(total advance: ", advanced, ")")
+                self._advance(next_transition_time)
+                logging.debug("predicted transition in %s (total advance: %s)", next_transition_time, advanced)
             # otherwise (we won't reach it), only step as much time as we have left
             else:
                 advanced += dt_left
-                self.step(dt_left)
-                print("step ", dt_left, "(total advance: ", advanced, ")")
+                self._advance(dt_left)
+                logging.debug("advance dt=%s (total advance: %s)",dt_left, advanced)
+        self.global_time += dt
 
-            # self.plot();import pdb; pdb.set_trace()
-
-
-    def step(self, dt=0):
-        print("Step dt = ", dt)
+    def _advance(self, dt=0):
+        logging.debug("_advance dt = %s", dt)
         changes = True
 
         # we execute in a loop, because there might be chains of
@@ -127,12 +136,12 @@ class Simulator(object):
             # execute one iteration
             # self.plot(self.entity)
             # import pdb; pdb.set_trace()
-            changes = self.step_procedure(self.entity, dt)
+            changes = self._advance_procedure(self.entity, dt)
             # set dt to 0, so subsequent iterations only don't advance the time
             dt = 0
 
-    def step_procedure(self, entity, dt):
-        print("\t", "running procedure for step", "dt =", dt)
+    def _advance_procedure(self, entity, dt):
+        logging.debug("\t running advance procedure for dt = %s", dt)
         # import pdb;pdb.set_trace()
         # self.plot(self.entity)
 
@@ -151,14 +160,14 @@ class Simulator(object):
 
         # -) return True if there were changes made
         changes_made = any([update_impacts, influence_values_changed, transitions_fired])
-        print("\t", "were there changes?", changes_made)
+        logging.debug("\t were there changes? %s", changes_made)
 
         return changes_made
 
     """ calculate update function """
     def execute_impacts(self, impacts):
         for port, value in impacts.items():
-            print(port, " = ", value)
+            logging.debug("%s = %s", port, value)
             port.value = value
 
     def collect_update_impacts(self, entity, dt):
@@ -192,12 +201,14 @@ class Simulator(object):
     def update_influences(self, entity):
         infs = get_influences(entity)
         changes = [inf for inf in infs if inf.get_function_value() != inf.target.value]
-        # for c in changes:
-        #     print(entity.__class__.__name__, "influence target before:", c.target.value, "new value", c.get_function_value())
+        for c in changes:
+            logging.debug("%s influence target before: %s - new value %s",entity.__class__.__name__, c.target.value, c.get_function_value())
 
+        logging.debug("changes %s", changes)
         # map(lambda inf: inf.execute(), changes)
         for c in changes:
             c.execute()
+            logging.debug("executing influence change")
             assert c.target.value == c.get_function_value()
 
         # recursion on subentities:
@@ -206,7 +217,7 @@ class Simulator(object):
             sub_change = self.update_influences(subentity)
             changes_in_subentities.append(sub_change)
 
-        return changes and any(changes_in_subentities)
+        return changes or any(changes_in_subentities)
 
     """ fire transitions """
     def execute_transitions(self, entity):
@@ -218,7 +229,7 @@ class Simulator(object):
             I haven't thought about concurrency yet...""".format(len(enabled), entity)
         fired = []
         if enabled:
-            print("Firing transition in ", entity.__class__.__name__)
+            logging.debug("Firing transition in %s", entity.__class__.__name__)
             self.fire_transition(entity, enabled[0])
             fired.append(True)
 
