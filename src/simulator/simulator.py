@@ -1,7 +1,7 @@
 
 from src.model.model import *
 from src.model.helpers import *
-from src.to_z3 import to_z3, get_z3_var_for_input
+from src.simulator.to_z3 import to_z3, get_z3_var_for_input
 import z3
 
 import logging
@@ -100,7 +100,7 @@ class Simulator(object):
             return None
 
     def advance(self, dt=0):
-        logging.debug("Advance time, total dt = %s", dt)
+        logging.info("Advance time, total dt = %s", dt)
         advanced = 0
 
         # step first with dt = 0 to make sure everything is up to date

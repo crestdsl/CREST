@@ -1,6 +1,7 @@
 from src.model.model import *
 from src.model.helpers import *
-import src.model.sourcehelper as SH
+import src.simulator.sourcehelper as SH
+
 from functools import singledispatch
 import ast
 import z3
