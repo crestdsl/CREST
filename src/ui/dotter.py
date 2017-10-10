@@ -4,12 +4,14 @@ from operator import attrgetter
 from src.model.model import *
 from src.model.ports import *
 from src.model.helpers import *
+import astor
+from src.simulator.sourcehelper import *
 import inspect
 from functools import singledispatch
 
 def plot(object_to_dot, name=""):
     src = Template("""
-    digraph G {
+    digraph %s {
         node [fontsize=8  margin=".1,.01" width=.5 height=.5]
         edge [fontsize=8]
         rankdir=LR;
@@ -17,7 +19,7 @@ def plot(object_to_dot, name=""):
         nodesep= .5;
         $body
     }
-    """)
+    """ % (name or "MyGraph"))
 
     body = generate(object_to_dot, name)
     s = Source(src.safe_substitute(body=body), filename='graph.gv', engine='dot')
@@ -49,11 +51,13 @@ def _(obj, name="", parent=None):
 
 @generate.register(Transition)
 def _(obj, name="", parent=None):
-    return "{} -> {}".format(id(obj.source), id(obj.target))
+    guard_ast = get_ast_from_lambda_transition_guard(obj.guard)
+    label = astor.to_source(guard_ast[1])
+    return "{} -> {} [label=\"{}\"]".format(id(obj.source), id(obj.target), label)
 
 @generate.register(Influence)
 def _(obj, name="", parent=None):
-    return "{} -> {} []".format(id(obj.source), id(obj.target))
+    return "{} -> {} [label=\"{}\"]".format(id(obj.source), id(obj.target), "")
 
 
 @generate.register(Update)

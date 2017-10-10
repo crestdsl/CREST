@@ -1,6 +1,7 @@
 import ast
 import types
 import inspect
+import astor
 
 
 def get_ast_from_function_definition(function):
