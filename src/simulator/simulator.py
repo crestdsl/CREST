@@ -1,6 +1,6 @@
 
 from src.model.model import *
-from src.model.helpers import *
+from src.model.entity import *
 from src.simulator.to_z3 import to_z3, get_z3_var_for_input
 import z3
 

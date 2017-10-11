@@ -1,5 +1,5 @@
 from src.model.model import *
-from src.model.helpers import *
+from src.model.entity import *
 import src.simulator.sourcehelper as SH
 
 from functools import singledispatch
@@ -69,7 +69,7 @@ def _(obj, z3_vars):
 
     if obj.__name__ == (lambda:0).__name__:
         # this means we're a lambda
-        param_name, body_ast = SH.get_ast_from_lambda_transition_guard(obj)
+        body_ast = SH.get_ast_from_lambda_transition_guard(obj)
     else:
         # this is a "normal" function def
         body_ast = SH.get_ast_from_function_definition(obj)

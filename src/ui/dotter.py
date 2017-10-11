@@ -1,8 +1,8 @@
 from string import Template
 from graphviz import Digraph, Graph, Source
-from operator import attrgetter
 from src.model.model import *
 from src.model.ports import *
+from src.model.entity import *
 from src.model.helpers import *
 import astor
 from src.simulator.sourcehelper import *
@@ -19,7 +19,7 @@ def plot(object_to_dot, name=""):
         nodesep= .5;
         $body
     }
-    """ % (name or "MyGraph"))
+    """ % ("MyGraph"))
 
     body = generate(object_to_dot, name)
     s = Source(src.safe_substitute(body=body), filename='graph.gv', engine='dot')
@@ -29,13 +29,19 @@ def plot(object_to_dot, name=""):
 
 @singledispatch
 def generate(object, name, parent=None):
-    # print("there's no generator for {}, skipping it".format(type(object)))
+    print("there's no generator for {}, skipping it".format(type(object)))
     return None
 
 @generate.register(State)
 def _(obj, name="", parent=None):
-    shape = "doublecircle" if obj == parent.current else "circle"
+    shape = "circle"
+    if hasattr(parent, "current"):
+        shape = "doublecircle" if obj == parent.current else "circle"
     return "{} [label=\"{}\" style=filled fillcolor=\"#e2cbc1\" shape={}]".format(id(obj), name, shape)
+
+@generate.register(LocalConst)
+def _(obj, name="", parent=None):
+    return "{} [label=\"{}\n{} ({})\" style=filled fillcolor=\"#908da8\" shape=box height=.25]".format(id(obj), name, obj.value, obj.resource.unit)
 
 @generate.register(Local)
 def _(obj, name="", parent=None):
@@ -51,9 +57,9 @@ def _(obj, name="", parent=None):
 
 @generate.register(Transition)
 def _(obj, name="", parent=None):
-    guard_ast = get_ast_from_lambda_transition_guard(obj.guard)
-    label = astor.to_source(guard_ast[1])
-    return "{} -> {} [label=\"{}\"]".format(id(obj.source), id(obj.target), label)
+    # guard_ast = get_ast_from_lambda_transition_guard(obj.guard)
+    # label = astor.to_source(guard_ast[1])
+    return "{} -> {} [label=\"{}\"]".format(id(obj.source), id(obj.target), "")
 
 @generate.register(Influence)
 def _(obj, name="", parent=None):
@@ -93,37 +99,46 @@ $BODY
     centre = []
     body = []
 
-    for attrname in dir(obj):
-        attr = get_dict_attr(obj, attrname)
-        # print(attrname, type(attr))
-        newdata = generate(attr, attrname, obj)
+    """ Inputs """
+    for name, input_ in get_inputs(obj, as_dict=True).items():
+        inputs.append(generate(input_, name, obj))
 
-        if isinstance(attr, State):
-            centre.append(newdata)
-        elif isinstance(attr, Transition):
-            body.append(newdata)
-        elif isinstance(attr, Local):
-            centre.append(newdata)
-        elif isinstance(attr, Input):
-            inputs.append(newdata)
-        elif isinstance(attr, Output):
-            outputs.append(newdata)
-        elif issubclass(attr.__class__, Entity):
-            instance_graph = generate(attr, name=attrname)
-            body.append(instance_graph)
-            # g.subgraph(instanceGraph)
-        elif isinstance(attr, Update):
-            writes = Analyser.get_writes(attr.function)
-            for accessed_attribute in writes:
+    """ Centre """
+    for name, state in get_states(obj, as_dict=True).items():
+        if not name == "current":
+            centre.append(generate(state, name, obj))
+
+    for name, local in get_locals(obj, as_dict=True).items():
+        centre.append(generate(local, name, obj))
+
+    """ Outputs """
+    for name, output in get_outputs(obj, as_dict=True).items():
+        outputs.append(generate(output, name, obj))
+
+    """ Body """
+    for name, trans in get_transitions(obj, as_dict=True).items():
+        body.append(generate(trans, name, obj))
+
+    for name, entity in get_entities(obj, as_dict=True).items():
+        body.append(generate(entity, name, obj))
+
+    for name, influence in get_influences(obj, as_dict=True).items():
+        body.append(generate(influence, name, obj))
+
+    for name, update in get_updates(obj, as_dict=True).items():
+        func_ast = get_ast_from_function_definition(update.function)
+        writes = get_assignment_targets(func_ast)
+        for write in writes:
+            # it's gonna be self.portname.value
+            # therfore we split and choose the second
+            splits = write.split(".")
+            if len(splits) >=2:
+                portname = splits[1]
                 try:
-                    accessed = get_dict_attr(obj, accessed_attribute)
-                    body.append("{} -> {} [style=\"dashed\"]".format(id(attr.state), id(accessed)))
+                    accessed = get_dict_attr(obj, portname)
+                    body.append("{} -> {} [style=\"dashed\"]".format(id(update.state), id(accessed)))
                 except AttributeError:
                     pass
-
-        elif isinstance(attr, Influence):
-            body.append(newdata)
-
 
     subst["INPUTS"] = "\n".join(inputs)
     subst["OUTPUTS"] = "\n".join(outputs)

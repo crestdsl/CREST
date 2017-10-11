@@ -1,6 +1,6 @@
 from src.model.model import *
 from src.model.ports import *
-from src.model.helpers import *
+from src.model.entity import *
 import inspect
 
 """

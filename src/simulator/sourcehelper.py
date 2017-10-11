@@ -8,7 +8,10 @@ def get_ast_from_function_definition(function):
     module = getast(function)
     functiondef  = module.body[0]
     add_parent_info(functiondef)
-    return functiondef.body
+    return functiondef
+
+def get_ast_body_from_function_definition(function):
+    return get_ast_from_function_definition(function).body
 
 def get_ast_from_lambda_transition_guard(func):
     """
@@ -26,7 +29,7 @@ def get_ast_from_lambda_transition_guard(func):
     add_parent_info(guard_body)
     # print(entity_var_name)
     # print(ast.dump(guard_body))
-    return entity_var_name, guard_body
+    return guard_body
 
 def getast(function):
     func_ast = ast.parse(getsource(function))
