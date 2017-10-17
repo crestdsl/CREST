@@ -82,7 +82,4 @@ class Transition(object):
     def __init__(self, source=None, target=None, guard=None):
         self.source = source
         self.target = target
-
-    def guard(self, guard):
         self.guard = guard
-        return self
