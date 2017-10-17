@@ -72,7 +72,7 @@ def _(obj, z3_vars):
         body_ast = SH.get_ast_from_lambda_transition_guard(obj)
     else:
         # this is a "normal" function def
-        body_ast = SH.get_ast_from_function_definition(obj)
+        body_ast = SH.get_ast_body_from_function_definition(obj)
 
     return to_z3(body_ast, z3_vars)
 
@@ -86,6 +86,8 @@ def get_z3_var_for_input(port, name):
         return (z3.IntVal(port.value), port)
     elif port.resource.domain == float:
         return (z3.RealVal(port.value), port)
+    elif port.resource.domain == bool:
+        return (z3.BoolVal(port.value), port)
     elif type(port.resource.domain) is list:
         my_enum = z3.Datatype(name)
         for v in port.resource.domain:
@@ -101,6 +103,8 @@ def get_z3_var_for_port(port, name):
         return (z3.Int(name), port)
     elif port.resource.domain == float:
         return (z3.Real(name), port)
+    elif port.resource.domain == bool:
+        return (z3.Bool(name), port)
     elif type(port.resource.domain) is list:
         enum = z3.Datatype(name)
         for v in port.resource.domain:
@@ -108,6 +112,11 @@ def get_z3_var_for_port(port, name):
         return (enum, port)
 
 """ AST TYPES """
+
+
+@to_z3.register(ast.NameConstant)
+def _(obj, z3_vars):
+    return obj.value
 
 @to_z3.register(ast.Num)
 def _(obj, z3_vars):
