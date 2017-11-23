@@ -10,7 +10,7 @@ def get_assignment_targets(ast_object):
         elif isinstance(node, ast.AugAssign):
             writes.add(get_name_from_target(node.target))
 
-    return writes
+    return list(writes)
 
 def get_name_from_target(target):
     if isinstance(target, ast.Name):

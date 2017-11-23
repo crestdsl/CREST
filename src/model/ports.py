@@ -28,9 +28,10 @@ class FancyPort(object):
         return self._resource
 
 class Port(object):
-    def __init__(self, resource=None, value=None):
+    def __init__(self, resource=None, value=None, name=None):
         self.resource = resource
         self.value = value
+        self.name = name
 
 class RequestablePort(Port):
     def __init__(self, resource=None, init=None):

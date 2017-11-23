@@ -1,6 +1,7 @@
 from src.model.model import *
 from src.model.entity import *
 import src.simulator.sourcehelper as SH
+from src.model.helpers import get_assignment_targets
 
 from functools import singledispatch
 import ast
@@ -80,7 +81,7 @@ def _(obj, z3_vars):
 
 @to_z3.register(Input)
 @to_z3.register(LocalConst)
-def get_z3_var_for_input(port, name):
+def get_z3_value(port, name):
     z3_var = None
     if port.resource.domain == int:
         return (z3.IntVal(port.value), port)
@@ -97,7 +98,7 @@ def get_z3_var_for_input(port, name):
 
 @to_z3.register(Output)
 @to_z3.register(Local)
-def get_z3_var_for_port(port, name):
+def get_z3_variable(port, name):
     z3_var = None
     if port.resource.domain == int:
         return (z3.Int(name), port)
@@ -267,15 +268,15 @@ def _(obj, z3_vars):
 def _(obj, z3_vars):
     """We manually need to look up the value and add it as a constant into the equation"""
     value = to_z3(obj.value, z3_vars)
-    assignee_name = to_z3(obj.target, z3_vars)
-    assignee = to_z3(assignee_name, z3_vars) # to dereference the string
+    assignee = to_z3(obj.target, z3_vars)
 
-    name_in_map = assignee_name.split(".")[1] if len(assignee_name.split(".")) > 1 else assignee_name
-    current_val = z3_vars[name_in_map][1].value
+    targetname = get_assignment_targets(obj)[0]
+    targetname = clean_port_identifier(targetname)
+    varname_for_value = "{}_{}".format(targetname, count_previous_assignments_with_name_on_left(targetname, obj.target))
+    target_in_value = to_z3(varname_for_value, z3_vars)
 
     operation = operator_to_operation[type(obj.op)]
-    return assignee == operation(current_val, to_z3(value, z3_vars))
-
+    return assignee == operation(target_in_value, value)
 
 @to_z3.register(ast.UnaryOp)
 def _(obj, z3_vars):
@@ -302,11 +303,9 @@ def _(obj, z3_vars):
 
 @to_z3.register(ast.Compare)
 def _(obj, z3_vars):
-    left = to_z3(obj.left, z3_vars)
+    operands = [to_z3(obj.left, z3_vars)]
+    operands.extend( [to_z3(comp, z3_vars) for comp in obj.comparators])
+    operators = [operator_to_operation[type(op)] for op in obj.ops]
 
-    for op, comparator in zip(obj.ops, obj.comparators):
-        operation = operator_to_operation[type(op)]
-        right = to_z3(comparator, z3_vars)
-        # we iteratively apply to "left"
-        left = operation(left, right)
-    return left
+    comparisons = zip(operators, operands, operands[1:])
+    return [comp[0](comp[1], comp[2]) for comp in comparisons]

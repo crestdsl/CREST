@@ -1,8 +1,11 @@
 
 from src.model.model import *
 from src.model.entity import *
-from src.simulator.to_z3 import to_z3, get_z3_var_for_input
+from src.simulator.to_z3 import to_z3, get_z3_value, get_z3_variable, clean_port_identifier
+import src.simulator.sourcehelper as SH
+from src.model.helpers import *
 import z3
+import astor
 
 import logging
 logger = logging.getLogger()
@@ -23,40 +26,59 @@ class Simulator(object):
         else:
             logging.ERROR("No plotter defined!!!")
 
-    def step(self, entity=None, entity_name=""):
+    def step(self, entity=None):
         """calculates next transition time, then advances to it"""
-        next_trans = self.get_next_transition_time(entity, entity_name)
+        next_trans = self.get_next_transition_time(entity)
         if next_trans:
             self.advance(next_trans[2])
             return next_trans
         else:
             logging.warn("No transition through time advance found")
 
-    def get_next_transition_time(self, entity=None, entity_name=""):
+    def get_next_transition_time(self, entity=None):
         """calculates the time until one of the transitions can fire"""
+        logging.info("Calculating next transition time")
         if not entity:
             entity = self.entity
+
+        times = self.collect_transition_times(entity)
+        logging.debug("All transitions in entity %s (%s): ", entity.name, entity.__class__.__name__)
+        logging.debug(str([(e.name, "{} -> {} ({})".format(t.source.name, t.target.name, name), dt) for (e, t, name, dt) in times]))
+
+        if len(times) > 0:
+            minimum = min(times, key=lambda t:t[3])
+
+            logging.info("Next transition: %s", minimum)
+            return minimum
+        else:
+            # this happens if there are no transitions fireable by increasing time only
+            return None
+
+    def collect_transition_times(self, entity=None):
+        """ collect all transitions and their times """
+        if not entity:
+            entity = self.entity
+        logging.debug("Calculating transition times for entity: %s (%s)", entity.name, entity.__class__.__name__)
 
         dts = []
         for name, trans in get_transitions(entity, as_dict=True).items():
             if entity.current == trans.source:
                 dt = self.get_transition_time(entity, trans)
-                dts.append( (entity_name, name, dt) )
+                dts.append( (entity, trans, name, dt) )
 
         for subentity_name, subentity in get_entities(entity, as_dict=True).items():
-            subentity_dt = self.get_next_transition_time(entity=subentity, entity_name=subentity_name)
-            dts.append(subentity_dt)
-            logging.debug(dts)
+            subentity_dts = self.collect_transition_times(entity=subentity)
+            dts.extend(subentity_dts)
 
-        dts = list(filter(lambda x : x != None, dts)) # filter None values
-        dts = list(filter(lambda t: t[2] != None, dts)) # filter values with None as dt
-
-        if len(dts) > 0:
-            minimum = min(dts, key=lambda t:t[2])
-            return minimum
+        if dts:
+            logging.debug("times: ")
+            logging.debug(str([(e.name, "{} -> {} ({})".format(t.source.name, t.target.name, name), dt) for (e, t, name, dt) in dts]))
         else:
-            # this happens if there are no transitions fireable by increasing time only
-            return None
+            logging.debug("times: []")
+        # dts = {k:v for k,v in dts.items() if v is not None} # filter none values
+        # dts = list(filter(lambda x : x != None, dts)) # filter None values
+        dts = list(filter(lambda t: t[3] != None, dts)) # filter values with None as dt
+        return dts
 
     def get_transition_time(self, entity, transition):
         """
@@ -65,10 +87,34 @@ class Simulator(object):
         """
         s = z3.Optimize()
         # -) create variables for all ports
-        z3_vars = {name: to_z3(port, name) for name, port in get_ports(entity, as_dict=True).items()}
-        # list of vars with init vlaue
-        z3_vars_0 = {name+"_0": get_z3_var_for_input(port, name+"_0") for name, port in get_ports(entity, as_dict=True).items()}
-        z3_vars.update(z3_vars_0)
+
+            # .) get port names that are written to in the updates
+        writePortNames = []
+        for update in get_updates(entity):
+            if update.state == entity.current:
+                func_ast = SH.get_ast_from_function_definition(update.function)
+                cleaned = [clean_port_identifier(ident) for ident in get_assignment_targets(func_ast)]
+                writePortNames.extend(cleaned)
+
+        z3_vars = {}
+        for name, port in get_ports(entity, as_dict=True).items():
+            if name in writePortNames:
+                z3_vars[name] = get_z3_variable(port, name)
+            else:
+                z3_vars[name] = get_z3_value(port, name)
+            # in any case, store the initial value
+            z3_vars[name+"_0"] = get_z3_value(port, name+"_0")
+
+        #
+        #
+        # raise Exception("Stop here")
+        #
+        # z3_vars = {name: to_z3(port, name) for name, port in get_ports(entity, as_dict=True).items()}
+        # # list of vars with init value
+        # # FIXME: make all ports that are not written to constants,
+        # # FIXME: this is necessary as otherwise they will be seen as potential places for changes
+        # z3_vars_0 = {name+"_0": get_z3_var_for_input(port, name+"_0") for name, port in get_ports(entity, as_dict=True).items()}
+        # z3_vars.update(z3_vars_0)
 
         # depending on whether we use int or float as time unit
         if self.timeunit == int:
@@ -80,24 +126,39 @@ class Simulator(object):
         for update in get_updates(entity):
             if update.state == entity.current:
                 constraint = to_z3(update.function, z3_vars)
-                # logging.debug(constraint)
+                logging.debug("Update: %s", constraint)
                 s.add(constraint)
 
         # add the guard expression
-        guard_constraint = to_z3(transition.guard, z3_vars)
-        # logging.debug(guard_constraint)
-        s.add(guard_constraint)
+        try:
+            guard_constraint = to_z3(transition.guard, z3_vars)
+            logging.debug("Guard constraint %s", guard_constraint)
+            s.add(guard_constraint)
+        except:
+            logging.error("Error when converting guard for transition %s -> %s" + \
+                " in entity %s (%s). Guard: \n %s",
+                transition.source.name, transition.target.name,
+                entity.name, entity.__class__.__name__,
+                astor.to_source(SH.get_ast_from_lambda_transition_guard(transition.guard)),
+                exc_info=True)
 
-        # logging.debug(s)
+
+        logging.warn(s)
         x = s.minimize(z3_vars['dt'][0]) # find minimal value of dt
-        if s.check() == z3.sat:
+        logging.warn(s.check())
+        check = s.check()
+        if check == z3.sat:
             min_dt = s.model()[z3_vars['dt'][0]]
             if z3.is_int_value(min_dt):
                 return min_dt.as_long()
             else:
                 return float(min_dt.numerator_as_long())/float(min_dt.denominator_as_long())
+        elif check == z3.unknown:
+            logging.error("The following z3 input was UNKNOWN... This is probably our fault!")
+            logging.error(s)
         else:
             return None
+
 
     def advance(self, dt=0):
         logging.info("Advance time, total dt = %s", dt)
@@ -109,20 +170,26 @@ class Simulator(object):
         while advanced < dt:
             dt_left = dt - advanced  # how much time we have left in this advancement
             next_transition = self.get_next_transition_time()
-            next_transition_time = next_transition[2]
-            logging.debug("next transition: %s - advanced so far: %s", next_transition, advanced)
-            # if the next_transition_time is smaller than
-            # the total time minus what we already advanced
-            # (we have time for the next transition)
-            if next_transition_time <= dt_left:
-                advanced += next_transition_time
-                self._advance(next_transition_time)
-                logging.debug("predicted transition in %s (total advance: %s)", next_transition_time, advanced)
-            # otherwise (we won't reach it), only step as much time as we have left
+            if next_transition:
+                (in_entity, trans, trans_name, trans_dt) = next_transition
+                logging.debug("next transition %s -> %s (%s): %s - advanced so far: %s", trans.source.name, trans.target.name, trans_name, trans_dt, advanced)
+                # if the next_transition_time is smaller than
+                # the total time minus what we already advanced
+                # (we have time for the next transition)
+                if trans_dt <= dt_left:
+                    advanced += trans_dt
+                    self._advance(trans_dt)
+                    logging.debug("predicted transition (%s -> %s) in %s (total advance: %s)", trans.source.name, trans.target.name, trans_dt, advanced)
+                # otherwise (we won't reach it), only step as much time as we have left
+                else:
+                    advanced += dt_left
+                    self._advance(dt_left)
+                    logging.debug("advance %s (dt) for a total advance of %s", dt_left, advanced)
             else:
+                #no next transition
                 advanced += dt_left
                 self._advance(dt_left)
-                logging.debug("advance dt=%s (total advance: %s)",dt_left, advanced)
+                logging.debug("no next transition, advance %s (dt) for a total advance of %s", dt_left, advanced)
         self.global_time += dt
 
     def _advance(self, dt=0):
@@ -167,7 +234,7 @@ class Simulator(object):
     """ calculate update function """
     def execute_impacts(self, impacts):
         for port, value in impacts.items():
-            logging.debug("%s = %s", port, value)
+            logging.debug("Updating port: %s = %s", port.name, value)
             port.value = value
 
     def collect_update_impacts(self, entity, dt):
@@ -202,13 +269,10 @@ class Simulator(object):
         infs = get_influences(entity)
         changes = [inf for inf in infs if inf.get_function_value() != inf.target.value]
         for c in changes:
-            logging.debug("%s influence target before: %s - new value %s",entity.__class__.__name__, c.target.value, c.get_function_value())
+            logging.debug("%s (%s) influence (%s -> %s): value before = %s - new value = %s", entity.name, entity.__class__.__name__, c.source.name, c.target.name, c.target.value, c.get_function_value())
 
-        logging.debug("changes %s", changes)
-        # map(lambda inf: inf.execute(), changes)
         for c in changes:
             c.execute()
-            logging.debug("executing influence change")
             assert c.target.value == c.get_function_value()
 
         # recursion on subentities:
@@ -222,15 +286,15 @@ class Simulator(object):
     """ fire transitions """
     def execute_transitions(self, entity):
         trans = [t for t in get_transitions(entity) if t.source == entity.current]
-
         enabled = [t for t in trans if t.guard(entity)]
 
         assert len(enabled) <= 1, """There are {} transitions enabled for {}.
             I haven't thought about concurrency yet...""".format(len(enabled), entity)
         fired = []
         if enabled:
-            logging.debug("Firing transition in %s", entity.__class__.__name__)
-            self.fire_transition(entity, enabled[0])
+            trans = enabled[0]
+            logging.debug("Firing transition in %s (%s) : %s -> %s", entity.name, entity.__class__.__name__ , trans.source.name, trans.target.name)
+            self.fire_transition(entity, trans)
             fired.append(True)
 
         # recursion on subentities:
@@ -240,4 +304,5 @@ class Simulator(object):
         return any(fired)
 
     def fire_transition(self, entity, transition):
+        logging.debug("firing transition in %s (%s): %s -> %s", entity.name, entity.__class__.__name__, transition.source.name, transition.target.name)
         entity.current = transition.target

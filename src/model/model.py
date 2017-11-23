@@ -1,5 +1,6 @@
 from src.model.ports import *
 from src.model.resource import Resource
+from copy import copy, deepcopy
 import inspect
 
 """" DECORATORS """
@@ -42,6 +43,41 @@ def update(*args, **kwargs):
         state = kwargs["state"]
         return _update
 
+class State(object):
+    # pass
+    def __init__(self, name=None):
+        self.name = name
+        self._dt = 0
+
+class Transition(object):
+
+    def __new__(cls, source, target, guard):
+        if isinstance(source, list):
+            dbg = [cls(source=src, target=target, guard=guard) for src in source]
+            return dbg
+        else:
+            return super().__new__(cls)
+
+    def __init__(self, source=None, target=None, guard=None):
+        self.source = source
+        self.target = target
+        self.guard = guard
+
+    # """ overriding __new__ requires that we also implement copy & deepcopy """
+    # def __copy__(self):
+    #     copyobj = super().__new__(self.__class__)
+    #     copyobj.source = self.source
+    #     copyobj.target = self.target
+    #     copyobj.guard = self.guard
+    #     return copyobj
+    #
+    # def __deepcopy__(self, memo):
+    #     copyobj = super().__new__(self.__class__)
+    #     copyobj.source = deepcopy(self.source)
+    #     copyobj.target = deepcopy(self.target)
+    #     copyobj.guard = deepcopy(self.guard)
+    #     return copyobj
+
 class Influence(object):
     def __init__(self, source, target, function=None):
         self.source = source
@@ -59,27 +95,26 @@ class Influence(object):
 
 class Update(object):
 
-    def __init__(self, function, state=None):
+    def __new__(cls, function, state):
+        if isinstance(state, list):
+            dbg = [cls(function=function, state=s) for s in state]
+            return dbg
+        else:
+            return super().__new__(cls)
+
+    def __init__(self, function, state):
         self.function = function
         self.state = state
 
-class State(object):
-    # pass
-    def __init__(self):
-        self._dt = 0
-
-    @property
-    def dt(self):
-        """the time since the last update"""
-        return self._dt
-
-    @dt.setter
-    def dt(self, value):
-        self._dt = value
-
-class Transition(object):
-
-    def __init__(self, source=None, target=None, guard=None):
-        self.source = source
-        self.target = target
-        self.guard = guard
+    # """ overriding __new__ requires that we also implement copy & deepcopy """
+    # def __copy__(self):
+    #     copyobj = super().__new__(self.__class__)
+    #     copyobj.function = self.function
+    #     copyobj.state = self.state
+    #     return copyobj
+    #
+    # def __deepcopy__(self, memo):
+    #     copyobj = super().__new__(self.__class__)
+    #     copyobj.function = self.function
+    #     copyobj.state = deepcopy(self.state)
+    #     return copyobj
