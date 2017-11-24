@@ -8,6 +8,7 @@ import ast
 import z3
 import types
 import operator
+import logging
 
 operator_to_operation = {
     ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
@@ -308,4 +309,4 @@ def _(obj, z3_vars):
     operators = [operator_to_operation[type(op)] for op in obj.ops]
 
     comparisons = zip(operators, operands, operands[1:])
-    return [comp[0](comp[1], comp[2]) for comp in comparisons]
+    return z3.And([comp[0](comp[1], comp[2]) for comp in comparisons])

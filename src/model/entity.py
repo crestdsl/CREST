@@ -9,7 +9,7 @@ class MetaEntity(type):
 
 class Entity(metaclass=MetaEntity):
 
-    name = ""
+    name = "" # by default the entity doesn't have a name
 
     def __new__(cls, *args, **kwargs):
         newobj = super().__new__(cls)
