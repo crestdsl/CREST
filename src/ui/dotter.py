@@ -165,7 +165,8 @@ $BODY
 
     if not kwargs["interface_only"]:
         for name, entity in get_entities(obj, as_dict=True).items():
-            body.append(generate(entity, name, obj, **kwargs))
+            if name != "_parent": # don't
+                body.append(generate(entity, name, obj, **kwargs))
 
     if not kwargs["interface_only"]:
         for name, influence in get_influences(obj, as_dict=True).items():

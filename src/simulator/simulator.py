@@ -44,7 +44,7 @@ class Simulator(object):
         if entity == None:
             entity = self.entity
 
-        logging.debug("stabilise FP for entity %s (%s)", entity.name, entity.__class__.__name__)
+        logging.debug("stabilise FP for entity %s (%s)", entity._name, entity.__class__.__name__)
         stabilise_changes = self.stabilise(entity)
         if stabilise_changes:
             self.stabilise_fp(entity)
@@ -53,7 +53,7 @@ class Simulator(object):
 
 
     def stabilise(self, entity):
-        logging.debug("stabilise entity %s (%s)", entity.name, entity.__class__.__name__)
+        logging.debug("stabilise entity %s (%s)", entity._name, entity.__class__.__name__)
         influence_changes = self.influence_fp(entity)
         transition_changes = self.transition(entity)
         update_changes = self.update(entity, 0)
@@ -65,7 +65,7 @@ class Simulator(object):
     """ influence """
 
     def influence_fp(self, entity):
-        logging.debug("influence fp in entity %s (%s)", entity.name, entity.__class__.__name__)
+        logging.debug("influence fp in entity %s (%s)", entity._name, entity.__class__.__name__)
 
         influence_changes = self.influence(entity)
         if influence_changes:
@@ -74,7 +74,7 @@ class Simulator(object):
         return influence_changes
 
     def influence(self, entity):
-        logging.debug("influence in entity %s (%s)", entity.name, entity.__class__.__name__)
+        logging.debug("influence in entity %s (%s)", entity._name, entity.__class__.__name__)
         changes = {inf.target : inf.get_function_value() for inf in get_influences(entity) if inf.get_function_value() != inf.target.value }
         self._value_change(changes)
 
@@ -86,7 +86,7 @@ class Simulator(object):
         return (len(changes) > 0) or any(subchanges)
 
     def transition(self, entity):
-        logging.debug("transitions in entity %s (%s)", entity.name, entity.__class__.__name__)
+        logging.debug("transitions in entity %s (%s)", entity._name, entity.__class__.__name__)
         transitions_from_current_state = [t for t in get_transitions(entity) if t.source == entity.current]
         enabled_transitions = [t for t in transitions_from_current_state if t.guard(entity)]
 
@@ -95,14 +95,14 @@ class Simulator(object):
             transition = random.choice(enabled_transitions)
             entity.current = transition.target
             logging.debug("Fired transition in %s (%s) : %s -> %s",
-                entity.name, entity.__class__.__name__ ,
-                transition.source.name, transition.target.name)
+                entity._name, entity.__class__.__name__ ,
+                transition.source._name, transition.target._name)
 
         # return if a transition was fired
         return (transition != None)
 
     def update(self, entity, time):
-        logging.debug("update in entity %s (%s)", entity.name, entity.__class__.__name__)
+        logging.debug("update in entity %s (%s)", entity._name, entity.__class__.__name__)
         updates_from_current = [up for up in get_updates(entity) if up.state == entity.current]
 
 
@@ -122,7 +122,7 @@ class Simulator(object):
         changes = False
         for target, value in original_target_values.items():
             if target.value != value:
-                logging.debug("Update in entity %s (%s) changed value of port %s (type: %s)", entity.name, entity.__class__.__name__, target.name, target.resource.unit)
+                logging.debug("Update in entity %s (%s) changed value of port %s (type: %s)", entity._name, entity.__class__.__name__, target._name, target.resource.unit)
                 changes = True
 
         # return if there were changes
@@ -173,8 +173,8 @@ class Simulator(object):
 
 
         times = [t for e in self._collect_entities(self.entity) for t in self.collect_transition_times(e)]
-        logging.debug("All transitions in entity %s (%s): ", entity.name, entity.__class__.__name__)
-        logging.debug(str([(e.name, "{} -> {} ({})".format(t.source.name, t.target.name, name), dt) for (e, t, name, dt) in times]))
+        logging.debug("All transitions in entity %s (%s): ", entity._name, entity.__class__.__name__)
+        logging.debug(str([(e._name, "{} -> {} ({})".format(t.source._name, t.target._name, name), dt) for (e, t, name, dt) in times]))
 
         if len(times) > 0:
             minimum = min(times, key=lambda t:t[3])
@@ -188,7 +188,7 @@ class Simulator(object):
         """ collect all transitions and their times """
         if not entity:
             entity = self.entity
-        logging.debug("Calculating transition times for entity: %s (%s)", entity.name, entity.__class__.__name__)
+        logging.debug("Calculating transition times for entity: %s (%s)", entity._name, entity.__class__.__name__)
 
         dts = []
         for name, trans in get_transitions(entity, as_dict=True).items():
@@ -198,7 +198,7 @@ class Simulator(object):
 
         if dts:
             logging.debug("times: ")
-            logging.debug(str([(e.name, "{} -> {} ({})".format(t.source.name, t.target.name, name), dt) for (e, t, name, dt) in dts]))
+            logging.debug(str([(e._name, "{} -> {} ({})".format(t.source._name, t.target._name, name), dt) for (e, t, name, dt) in dts]))
         else:
             logging.debug("times: []")
         # dts = {k:v for k,v in dts.items() if v is not None} # filter none values
@@ -264,8 +264,8 @@ class Simulator(object):
         except:
             logging.error("Error when converting guard for transition %s -> %s" + \
                 " in entity %s (%s). Guard: \n %s",
-                transition.source.name, transition.target.name,
-                entity.name, entity.__class__.__name__,
+                transition.source._name, transition.target._name,
+                entity._name, entity.__class__.__name__,
                 astor.to_source(SH.get_ast_from_lambda_transition_guard(transition.guard)),
                 exc_info=True)
 
@@ -299,14 +299,14 @@ class Simulator(object):
     #         next_transition = self.get_next_transition_time()
     #         if next_transition:
     #             (in_entity, trans, trans_name, trans_dt) = next_transition
-    #             logging.debug("next transition %s -> %s (%s): %s - advanced so far: %s", trans.source.name, trans.target.name, trans_name, trans_dt, advanced)
+    #             logging.debug("next transition %s -> %s (%s): %s - advanced so far: %s", trans.source.__name, trans.target.__name, trans_name, trans_dt, advanced)
     #             # if the next_transition_time is smaller than
     #             # the total time minus what we already advanced
     #             # (we have time for the next transition)
     #             if trans_dt <= dt_left:
     #                 advanced += trans_dt
     #                 self._advance(trans_dt)
-    #                 logging.debug("predicted transition (%s -> %s) in %s (total advance: %s)", trans.source.name, trans.target.name, trans_dt, advanced)
+    #                 logging.debug("predicted transition (%s -> %s) in %s (total advance: %s)", trans.source.__name, trans.target.__name, trans_dt, advanced)
     #             # otherwise (we won't reach it), only step as much time as we have left
     #             else:
     #                 advanced += dt_left
@@ -361,7 +361,7 @@ class Simulator(object):
     # """ calculate update function """
     # def execute_impacts(self, impacts):
     #     for port, value in impacts.items():
-    #         logging.debug("Updating port: %s = %s", port.name, value)
+    #         logging.debug("Updating port: %s = %s", port.__name, value)
     #         port.value = value
     #
     # def collect_update_impacts(self, entity, dt):
@@ -396,7 +396,7 @@ class Simulator(object):
     #     infs = get_influences(entity)
     #     changes = [inf for inf in infs if inf.get_function_value() != inf.target.value]
     #     for c in changes:
-    #         logging.debug("%s (%s) influence (%s -> %s): value before = %s - new value = %s", entity.name, entity.__class__.__name__, c.source.name, c.target.name, c.target.value, c.get_function_value())
+    #         logging.debug("%s (%s) influence (%s -> %s): value before = %s - new value = %s", entity.__name, entity.__class__.__name__, c.source.__name, c.target.__name, c.target.value, c.get_function_value())
     #
     #     for c in changes:
     #         c.execute()
@@ -420,7 +420,7 @@ class Simulator(object):
     #     fired = []
     #     if enabled:
     #         trans = enabled[0]
-    #         logging.debug("Firing transition in %s (%s) : %s -> %s", entity.name, entity.__class__.__name__ , trans.source.name, trans.target.name)
+    #         logging.debug("Firing transition in %s (%s) : %s -> %s", entity.__name, entity.__class__.__name__ , trans.source.__name, trans.target.__name)
     #         self.fire_transition(entity, trans)
     #         fired.append(True)
     #
@@ -431,5 +431,5 @@ class Simulator(object):
     #     return any(fired)
     #
     # def fire_transition(self, entity, transition):
-    #     logging.debug("firing transition in %s (%s): %s -> %s", entity.name, entity.__class__.__name__, transition.source.name, transition.target.name)
+    #     logging.debug("firing transition in %s (%s): %s -> %s", entity.__name, entity.__class__.__name__, transition.source.__name, transition.target.__name)
     #     entity.current = transition.target

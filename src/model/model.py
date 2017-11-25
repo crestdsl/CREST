@@ -1,3 +1,4 @@
+from src.model.meta import CrestObject
 from src.model.ports import *
 from src.model.resource import Resource
 from copy import copy, deepcopy
@@ -5,24 +6,19 @@ import inspect
 
 """" DECORATORS """
 
-# def transition(source="", target=""):
-#     def decorator(action_or_transition):
-#         if isinstance(action_or_transition, Transition):
-#             action_or_transition.source = source
-#             action_or_transition.target = target
-#             return action_or_transition
-#         else:
-#             trans = Transition()
-#             trans.source = source
-#             trans.target = target
-#             trans.action = action_or_transition
-#             return trans
-#     return decorator
-
-# def when(guard=None):
-#     def decorator(action):
-#         return Transition(guard=guard, action=action)
-#     return decorator
+def transition(source="", target=""):
+    def decorator(action_or_transition):
+        if isinstance(action_or_transition, Transition):
+            action_or_transition.source = source
+            action_or_transition.target = target
+            return action_or_transition
+        else:
+            trans = Transition()
+            trans.source = source
+            trans.target = target
+            trans.action = action_or_transition
+            return trans
+    return decorator
 
 def influence(source="", target=""):
     def decorator(function=None):
@@ -43,43 +39,29 @@ def update(*args, **kwargs):
         state = kwargs["state"]
         return _update
 
-class State(object):
-    # pass
-    def __init__(self, name=None):
-        self.name = name
+class State(CrestObject):
+    def __init__(self, name=None, parent=None):
+        super().__init__(name, parent)
         self._dt = 0
 
-class Transition(object):
-
-    def __new__(cls, source, target, guard):
+class Transition(CrestObject):
+    def __new__(cls, source, target, guard, name="", parent=None):
+        """ this is so we can define a transition to a target from multiple source states """
         if isinstance(source, list):
-            dbg = [cls(source=src, target=target, guard=guard) for src in source]
+            dbg = [cls(source=src, target=target, guard=guard, name=name, parent=parent) for src in source]
             return dbg
         else:
             return super().__new__(cls)
 
-    def __init__(self, source=None, target=None, guard=None):
+    def __init__(self, source=None, target=None, guard=None, name="", parent=None):
+        super().__init__(name, parent)
         self.source = source
         self.target = target
         self.guard = guard
 
-    # """ overriding __new__ requires that we also implement copy & deepcopy """
-    # def __copy__(self):
-    #     copyobj = super().__new__(self.__class__)
-    #     copyobj.source = self.source
-    #     copyobj.target = self.target
-    #     copyobj.guard = self.guard
-    #     return copyobj
-    #
-    # def __deepcopy__(self, memo):
-    #     copyobj = super().__new__(self.__class__)
-    #     copyobj.source = deepcopy(self.source)
-    #     copyobj.target = deepcopy(self.target)
-    #     copyobj.guard = deepcopy(self.guard)
-    #     return copyobj
-
-class Influence(object):
-    def __init__(self, source, target, function=None):
+class Influence(CrestObject):
+    def __init__(self, source, target, function=None, guard=None, name="", parent=None):
+        super().__init__(name, parent)
         self.source = source
         self.target = target
         self.function = function
@@ -93,28 +75,17 @@ class Influence(object):
         else:
             return self.function(self.source.value)
 
-class Update(object):
+class Update(CrestObject):
 
-    def __new__(cls, function, state):
+    def __new__(cls, function, state, guard=None, name="", parent=None):
+        """ this is so we can define the same update for multiple states """
         if isinstance(state, list):
-            dbg = [cls(function=function, state=s) for s in state]
+            dbg = [cls(function=function, state=s, name=name, parent=parent) for s in state]
             return dbg
         else:
             return super().__new__(cls)
 
-    def __init__(self, function, state):
+    def __init__(self, function, state, guard=None, name="", parent=None):
+        super().__init__(name, parent)
         self.function = function
         self.state = state
-
-    # """ overriding __new__ requires that we also implement copy & deepcopy """
-    # def __copy__(self):
-    #     copyobj = super().__new__(self.__class__)
-    #     copyobj.function = self.function
-    #     copyobj.state = self.state
-    #     return copyobj
-    #
-    # def __deepcopy__(self, memo):
-    #     copyobj = super().__new__(self.__class__)
-    #     copyobj.function = self.function
-    #     copyobj.state = deepcopy(self.state)
-    #     return copyobj
