@@ -6,6 +6,7 @@ from src.model.ports import Port, Input, Output, Local, LocalConst
 from src.model.model import State, Transition, Influence, Update
 
 import logging
+logger = logging.getLogger(__name__)
 
 class Entity(CrestObject):
 
@@ -37,11 +38,13 @@ class Entity(CrestObject):
             otherwise find the attribute path in the original and find it in the new one """
             if not isinstance(identifier, str): # if we have a string, get it by string
                 assert(original_obj != None)
-                if get_name_by_lookup(identifier): # see if we can find it by reverse lookup
-                    identifier = get_name_by_lookup(identifier)
+                name_by_lookup = _create_crestobject_path_map(original_obj).get(identifier, None)
+                if name_by_lookup: # see if we can find it by reverse lookup
+                    identifier = name_by_lookup
                 else:
                     # search for it in (it's probably in a subentity)
-                    identifier = get_path_to_attribute(original_obj, identifier)
+                    logger.error("Couldn't find path to %s (%s)", identifier._name, identifier)
+                    identifier = get_path_to_attribute(identifier)
 
             return attrgetter(identifier)(newobj)
 
@@ -50,19 +53,21 @@ class Entity(CrestObject):
             by repeatedly going to the parent and recording the names on the way """
             path = []
             while original_obj != object_to_find:
-                path.append(object_to_find.name)
+                path.append(object_to_find._name)
                 object_to_find = object_to_find._parent
             return path.join(".")
 
-        def get_name_by_lookup(object_to_find):
-            """ take an object, see if it's linked directly here """
-            for name, crest_object in get_crest_objects(original_obj, as_dict=True).items():
-                if object_to_find == crest_object and name != "current":
-                    return name
-
-            return None
+        def _create_crestobject_path_map(root):
+            object_path_map = {v : k for k, v in get_crest_objects(root, as_dict=True).items()}
+            for name, subentity in get_entities(root, as_dict=True).items():
+                if name != "_parent":
+                    object_path_map.update(
+                        {obj : name+"."+path for obj, path in _create_crestobject_path_map(subentity).items()}
+                    )
+            return object_path_map
 
         """ copy ports (shallow copy, because they reference resources, which are unique) """
+        logger.debug("copying ports")
         for name, port in get_ports(original_obj, as_dict=True).items():
             # newport = getcopy(name, port, deep_copy=False)
             newport = copy(port)
@@ -71,6 +76,7 @@ class Entity(CrestObject):
             setattr(newobj, name, newport)
 
         """ copy states (deep copy) """
+        logger.debug("copying states")
         for name, state in get_states(original_obj, as_dict=True).items():
             if name != "current": # skip current state for now
                 # newstate = getcopy(name, state, deep_copy=True)
@@ -85,6 +91,7 @@ class Entity(CrestObject):
             setattr(newobj, "current", get_local_attribute(original_obj.current))
 
         """ copy Entities (deep copy) """
+        logger.debug("copying subentities")
         for name, entity in get_entities(original_obj, as_dict=True).items():
             if name != "_parent":
             # newentity = getcopy(name, entity, deep_copy=True)
@@ -94,6 +101,7 @@ class Entity(CrestObject):
                 setattr(newobj, name, newentity)
 
         """ get transitions and adapt them """
+        logger.debug("copying transitions")
         for name, trans in get_transitions(original_obj, as_dict=True).items():
             source = get_local_attribute(trans.source)
             target = get_local_attribute(trans.target)
@@ -103,6 +111,7 @@ class Entity(CrestObject):
             setattr(newobj, name, newtransition)
 
         """ get updates and adapt them """
+        logger.debug("copying updates")
         for name, update in get_updates(original_obj, as_dict=True).items():
             state = get_local_attribute(update.state)
             newupdate = Update(state=state, function=update.function)
@@ -111,6 +120,7 @@ class Entity(CrestObject):
             setattr(newobj, name, newupdate)
 
         """ get influences and adapt them """
+        logger.debug("copying influences")
         for name, influence in get_influences(original_obj, as_dict=True).items():
             source = get_local_attribute(influence.source)
             target = get_local_attribute(influence.target)
@@ -123,6 +133,17 @@ class Entity(CrestObject):
 
 class LogicalEntity(Entity):
     pass
+
+""" helper functions """
+def collect_entities_recursively(entity):
+    entities = [entity]
+
+    for e in get_entities(entity):
+        entities.extend(collect_entities_recursively(e))
+
+    return entities
+
+
 
 """ get_X_from_entity functions"""
 

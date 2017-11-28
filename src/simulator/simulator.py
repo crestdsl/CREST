@@ -137,7 +137,7 @@ class Simulator(object):
         dt = self.get_next_transition_time(self.entity)
         if dt == None or dt > t:
             # execute all updates in all entities
-            for e in self._collect_entities(self.entity):
+            for e in collect_entities_recursively(self.entity):
                 self.update(e, t)
 
             # stabilise the system
@@ -145,15 +145,6 @@ class Simulator(object):
         else:
             self.advance(dt)
             self.advance(t - dt)
-
-    def _collect_entities(self, entity):
-        entities = [entity]
-
-        for e in get_entities(entity):
-            entities.extend(self._collect_entities(e))
-
-        return entities
-
 
     """ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - """
     # def step(self, entity=None):
@@ -172,7 +163,7 @@ class Simulator(object):
             entity = self.entity
 
 
-        times = [t for e in self._collect_entities(self.entity) for t in self.collect_transition_times(e)]
+        times = [t for e in collect_entities_recursively(self.entity) for t in self.collect_transition_times(e)]
         logging.debug("All transitions in entity %s (%s): ", entity._name, entity.__class__.__name__)
         logging.debug(str([(e._name, "{} -> {} ({})".format(t.source._name, t.target._name, name), dt) for (e, t, name, dt) in times]))
 

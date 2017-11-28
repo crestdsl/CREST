@@ -8,6 +8,7 @@ import astor
 from src.simulator.sourcehelper import *
 import inspect
 from functools import singledispatch
+from operator import attrgetter
 
 options = {
     "updates": True,
@@ -29,7 +30,7 @@ def plot(object_to_dot, name="", **kwargs):
         edge [fontsize=8]
         rankdir=LR;
         ranksep = .25;
-        nodesep= .5;
+        nodesep= .25;
         $body
     }
     """ % ("MyGraph"))
@@ -96,13 +97,14 @@ def _(obj, name="", parent=None, **kwargs):
         #label = astor.to_source(func_ast)
     writes = get_assignment_targets(func_ast)
     for write in writes:
-        # it's gonna be self.portname.value
-        # therfore we split and choose the second
+        # it's gonna be self.portname.value or self.subentity.portname.value
+        # therfore we split and remove the first and last
         splits = write.split(".")
         if len(splits) >=2:
-            portname = splits[1]
+            portpath = ".".join(splits[1:-1])
             try:
-                accessed = get_dict_attr(parent, portname)
+                # accessed = get_dict_attr(parent, portpath)
+                accessed = attrgetter(portpath)(parent)
                 label = ""
                 returnlist.append("{} -> {} [style=\"dashed\" label=\"{}\"]".format(id(obj.state), id(accessed), label))
             except AttributeError as err:
@@ -121,11 +123,12 @@ style=$STYLE
 }
 {
     $CENTRE
+    $BODY
 }
 {rank=sink;
     $OUTPUTS
 }
-$BODY
+
 }
 """)
 
@@ -166,7 +169,7 @@ $BODY
     if not kwargs["interface_only"]:
         for name, entity in get_entities(obj, as_dict=True).items():
             if name != "_parent": # don't
-                body.append(generate(entity, name, obj, **kwargs))
+                centre.append(generate(entity, name, obj, **kwargs))
 
     if not kwargs["interface_only"]:
         for name, influence in get_influences(obj, as_dict=True).items():
