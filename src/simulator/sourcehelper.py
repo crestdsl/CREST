@@ -4,14 +4,54 @@ import inspect
 import astor
 
 
+def get_ast_body(function_or_lambda):
+    if is_lambda(function_or_lambda):
+        # this means we're a lambda
+        return get_ast_from_lambda(function_or_lambda)
+    else:
+        # this is a "normal" function def
+        return get_ast_body_from_function_definition(function_or_lambda)
+
+def get_param_names(function_or_lambda):
+    if is_lambda(function_or_lambda):
+        # this means we're a lambda
+        return get_param_names_from_lambda(function_or_lambda)
+    else:
+        # this is a "normal" function def
+        return get_param_names_from_function_definition(function_or_lambda)
+
 def get_ast_from_function_definition(function):
     module = getast(function)
     functiondef  = module.body[0]
     add_parent_info(functiondef)
     return functiondef
 
+def get_param_names_from_function_definition(function):
+    module = getast(function)
+    functiondef  = module.body[0]
+    return [arg.arg for arg in functiondef.args.args]
+
 def get_ast_body_from_function_definition(function):
     return get_ast_from_function_definition(function).body
+
+def get_ast_from_lambda(lambda_func):
+    module = getast(lambda_func)
+    transition = module.body[0].value
+    lambda_ = None
+    for node in ast.walk(transition):
+        if isinstance(node, ast.Lambda):
+            lambda_ = node
+    add_parent_info(lambda_.body)
+    return lambda_.body
+
+def get_param_names_from_lambda(lambda_func):
+    module = getast(lambda_func)
+    transition = module.body[0].value
+    lambda_ = None
+    for node in ast.walk(transition):
+        if isinstance(node, ast.Lambda):
+            lambda_ = node
+    return [arg.arg for arg in lambda_.args.args]
 
 def get_ast_from_lambda_transition_guard(func):
     """
@@ -22,6 +62,7 @@ def get_ast_from_lambda_transition_guard(func):
     """
     module = getast(func)
     transition = module.body[0].value
+    import pdb; pdb.set_trace()
     guard = [kw.value for kw in transition.keywords if kw.arg == "guard"][0]
 
     entity_var_name = guard.args.args[0].arg

@@ -1,5 +1,6 @@
 from string import Template
 from graphviz import Digraph, Graph, Source
+from src.model.meta import PARENT_IDENTIFIER
 from src.model.model import *
 from src.model.ports import *
 from src.model.entity import *
@@ -49,7 +50,7 @@ def generate(object, name, parent=None, **kwargs):
 @generate.register(State)
 def _(obj, name="", parent=None, **kwargs):
     shape = "circle"
-    if hasattr(parent, "current"):
+    if hasattr(parent, CURRENT_IDENTIFIER):
         shape = "doublecircle" if obj == parent.current else "circle"
     return "{} [label=\"{}\" style=filled fillcolor=\"#e2cbc1\" shape={}]".format(id(obj), name, shape)
 
@@ -149,7 +150,7 @@ style=$STYLE
     """ Centre """
     if not kwargs["interface_only"] and not kwargs["no_behaviour"]:
         for name, state in get_states(obj, as_dict=True).items():
-            if not name == "current":
+            if not name == CURRENT_IDENTIFIER:
                 centre.append(generate(state, name, obj, **kwargs))
 
     if not kwargs["interface_only"] and not kwargs["no_behaviour"]:
@@ -168,7 +169,7 @@ style=$STYLE
 
     if not kwargs["interface_only"]:
         for name, entity in get_entities(obj, as_dict=True).items():
-            if name != "_parent": # don't
+            if name != PARENT_IDENTIFIER: # don't
                 centre.append(generate(entity, name, obj, **kwargs))
 
     if not kwargs["interface_only"]:

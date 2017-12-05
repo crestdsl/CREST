@@ -1,7 +1,7 @@
 from copy import deepcopy, copy
 from operator import attrgetter
 
-from src.model.meta import CrestObject
+from src.model.meta import CrestObject, PARENT_IDENTIFIER, CURRENT_IDENTIFIER
 from src.model.ports import Port, Input, Output, Local, LocalConst
 from src.model.model import State, Transition, Influence, Update
 
@@ -14,8 +14,8 @@ class Entity(CrestObject):
         newobj = super().__new__(cls)
         if not hasattr(newobj, "_name"):
             newobj._name = "" # set default name and parent
-        if not hasattr(newobj, "_parent"):
-            newobj._parent = None
+        if not hasattr(newobj, PARENT_IDENTIFIER):
+            setattr(newobj, PARENT_IDENTIFIER, None)
         return Entity.make_crest_copy(cls, newobj)
 
     def __deepcopy__(self, memo):
@@ -44,23 +44,23 @@ class Entity(CrestObject):
                 else:
                     # search for it in (it's probably in a subentity)
                     logger.error("Couldn't find path to %s (%s)", identifier._name, identifier)
-                    identifier = get_path_to_attribute(identifier)
+                    identifier = get_path_to_attribute(original_obj, identifier)
 
             return attrgetter(identifier)(newobj)
 
-        def get_path_to_attribute(object_to_find):
-            """ finds the path to an object (port) in the original object
-            by repeatedly going to the parent and recording the names on the way """
-            path = []
-            while original_obj != object_to_find:
-                path.append(object_to_find._name)
-                object_to_find = object_to_find._parent
-            return path.join(".")
+        # def get_path_to_attribute(object_to_find):
+        #     """ finds the path to an object (port) in the original object
+        #     by repeatedly going to the parent and recording the names on the way """
+        #     path = []
+        #     while original_obj != object_to_find:
+        #         path.append(object_to_find._name)
+        #         object_to_find = getattr(object_to_find, PARENT_IDENTIFIER)
+        #     return path.join(".")
 
         def _create_crestobject_path_map(root):
             object_path_map = {v : k for k, v in get_crest_objects(root, as_dict=True).items()}
             for name, subentity in get_entities(root, as_dict=True).items():
-                if name != "_parent":
+                if name != PARENT_IDENTIFIER:
                     object_path_map.update(
                         {obj : name+"."+path for obj, path in _create_crestobject_path_map(subentity).items()}
                     )
@@ -78,26 +78,26 @@ class Entity(CrestObject):
         """ copy states (deep copy) """
         logger.debug("copying states")
         for name, state in get_states(original_obj, as_dict=True).items():
-            if name != "current": # skip current state for now
+            if name != CURRENT_IDENTIFIER: # skip current state for now
                 # newstate = getcopy(name, state, deep_copy=True)
                 newstate = copy(state)
                 newstate._name = name
-                newstate._parent = newobj # save reference to parent
+                setattr(newstate, PARENT_IDENTIFIER, newobj) # save reference to parent
                 setattr(newobj, name, newstate)
 
 
         """ we treat "current" specially """
-        if hasattr(original_obj, "current"):
-            setattr(newobj, "current", get_local_attribute(original_obj.current))
+        if hasattr(original_obj, CURRENT_IDENTIFIER):
+            setattr(newobj, CURRENT_IDENTIFIER, get_local_attribute(original_obj.current))
 
         """ copy Entities (deep copy) """
         logger.debug("copying subentities")
         for name, entity in get_entities(original_obj, as_dict=True).items():
-            if name != "_parent":
+            if name != PARENT_IDENTIFIER:
             # newentity = getcopy(name, entity, deep_copy=True)
                 newentity = deepcopy(entity)
                 newentity._name = name
-                newentity._parent = newobj # save reference to parent
+                setattr(newentity, PARENT_IDENTIFIER, newobj) # save reference to parent
                 setattr(newobj, name, newentity)
 
         """ get transitions and adapt them """
@@ -107,7 +107,7 @@ class Entity(CrestObject):
             target = get_local_attribute(trans.target)
             newtransition = Transition(source=source, target=target, guard=trans.guard)
             newtransition._name = name
-            newtransition._parent = newobj
+            setattr(newtransition, PARENT_IDENTIFIER, newobj) # save reference to parent
             setattr(newobj, name, newtransition)
 
         """ get updates and adapt them """
@@ -116,7 +116,7 @@ class Entity(CrestObject):
             state = get_local_attribute(update.state)
             newupdate = Update(state=state, function=update.function)
             newupdate._name = name
-            newupdate._parent = newobj
+            newupdate._parent = newobj # save reference to parent
             setattr(newobj, name, newupdate)
 
         """ get influences and adapt them """
@@ -126,7 +126,7 @@ class Entity(CrestObject):
             target = get_local_attribute(influence.target)
             newinfluence = Influence(source=source, target=target, function=influence.function)
             newinfluence._name = name
-            newinfluence._parent = newobj
+            setattr(newinfluence, PARENT_IDENTIFIER, newobj) # save reference to parent
             setattr(newobj, name, newinfluence)
 
         return newobj
@@ -134,15 +134,29 @@ class Entity(CrestObject):
 class LogicalEntity(Entity):
     pass
 
+
+def get_path_to_attribute(root, object_to_find):
+    """ finds the path to an object (port) in the original object
+    by repeatedly going to the parent and recording the names on the way """
+    path = []
+    while root != object_to_find:
+        path.append(object_to_find._name)
+        object_to_find = getattr(object_to_find, PARENT_IDENTIFIER)
+    path = path[::-1]
+    return ".".join(path)
+
 """ helper functions """
-def collect_entities_recursively(entity):
+def get_all_entities(entity):
     entities = [entity]
-
-    for e in get_entities(entity):
-        entities.extend(collect_entities_recursively(e))
-
+    for name, ent in get_entities(entity, as_dict=True).items():
+        entities.extend(get_all_entities(ent))
     return entities
 
+def get_all_influences(entity):
+    return [inf for e in get_all_entities(entity) for inf in get_influences(e)]
+
+def get_all_updates(entity):
+    return [up for e in get_all_entities(entity) for up in get_updates(e)]
 
 
 """ get_X_from_entity functions"""
@@ -163,7 +177,11 @@ def get_ports(entity, as_dict=False):
     return get_by_klass(entity, Port, as_dict)
 
 def get_entities(entity, as_dict=False):
-    return get_by_klass(entity, Entity, as_dict)
+    # prevent recursion, don't return reference to parent !!!
+    if as_dict:
+        return {name: ent for name, ent in get_by_klass(entity, Entity, True).items() if name not in (PARENT_IDENTIFIER, CURRENT_IDENTIFIER)}
+    else:
+         return [ent for name, ent in get_by_klass(entity, Entity, True).items() if name not in (PARENT_IDENTIFIER, CURRENT_IDENTIFIER)]
 
 def get_updates(entity, as_dict=False):
     return get_by_klass(entity, Update, as_dict)

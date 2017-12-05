@@ -64,7 +64,10 @@ class Influence(CrestObject):
         super().__init__(name, parent)
         self.source = source
         self.target = target
-        self.function = function
+        if function:
+            self.function = function
+        else:
+            self.function = (lambda v : v)
 
     def execute(self):
         self.target.value = self.get_function_value()

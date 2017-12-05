@@ -1,7 +1,7 @@
 
 from src.model.model import *
 from src.model.entity import *
-from src.simulator.to_z3 import to_z3, get_z3_value, get_z3_variable, clean_port_identifier
+from src.simulator.to_z3 import *
 import src.simulator.sourcehelper as SH
 from src.model.helpers import *
 import z3
@@ -9,7 +9,7 @@ import astor
 import random
 
 import logging
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 class Simulator(object):
 
@@ -137,7 +137,7 @@ class Simulator(object):
         dt = self.get_next_transition_time(self.entity)
         if dt == None or dt > t:
             # execute all updates in all entities
-            for e in collect_entities_recursively(self.entity):
+            for e in get_all_entities(self.entity):
                 self.update(e, t)
 
             # stabilise the system
@@ -147,15 +147,7 @@ class Simulator(object):
             self.advance(t - dt)
 
     """ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - """
-    # def step(self, entity=None):
-    #     """calculates next transition time, then advances to it"""
-    #     next_trans = self.get_next_transition_time(entity)
-    #     if next_trans:
-    #         self.advance(next_trans[2])
-    #         return next_trans
-    #     else:
-    #         logging.warn("No transition through time advance found")
-    #
+
     def get_next_transition_time(self, entity=None):
         """calculates the time until one of the transitions can fire"""
         logging.info("Calculating next transition time")
@@ -163,7 +155,7 @@ class Simulator(object):
             entity = self.entity
 
 
-        times = [t for e in collect_entities_recursively(self.entity) for t in self.collect_transition_times(e)]
+        times = [t for e in get_all_entities(self.entity) for t in self.collect_transition_times(e)]
         logging.debug("All transitions in entity %s (%s): ", entity._name, entity.__class__.__name__)
         logging.debug(str([(e._name, "{} -> {} ({})".format(t.source._name, t.target._name, name), dt) for (e, t, name, dt) in times]))
 
@@ -197,12 +189,167 @@ class Simulator(object):
         dts = list(filter(lambda t: t[3] != None, dts)) # filter values with None as dt
         return dts
 
+    """ - - - - - - -  """
+    def get_accessed_ports(self, transition):
+        ast_body = SH.get_ast_body(transition.guard)
+        varnames = get_used_variable_names(ast_body)
+        entity_ports = get_ports(transition._parent, as_dict=True)
+        portnames = []
+
+        for varname in varnames:
+            splits = varname.split(".")
+            portname = varname
+            if len(splits) > 2:
+                portnames.append(".".join(splits[1:-1]))
+            elif splits == 2:
+                portnames.append(splits[1])
+
+        ports = [entity_ports[portname] for portname in portnames if portname in portnames]
+        return ports
+
+    def get_written_ports_from_update(self, update):
+        ast_body = SH.get_ast_body(update.function)
+        varnames = get_assignment_targets(ast_body)
+        portnames = []
+
+        for varname in varnames:
+            splits = varname.split(".")
+            portname = varname
+            if len(splits) > 2:
+                portnames.append(".".join(splits[1:-1]))
+            elif splits == 2:
+                portnames.append(splits[1])
+
+        ports = [attrgetter(portname)(update._parent) for portname in portnames]
+        return ports
+
+    def get_read_ports_from_update(self, update):
+        ast_body = SH.get_ast_body(update.function)
+        varnames = get_read_variables(ast_body)
+        portnames = []
+
+        for varname in varnames:
+            splits = varname.split(".")
+            portname = varname
+            if len(splits) > 2:
+                portnames.append(".".join(splits[1:-1]))
+            elif splits == 2:
+                portnames.append(splits[1])
+
+        ports = [attrgetter(portname)(update._parent) for portname in portnames]
+        return ports
+
     def get_transition_time(self, entity, transition):
         """
         - we need to find a solution for the guard condition (e.g. using a theorem prover)
-        - guards are boolean expressions over values
+        - guards are boolean expressions over port values
+        - ports are influenced by Influences starting at other ports (find recursively)
         """
-        s = z3.Optimize()
+        optimizer = z3.Optimize()
+
+        # the things we have to add
+        # build a graph that shows the propagation of information to the guard (what influences the guard)
+
+        # find the ports that influence the transition
+        transition_ports = self.get_accessed_ports(transition)
+        modifier_map = {port : list() for port in transition_ports}
+
+        # find the influences and updates that modify them
+        map_change = True
+        while map_change:
+            map_change = False # initially we think there are no changes
+            for port, modifiers in modifier_map.copy().items(): # iterate over a copy, so we can modify the original list
+                # we only look at ports that have no influences (it might be because there exist none, but that small overhead is okay for now)
+                if len(modifiers) == 0:
+                    influences = [inf for inf in get_all_influences(self.entity) if inf.target == port]
+                    modifier_map[port].extend(influences)
+                    for inf in influences:
+                        # this means influences is not empty, hence we change the map (probably)
+                        map_change = True
+                        if inf.source not in modifier_map:
+                            modifier_map[inf.source] = list() # add an empty list, the next iteration will try to fill it
+
+                    updates = [up for up in get_all_updates(self.entity) if port in self.get_written_ports_from_update(up)
+                                                                            and up.state == up._parent.current # FIXME
+                                                                            ]
+                    modifier_map[port].extend(updates)
+                    for up in updates:
+                        for read_port in self.get_read_ports_from_update(up)+self.get_written_ports_from_update(up):
+                            # this means there are updates and we change the map
+                            map_change = True
+                            if read_port not in modifier_map:
+                                modifier_map[read_port] = list() # add an empty list, the next iteration will try to fill it
+
+        # modifier map now contains ports and the updates & influences that potentially modify them
+        print("modifiers", modifier_map)
+
+        # create the z3 variables
+        z3_vars = {}
+        if self.timeunit == int:
+            z3_vars['dt'] = z3.Int('dt')
+        else:
+            z3_vars['dt'] = z3.Real('dt')
+        optimizer.add(z3_vars['dt'] >= 0)
+
+        for port, modifiers in modifier_map.items():
+            if len(modifiers) == 0:
+                z3_vars[port] = {port._name : get_z3_value(port, port._name)}
+            else:
+                z3_vars[port] = {port._name : get_z3_variable(port, port._name)}
+            # perhaps there is some += update or so...
+            z3_vars[port][port._name+"_0"] = get_z3_value(port, port._name+"_0")
+
+        import pprint;pprint.pprint(z3_vars)
+
+        for port, modifiers in modifier_map.items():
+            for modifier in modifiers:
+                print("adding constraints for", modifier._name)
+                if isinstance(modifier, Update):
+                    conv = Z3Converter(z3_vars, entity=modifier._parent, container=modifier)
+                    influence_constraints = conv.to_z3(modifier.function)
+                    print(111, influence_constraints)
+                    optimizer.add(influence_constraints)
+                elif isinstance(modifier, Influence):
+                    conv = Z3Converter(z3_vars, entity=modifier._parent, container=modifier)
+                    conv.target = modifier.target
+
+                    influence_constraints = conv.to_z3(modifier.function)
+                    if is_lambda(modifier.function):
+                        # equation for lambda result
+                        tgt = conv.z3_vars[modifier.target][modifier.target._name]
+                        optimizer.add(tgt == influence_constraints)
+                        print("222a", tgt == influence_constraints)
+                    else:
+                        optimizer.add(influence_constraints)
+                        print("222b", influence_constraints)
+
+                    # equal params
+                    params = SH.get_param_names(modifier.function)
+                    z3_src = conv.z3_vars[modifier.source][modifier.source._name]
+                    z3_param = conv.find_z3_variable(params[0])
+                    optimizer.add(z3_src == z3_param)
+                    print("333", z3_src == z3_param)
+
+        conv = Z3Converter(z3_vars, entity=transition._parent, container=transition)
+        optimizer.add(conv.to_z3(transition.guard))
+
+        print(" - - - - - - - - - - - - - - -")
+        print(z3_vars)
+
+        print(optimizer)
+        x = optimizer.minimize(z3_vars['dt']) # find minimal value of dt
+        print(x)
+        print(optimizer.check())
+        print(optimizer.model())
+        return
+
+
+
+        # return
+        # 1) the actual transition guard
+        # 2) the current state's updates that change ports within the transition guard
+        # 3) the influences relations that lead to the transituan guard's read ports
+
         # -) create variables for all ports
 
             # .) get port names that are written to in the updates
@@ -211,7 +358,7 @@ class Simulator(object):
         for update in get_updates(entity):
             if update.state == entity.current:
                 func_ast = SH.get_ast_from_function_definition(update.function)
-                cleaned = [clean_port_identifier(ident) for ident in get_assignment_targets(func_ast)]
+                cleaned = [".".join(ident.split(".")[1:-1]) for ident in get_assignment_targets(func_ast)]
                 writePortNames.extend(cleaned)
 
         z3_vars = {}
@@ -276,151 +423,3 @@ class Simulator(object):
             logging.error(s)
         else:
             return None
-
-    #
-    # def advance(self, dt=0):
-    #     logging.info("Advance time, total dt = %s", dt)
-    #     advanced = 0
-    #
-    #     # step first with dt = 0 to make sure everything is up to date
-    #     self._advance(0)
-    #
-    #     while advanced < dt:
-    #         dt_left = dt - advanced  # how much time we have left in this advancement
-    #         next_transition = self.get_next_transition_time()
-    #         if next_transition:
-    #             (in_entity, trans, trans_name, trans_dt) = next_transition
-    #             logging.debug("next transition %s -> %s (%s): %s - advanced so far: %s", trans.source.__name, trans.target.__name, trans_name, trans_dt, advanced)
-    #             # if the next_transition_time is smaller than
-    #             # the total time minus what we already advanced
-    #             # (we have time for the next transition)
-    #             if trans_dt <= dt_left:
-    #                 advanced += trans_dt
-    #                 self._advance(trans_dt)
-    #                 logging.debug("predicted transition (%s -> %s) in %s (total advance: %s)", trans.source.__name, trans.target.__name, trans_dt, advanced)
-    #             # otherwise (we won't reach it), only step as much time as we have left
-    #             else:
-    #                 advanced += dt_left
-    #                 self._advance(dt_left)
-    #                 logging.debug("advance %s (dt) for a total advance of %s", dt_left, advanced)
-    #         else:
-    #             #no next transition
-    #             advanced += dt_left
-    #             self._advance(dt_left)
-    #             logging.debug("no next transition, advance %s (dt) for a total advance of %s", dt_left, advanced)
-    #     self.global_time += dt
-    #
-    # def _advance(self, dt=0):
-    #     logging.debug("_advance dt = %s", dt)
-    #     changes = True
-    #
-    #     # we execute in a loop, because there might be chains of
-    #     # pass-through transitions (condition is True) each having an update
-    #     # we need to execute until we reach a steady-state (no changes anymore)
-    #     while changes:
-    #         # execute one iteration
-    #         # self.plot(self.entity)
-    #         # import pdb; pdb.set_trace()
-    #         changes = self._advance_procedure(self.entity, dt)
-    #         # set dt to 0, so subsequent iterations only don't advance the time
-    #         dt = 0
-    #
-    # def _advance_procedure(self, entity, dt):
-    #     logging.debug("\t running advance procedure for dt = %s", dt)
-    #     # import pdb;pdb.set_trace()
-    #     # self.plot(self.entity)
-    #
-    #     # -) trigger updates
-    #     update_impacts = self.collect_update_impacts(self.entity, dt)
-    #     self.execute_impacts(update_impacts)
-    #     # self.plot(self.entity)
-    #
-    #     # -) update influences
-    #     influence_values_changed = self.update_influences(self.entity)
-    #     # self.plot(self.entity)
-    #
-    #     # -) transitions
-    #     transitions_fired = self.execute_transitions(self.entity)
-    #     # self.plot(self.entity)
-    #
-    #     # -) return True if there were changes made
-    #     changes_made = any([update_impacts, influence_values_changed, transitions_fired])
-    #     logging.debug("\t were there changes? %s", changes_made)
-    #
-    #     return changes_made
-    #
-    # """ calculate update function """
-    # def execute_impacts(self, impacts):
-    #     for port, value in impacts.items():
-    #         logging.debug("Updating port: %s = %s", port.__name, value)
-    #         port.value = value
-    #
-    # def collect_update_impacts(self, entity, dt):
-    #     impacts = dict()
-    #     updates = [up for up in get_updates(entity) if up.state == entity.current]
-    #     for up in updates:
-    #         impacts.update(self.get_update_impact(entity, up, dt))
-    #
-    #     for sub in get_entities(entity):
-    #         sub_impacts = self.collect_update_impacts(sub, dt)
-    #         impacts.update(sub_impacts)
-    #
-    #     return impacts
-    #
-    # def get_update_impact(self, entity, update, dt):
-    #     ports = get_ports(entity)
-    #     # 1. record all port states before the update
-    #     original_values = {port: port.value for port in ports}
-    #     # 2. execute update
-    #     update.function(entity, dt)
-    #     # 3. find differences between now and back then
-    #     new_values = {port: port.value for port in ports}
-    #     differences = {port: new_values[port] for port in ports if new_values[port] != original_values[port]}
-    #     # 4. revert changes
-    #     for port in ports:
-    #         port.value = original_values[port]
-    #     # 5. report impacts
-    #     return differences
-    #
-    # """ update influence targets """
-    # def update_influences(self, entity):
-    #     infs = get_influences(entity)
-    #     changes = [inf for inf in infs if inf.get_function_value() != inf.target.value]
-    #     for c in changes:
-    #         logging.debug("%s (%s) influence (%s -> %s): value before = %s - new value = %s", entity.__name, entity.__class__.__name__, c.source.__name, c.target.__name, c.target.value, c.get_function_value())
-    #
-    #     for c in changes:
-    #         c.execute()
-    #         assert c.target.value == c.get_function_value()
-    #
-    #     # recursion on subentities:
-    #     changes_in_subentities = []
-    #     for subentity in get_entities(entity):
-    #         sub_change = self.update_influences(subentity)
-    #         changes_in_subentities.append(sub_change)
-    #
-    #     return changes or any(changes_in_subentities)
-    #
-    # """ fire transitions """
-    # def execute_transitions(self, entity):
-    #     trans = [t for t in get_transitions(entity) if t.source == entity.current]
-    #     enabled = [t for t in trans if t.guard(entity)]
-    #
-    #     assert len(enabled) <= 1, """There are {} transitions enabled for {}.
-    #         I haven't thought about concurrency yet...""".format(len(enabled), entity)
-    #     fired = []
-    #     if enabled:
-    #         trans = enabled[0]
-    #         logging.debug("Firing transition in %s (%s) : %s -> %s", entity.__name, entity.__class__.__name__ , trans.source.__name, trans.target.__name)
-    #         self.fire_transition(entity, trans)
-    #         fired.append(True)
-    #
-    #     # recursion on subentities:
-    #     for subentity in get_entities(entity):
-    #         fired.append(self.execute_transitions(subentity))
-    #
-    #     return any(fired)
-    #
-    # def fire_transition(self, entity, transition):
-    #     logging.debug("firing transition in %s (%s): %s -> %s", entity.__name, entity.__class__.__name__, transition.source.__name, transition.target.__name)
-    #     entity.current = transition.target
