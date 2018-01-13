@@ -1,7 +1,8 @@
 # this Dockerfile is so we can try CREST without having to install anything
 # we build upon a jupyter/scipy installation that was extended with z3
 # within this docker only fast things happen (install graphviz, copy files, do pip things)
-FROM stklik/z3
+
+FROM stklik/scipy-notebook-z3:1.0
 
 LABEL maintainer="Stefan Klikovits <stefan@klikovits.net>"
 
