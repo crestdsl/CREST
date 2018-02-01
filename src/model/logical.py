@@ -16,7 +16,7 @@ class Combinator(LogicalEntity):
 
 class MaxCombinator(Combinator):
 
-    @update(state="state")
+    @update(state="state", target=)
     def calculate(self, dt=0):
         self.output.value = max([i.value for i in get_inputs(self)])
 

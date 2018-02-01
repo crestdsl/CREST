@@ -28,15 +28,17 @@ def influence(source="", target=""):
 
 def update(*args, **kwargs):
     def _update(func):
-        return Update(func, state=state)
-    if len(args) == 1 and callable(args[0]):
+        return Update(func, state=state, target=target)
+    if len(args) == 2 and callable(args[0]):
         # No arguments, this is the decorator
         # Set default values for the arguments
         state = None
+        target = None
         return _update(args[0])
     else:
         # This is just returning the decorator
         state = kwargs["state"]
+        target = kwargs["target"]
         return _update
 
 class State(CrestObject):
@@ -80,15 +82,16 @@ class Influence(CrestObject):
 
 class Update(CrestObject):
 
-    def __new__(cls, function, state, guard=None, name="", parent=None):
+    def __new__(cls, function, state, target, name="", parent=None):
         """ this is so we can define the same update for multiple states """
         if isinstance(state, list):
-            dbg = [cls(function=function, state=s, name=name, parent=parent) for s in state]
+            dbg = [cls(function=function, state=s, target=target) for s in state]
             return dbg
         else:
             return super().__new__(cls)
 
-    def __init__(self, function, state, guard=None, name="", parent=None):
+    def __init__(self, function, state, target, name="", parent=None):
         super().__init__(name, parent)
         self.function = function
         self.state = state
+        self.target = target

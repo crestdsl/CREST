@@ -4,7 +4,6 @@ from src.model.meta import PARENT_IDENTIFIER
 from src.model.model import *
 from src.model.ports import *
 from src.model.entity import *
-from src.model.helpers import *
 import astor
 from src.simulator.sourcehelper import *
 import inspect
@@ -74,7 +73,7 @@ def _(obj, name="", parent=None, **kwargs):
 def _(obj, name="", parent=None, **kwargs):
     label = ""
     if kwargs["transition_labels"]:
-        guard_ast = get_ast_from_lambda_transition_guard(obj.guard)
+        guard_ast = get_ast_body(obj.guard)
         label = astor.to_source(guard_ast)
     return "{} -> {} [label=\"{}\"]".format(id(obj.source), id(obj.target), label)
 
@@ -91,27 +90,27 @@ def _(obj, name="", parent=None, **kwargs):
 def _(obj, name="", parent=None, **kwargs):
     returnlist = []
 
-    func_ast = get_ast_from_function_definition(obj.function)
+    label = ""
     if kwargs["update_labels"]:
-        print("There's an issue with the display of update-labels. Waiting for astor 0.6 to be available...")
-        """ deactivate until astor 0.6 is available"""
-        #label = astor.to_source(func_ast)
-    writes = get_assignment_targets(func_ast)
-    for write in writes:
-        # it's gonna be self.portname.value or self.subentity.portname.value
-        # therfore we split and remove the first and last
-        splits = write.split(".")
-        if len(splits) >=2:
-            portpath = ".".join(splits[1:-1])
-            try:
-                # accessed = get_dict_attr(parent, portpath)
-                accessed = attrgetter(portpath)(parent)
-                label = ""
-                returnlist.append("{} -> {} [style=\"dashed\" label=\"{}\"]".format(id(obj.state), id(accessed), label))
-            except AttributeError as err:
-                print(err)
-
-    return returnlist
+        # print("There's an issue with the display of update-labels. Waiting for astor 0.6 to be available...")
+        # """ deactivate until astor 0.6 is available"""
+        func_ast = get_ast_from_function_definition(obj.function)
+        label = astor.to_source(func_ast)
+    # writes = get_assignment_targets(func_ast)
+    # for write in writes:
+    #     # it's gonna be self.portname.value or self.subentity.portname.value
+    #     # therfore we split and remove the first and last
+    #     splits = write.split(".")
+    #     if len(splits) >=2:
+    #         portpath = ".".join(splits[1:-1])
+    #         try:
+    #             # accessed = get_dict_attr(parent, portpath)
+    #             accessed = attrgetter(portpath)(parent)
+    #             label = ""
+    #             returnlist.append("{} -> {} [style=\"dashed\" label=\"{}\"]".format(id(obj.state), id(accessed), label))
+    #         except AttributeError as err:
+    #             print(err)
+    return "{} -> {} [style=\"dashed\" label=\"{}\"]".format(id(obj.state), id(obj.target), label)
 
 @generate.register(Entity)
 def _(obj, name="", parent=None, **kwargs):
@@ -179,7 +178,7 @@ style=$STYLE
     if not kwargs["interface_only"] and not kwargs["no_behaviour"]:
         if kwargs["updates"]:
             for name, update in get_updates(obj, as_dict=True).items():
-                body.extend(generate(update, name, obj, **kwargs))
+                body.append(generate(update, name, obj, **kwargs))
 
     subst["INPUTS"] = "\n".join(inputs)
     subst["OUTPUTS"] = "\n".join(outputs)
