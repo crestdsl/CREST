@@ -1,4 +1,4 @@
-from src.model.entity import *
+from src.model import *
 import src.simulator.sourcehelper as SH
 from src.simulator.to_z3 import *
 import z3

@@ -1,7 +1,7 @@
-from src.model.meta import CrestObject
-from src.model.model import *
-from src.model.ports import *
-from src.model.entity import *
+from .meta import CrestObject
+from .model import *
+from .ports import *
+from .entity import *
 import inspect
 
 """

@@ -1,8 +1,7 @@
 
-from src.model.model import *
-from src.model.entity import *
 import src.simulator.sourcehelper as SH
 from src.simulator.transitiontime import TransitionTimeCalculator
+from src.model import *
 import random
 
 import logging

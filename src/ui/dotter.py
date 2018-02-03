@@ -1,9 +1,7 @@
 from string import Template
 from graphviz import Digraph, Graph, Source
 from src.model.meta import PARENT_IDENTIFIER
-from src.model.model import *
-from src.model.ports import *
-from src.model.entity import *
+from src.model import *
 import astor
 from src.simulator.sourcehelper import *
 import inspect

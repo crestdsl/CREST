@@ -1,5 +1,4 @@
-from src.model.model import *
-from src.model.entity import *
+from src.model import *
 import src.simulator.sourcehelper as SH
 
 from functools import singledispatch, update_wrapper

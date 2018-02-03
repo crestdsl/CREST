@@ -1,9 +1,9 @@
 from copy import deepcopy, copy
 from operator import attrgetter
 
-from src.model.meta import CrestObject, PARENT_IDENTIFIER, CURRENT_IDENTIFIER
-from src.model.ports import Port, Input, Output, Local, LocalConst
-from src.model.model import State, Transition, Influence, Update
+from .meta import CrestObject, PARENT_IDENTIFIER, CURRENT_IDENTIFIER
+from .ports import Port, Input, Output, Local
+from .model import State, Transition, Influence, Update
 
 import logging
 logger = logging.getLogger(__name__)

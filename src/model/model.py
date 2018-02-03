@@ -1,6 +1,6 @@
-from src.model.meta import CrestObject
-from src.model.ports import *
-from src.model.resource import Resource
+from .meta import CrestObject
+from .ports import *
+from .resource import Resource
 from copy import copy, deepcopy
 import inspect
 
