@@ -1,7 +1,7 @@
 
 import src.simulator.sourcehelper as SH
-from src.simulator.transitiontime import TransitionTimeCalculator
 from src.model import *
+from .transitiontime import TransitionTimeCalculator
 import random
 
 import logging

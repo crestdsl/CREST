@@ -63,14 +63,11 @@ def get_ast_from_lambda_transition_guard(func):
     """
     module = getast(func)
     transition = module.body[0].value
-    import pdb; pdb.set_trace()
     guard = [kw.value for kw in transition.keywords if kw.arg == "guard"][0]
 
     entity_var_name = guard.args.args[0].arg
     guard_body = guard.body
     add_parent_info(guard_body)
-    # print(entity_var_name)
-    # print(ast.dump(guard_body))
     return guard_body
 
 def getast(function):
@@ -124,8 +121,8 @@ def is_in_lambda(ast_node):
     func = get_ancestor_of_type(ast_node, types.FunctionType)
     return is_lambda(func)
 
-def is_lambda(functiondefinition):
-    return functiondefinition.__name__ == (lambda:0).__name__
+def is_lambda(function):
+    return function.__name__ == (lambda:0).__name__
 
 def get_number_of_previous_writes_to_var_with_name(ast_node, var_name):
     assign_or_augassign = get_ancestor_of_type(ast_node, [ast.Assign, ast.AugAssign])
@@ -158,15 +155,6 @@ def get_all_following_siblings(ast_node):
                 result.append(child)
     return result
 
-def get_targets_from_assignment(assignment):
-    if isinstance(assignment, ast.Assign):
-        return assignment.targets
-    elif isinstance(assignment, ast.AugAssign):
-        return [assignment.target]
-
-
-
-
 def get_accessed_ports(function, container):
     ast_body = get_ast_body(function)
     varnames = get_used_variable_names(ast_body)
@@ -186,7 +174,7 @@ def get_accessed_ports(function, container):
 
 def get_written_ports_from_update(function, container):
     ast_body = get_ast_body(function)
-    varnames = get_assignment_targets(ast_body)
+    varnames = get_assignment_target_names(ast_body)
     portnames = []
 
     for varname in varnames:
@@ -216,6 +204,13 @@ def get_read_ports_from_update(function, container):
     ports = [attrgetter(portname)(container._parent) for portname in portnames]
     return ports
 
+def get_targets_from_assignment(assignment):
+    if isinstance(assignment, ast.Assign):
+        return assignment.targets
+    elif isinstance(assignment, ast.AugAssign):
+        return [assignment.target]
+    elif isinstance(assignment, ast.AnnAssign):
+        return [assignment.target]
 
 def get_assignment_targets(ast_object):
     if ast_object == None:
@@ -229,10 +224,16 @@ def get_assignment_targets(ast_object):
         for node in ast.walk(ast_obj):
             if isinstance(node, ast.Assign):
                 for target in node.targets:
-                    writes.add(get_name_from_target(target))
+                    writes.add(target)
             elif isinstance(node, ast.AugAssign):
-                writes.add(get_name_from_target(node.target))
+                writes.add(node.target)
+            elif isinstance(node, ast.AnnAssign):
+                writes.add(node.target)
     return list(writes)
+
+def get_assignment_target_names(ast_object):
+    target_nodes = get_assignment_targets(ast_object)
+    return [get_attribute_string(target) for target in target_nodes]
 
 class ReadVariableAggregator(ast.NodeVisitor):
     def __init__(self):
@@ -241,14 +242,14 @@ class ReadVariableAggregator(ast.NodeVisitor):
 
     def visit_Name(self, node):
         if is_descendant_of_type(node, ast.Assign):
-            if is_decendant_of(node, get_ancestor_of_type(node, ast.Assign).value):
+            if is_decendant_of(node, get_ancestor_of_type(node, (ast.Assign, ast.AnnAssign)).value):
                 self.read_variable_names.add(get_name_from_target(node))
         elif is_descendant_of_type(node, ast.AugAssign):
             self.read_variable_names.add(get_name_from_target(node))
 
     def visit_Attribute(self, node):
         if is_descendant_of_type(node, ast.Assign):
-            if is_decendant_of(node, get_ancestor_of_type(node, ast.Assign).value):
+            if is_decendant_of(node, get_ancestor_of_type(node, (ast.Assign, ast.AnnAssign)).value):
                 self.read_variable_names.add(get_name_from_target(node))
         elif is_descendant_of_type(node, ast.AugAssign):
             self.read_variable_names.add(get_name_from_target(node))
@@ -289,16 +290,22 @@ def get_used_variable_names(ast_object):
         visitor.visit(ast_object)
     return list(visitor.used_variable_names)
 
+# deprecated !!
 def get_name_from_target(target):
-    if isinstance(target, ast.Name):
-        return target.id
-    elif isinstance(target, ast.Attribute):
-        return get_name_from_target(target.value)+"."+target.attr
+    import warnings, inspect
+    previous_frame = inspect.currentframe().f_back
+    (filename, line_number, function_name, lines, index) = inspect.getframeinfo(previous_frame)
+    stack = inspect.stack()[1]
+    warnings.warn(f"deprecated, use 'get_attribute_string(ast_object)' instead. Called from {stack[3]} ( {stack[1]}: {stack[2]})", DeprecationWarning)
+    return get_attribute_string(target)
+
+def get_attribute_string(ast_obj):
+    if isinstance(ast_obj, ast.Name):
+        return ast_obj.id
+    elif isinstance(ast_obj, ast.Attribute):
+        return get_attribute_string(ast_obj.value)+"."+ast_obj.attr
     else:
         raise Exception("We shouldn't be here.")
-
-def is_lambda(function):
-    return function.__name__ == (lambda:0).__name__
 
 class Analyser(object):
 

@@ -1,6 +1,6 @@
-from src.model.resource import Resource
-from weakref import WeakKeyDictionary
 from .meta import CrestObject
+# from .resource import Resource
+# from weakref import WeakKeyDictionary
 
 """ PORTS """
 class Port(CrestObject):
