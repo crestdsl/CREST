@@ -1,7 +1,7 @@
-from src.model.meta import CrestObject
-from src.model.model import *
-from src.model.ports import *
-from src.model.entity import *
+from .meta import CrestObject
+from .model import *
+from .ports import *
+from .entity import *
 import inspect
 
 """
@@ -16,7 +16,7 @@ class Combinator(LogicalEntity):
 
 class MaxCombinator(Combinator):
 
-    @update(state="state")
+    @update(state="state", target=)
     def calculate(self, dt=0):
         self.output.value = max([i.value for i in get_inputs(self)])
 

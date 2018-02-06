@@ -1,9 +1,9 @@
 from copy import deepcopy, copy
 from operator import attrgetter
 
-from src.model.meta import CrestObject, PARENT_IDENTIFIER, CURRENT_IDENTIFIER
-from src.model.ports import Port, Input, Output, Local, LocalConst
-from src.model.model import State, Transition, Influence, Update
+from .meta import CrestObject, PARENT_IDENTIFIER, CURRENT_IDENTIFIER
+from .ports import Port, Input, Output, Local
+from .model import State, Transition, Influence, Update
 
 import logging
 logger = logging.getLogger(__name__)
@@ -114,7 +114,8 @@ class Entity(CrestObject):
         logger.debug("copying updates")
         for name, update in get_updates(original_obj, as_dict=True).items():
             state = get_local_attribute(update.state)
-            newupdate = Update(state=state, function=update.function)
+            target = get_local_attribute(update.target)
+            newupdate = Update(state=state, function=update.function, target=target)
             newupdate._name = name
             newupdate._parent = newobj # save reference to parent
             setattr(newobj, name, newupdate)
@@ -158,8 +159,28 @@ def get_all_influences(entity):
 def get_all_updates(entity):
     return [up for e in get_all_entities(entity) for up in get_updates(e)]
 
+def get_all_ports(entity):
+    return [p for e in get_all_entities(entity) for p in get_ports(e)]
+
+def get_all_states(entity):
+    return [s for e in get_all_entities(entity) for s in get_states(e)]
+
+def get_all_transitions(entity):
+    return [s for e in get_all_entities(entity) for s in get_transitions(e)]
+
 
 """ get_X_from_entity functions"""
+def sources(entity):
+    return get_inputs(entity) + get_locals(entity) + [o for e in get_entities(entity) for o in get_outputs(e)]
+
+def targets(entity):
+    return get_outputs(entity) + get_locals(entity) + [i for e in get_entities(entity) for i in get_inputs(e)]
+
+def parent(entity):
+    return entity._parent
+
+def children(entity):
+    return get_entities(entity)
 
 def get_states(entity, as_dict=False):
     return get_by_klass(entity, State, as_dict)
