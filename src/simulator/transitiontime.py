@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 class TransitionTimeCalculator(object):
 
-    def __init__(self, system, timeunit=int):
+    def __init__(self, system, timeunit=REAL):
         self.entity = system
         self.timeunit = timeunit
 
@@ -135,10 +135,13 @@ class TransitionTimeCalculator(object):
         z3_vars = {}
 
         # create the time unit
-        if self.timeunit == int:
-            z3_vars['dt'] = z3.Int('dt')
-        else:
-            z3_vars['dt'] = z3.Real('dt')
+        z3_vars['dt'] = get_z3_var(self.timeunit, 'dt')
+        # if self.timeunit == int:
+        #     z3_vars['dt'] = z3.Int('dt')
+        # else:
+        #     z3_vars['dt'] = z3.Real('dt')
+        # z3_vars['dt'].type = self.timeunit
+
         solver.add(z3_vars['dt'] >= 0)
 
         for port, modifiers in modifier_map.items():
@@ -149,7 +152,7 @@ class TransitionTimeCalculator(object):
             # perhaps there is some += update or so... therefore we need a _0
             z3_vars[port][port._name+"_0"] = get_z3_value(port, port._name+"_0")
 
-        import pprint;pprint.pprint(z3_vars)
+        # import pprint;pprint.pprint(z3_vars)
 
         # create the constraints for updates and influences
         for port, modifiers in modifier_map.items():
@@ -198,14 +201,14 @@ class TransitionTimeCalculator(object):
         conv = Z3Converter(z3_vars, entity=transition._parent, container=transition)
         solver.add(conv.to_z3(transition.guard))
 
-        import pprint;pprint.pprint(z3_vars)
+        # import pprint;pprint.pprint(z3_vars)
 
         logger.debug(solver)
         x = solver.minimize(z3_vars['dt']) # find minimal value of dt
         check = solver.check()
         logger.debug("satisfiability: %s", check)
         if check == z3.sat:
-            print("Model:", solver.model())
+            # print("Model:", solver.model())
             min_dt = solver.model()[z3_vars['dt']]
             if z3.is_int_value(min_dt):
                 return min_dt.as_long()
