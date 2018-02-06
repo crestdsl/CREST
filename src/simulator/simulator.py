@@ -9,13 +9,24 @@ logger = logging.getLogger(__name__)
 
 class Simulator(object):
 
-    def __init__(self, entity, timeunit=int, plotter=None):
+    def __init__(self, entity, timeunit=REAL, plotter=None):
         self.entity = entity
         self.timeunit = timeunit
         self.plotter = plotter
         self.global_time = 0
 
     def plot(self, entity=None, **kwargs):
+        """
+        List of plotter options:
+            updates = True
+            update_labels = False
+            transitions = True
+            transition_labels = False
+            influence_labels = False
+            interface_only = False
+            no_behaviour = False
+            show_update_ports = False
+        """
         if not entity:
             entity = self.entity
         if self.plotter:
@@ -91,7 +102,7 @@ class Simulator(object):
         if len(enabled_transitions) >= 1:
             transition = random.choice(enabled_transitions)
             entity.current = transition.target
-            logger.debug("Fired transition in %s (%s) : %s -> %s",
+            logger.info("Fired transition in %s (%s) : %s -> %s",
                 entity._name, entity.__class__.__name__ ,
                 transition.source._name, transition.target._name)
 

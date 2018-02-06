@@ -1,10 +1,8 @@
-from string import Template
-from graphviz import Digraph, Graph, Source
+from graphviz import Source
 from src.model.meta import PARENT_IDENTIFIER
 from src.model import *
 import astor
 from src.simulator.sourcehelper import *
-import inspect
 from functools import singledispatch
 from operator import attrgetter
 
@@ -15,33 +13,34 @@ options = {
     "transition_labels": False,
     "influence_labels": False,
     "interface_only": False,
-    "no_behaviour": False
+    "no_behaviour": False,
+    "show_update_ports" : False
 }
 
 def plot(object_to_dot, name="", **kwargs):
     options_copy = options.copy()
     options_copy.update(kwargs)
 
-    src = Template("""
-    digraph %s {
+    body = generate(object_to_dot, name, **options_copy)
+    src = f"""
+    digraph MyGraph {{
         node [fontsize=8  margin=".1,.01" width=.5 height=.5]
         edge [fontsize=8]
         rankdir=LR;
         ranksep = .25;
         nodesep= .25;
-        $body
-    }
-    """ % ("MyGraph"))
+        {body}
+    }}
+    """
 
-    body = generate(object_to_dot, name, **options_copy)
-    s = Source(src.safe_substitute(body=body), filename='graph.gv', engine='dot')
-    # print(src.safe_substitute(body=body))
+    s = Source(src, filename='graph.gv', engine='dot')
+    # print(src)
     # s.view(cleanup=True)
     return s
 
 @singledispatch
 def generate(object, name, parent=None, **kwargs):
-    print("there's no generator for {}, skipping it".format(type(object)))
+    print(f"there's no generator for {type(object)}, skipping it")
     return None
 
 @generate.register(State)
@@ -49,23 +48,19 @@ def _(obj, name="", parent=None, **kwargs):
     shape = "circle"
     if hasattr(parent, CURRENT_IDENTIFIER):
         shape = "doublecircle" if obj == parent.current else "circle"
-    return "{} [label=\"{}\" style=filled fillcolor=\"#e2cbc1\" shape={}]".format(id(obj), name, shape)
-
-@generate.register(LocalConst)
-def _(obj, name="", parent=None, **kwargs):
-    return "{} [label=\"{}\n{} ({})\" style=filled fillcolor=\"#908da8\" shape=box height=.25]".format(id(obj), name, obj.value, obj.resource.unit)
+    return f"{id(obj)} [label=\"{name}\" style=filled fillcolor=\"#e2cbc1\" shape={shape}]"
 
 @generate.register(Local)
 def _(obj, name="", parent=None, **kwargs):
-    return "{} [label=\"{}\n{} ({})\" style=filled fillcolor=\"#d2ceef\" shape=box height=.25]".format(id(obj), name, obj.value, obj.resource.unit)
+    return f"{id(obj)} [label=\"{name}\n{obj.value} ({obj.resource.unit})\" style=filled fillcolor=\"#d2ceef\" shape=box height=.25]"
 
 @generate.register(Input)
 def _(obj, name="", parent=None, **kwargs):
-    return "{} [label=\"{}\n{} ({})\" style=filled fillcolor=\"#b5fed9\" height=.35 shape=cds]".format(id(obj), name, obj.value, obj.resource.unit)
+    return f"{id(obj)} [label=\"{name}\n{obj.value} ({obj.resource.unit})\" style=filled fillcolor=\"#b5fed9\" height=.35 shape=cds]"
 
 @generate.register(Output)
 def _(obj, name="", parent=None, **kwargs):
-    return "{} [label=\"{}\n{} ({})\" style=filled fillcolor=\"#fcc5b3\" height=.35 shape=cds]".format(id(obj), name, obj.value, obj.resource.unit)
+    return f"{id(obj)} [label=\"{name}\n{obj.value} ({obj.resource.unit})\" style=filled fillcolor=\"#fcc5b3\" height=.35 shape=cds]"
 
 @generate.register(Transition)
 def _(obj, name="", parent=None, **kwargs):
@@ -73,7 +68,7 @@ def _(obj, name="", parent=None, **kwargs):
     if kwargs["transition_labels"]:
         guard_ast = get_ast_body(obj.guard)
         label = astor.to_source(guard_ast)
-    return "{} -> {} [label=\"{}\"]".format(id(obj.source), id(obj.target), label)
+    return f"{id(obj.source)} -> {id(obj.target)} [label=\"{label}\"]"
 
 @generate.register(Influence)
 def _(obj, name="", parent=None, **kwargs):
@@ -82,7 +77,7 @@ def _(obj, name="", parent=None, **kwargs):
         if obj.function:
             guard_ast = get_ast_from_lambda_transition_guard(obj.function)
             label = astor.to_source(guard_ast)
-    return "{} -> {} [label=\"{}\"]".format(id(obj.source), id(obj.target), label)
+    return f"{id(obj.source)} -> {id(obj.target)} [label=\"{label}\"]"
 
 @generate.register(Update)
 def _(obj, name="", parent=None, **kwargs):
@@ -94,94 +89,77 @@ def _(obj, name="", parent=None, **kwargs):
         # """ deactivate until astor 0.6 is available"""
         func_ast = get_ast_from_function_definition(obj.function)
         label = astor.to_source(func_ast)
-    # writes = get_assignment_targets(func_ast)
-    # for write in writes:
-    #     # it's gonna be self.portname.value or self.subentity.portname.value
-    #     # therfore we split and remove the first and last
-    #     splits = write.split(".")
-    #     if len(splits) >=2:
-    #         portpath = ".".join(splits[1:-1])
-    #         try:
-    #             # accessed = get_dict_attr(parent, portpath)
-    #             accessed = attrgetter(portpath)(parent)
-    #             label = ""
-    #             returnlist.append("{} -> {} [style=\"dashed\" label=\"{}\"]".format(id(obj.state), id(accessed), label))
-    #         except AttributeError as err:
-    #             print(err)
-    return "{} -> {} [style=\"dashed\" label=\"{}\"]".format(id(obj.state), id(obj.target), label)
+    returnlist.append(f"{id(obj.state)} -> {id(obj.target)} [style=\"dashed\" label=\"{label}\"]")
+
+    accessed = get_accessed_ports(obj.function, obj)
+    for acc in accessed:
+        style = "dashed" if kwargs["show_update_ports"] else "invis"
+        returnlist.append(f"{id(acc)} -> {id(obj.target)} [style=\"{style}\" color=\"darkgreen\" ]")
+
+    return returnlist
 
 @generate.register(Entity)
 def _(obj, name="", parent=None, **kwargs):
-    src = Template("""
-subgraph cluster_$SUBGRAPH_ID {
-label = "$LABEL"
-style=$STYLE
-{rank=source;
-    $INPUTS
-}
-{
-    $CENTRE
-    $BODY
-}
-{rank=sink;
-    $OUTPUTS
-}
+    style = "dashed" if issubclass(obj.__class__, LogicalEntity) else "solid"
 
-}
-""")
-
-    subst = dict()
-    subst["SUBGRAPH_ID"] = id(obj)
-    subst["LABEL"] = "{} <<{}>>".format(name, obj.__class__.__name__)
-    subst["STYLE"] = "dashed" if issubclass(obj.__class__, LogicalEntity) else "solid"
-
-    inputs = []
-    outputs = []
-    centre = []
-    body = []
+    inputs = ""
+    outputs = ""
+    centre = ""
+    body = ""
 
     """ Inputs """
-    for name, input_ in get_inputs(obj, as_dict=True).items():
-        inputs.append(generate(input_, name, obj, **kwargs))
+    for name_, input_ in get_inputs(obj, as_dict=True).items():
+        inputs += "\n" + generate(input_, name_, obj, **kwargs)
 
     """ Centre """
     if not kwargs["interface_only"] and not kwargs["no_behaviour"]:
-        for name, state in get_states(obj, as_dict=True).items():
-            if not name == CURRENT_IDENTIFIER:
-                centre.append(generate(state, name, obj, **kwargs))
+        for name_, state in get_states(obj, as_dict=True).items():
+            if not name_ == CURRENT_IDENTIFIER:
+                centre += "\n" + generate(state, name_, obj, **kwargs)
 
     if not kwargs["interface_only"] and not kwargs["no_behaviour"]:
-        for name, local in get_locals(obj, as_dict=True).items():
-            centre.append(generate(local, name, obj, **kwargs))
+        for name_, local in get_locals(obj, as_dict=True).items():
+            centre += "\n" + generate(local, name_, obj, **kwargs)
 
     """ Outputs """
-    for name, output in get_outputs(obj, as_dict=True).items():
-        outputs.append(generate(output, name, obj, **kwargs))
+    for name_, output in get_outputs(obj, as_dict=True).items():
+        outputs  += "\n" + generate(output, name_, obj, **kwargs)
 
     """ Body """
     if not kwargs["interface_only"] and not kwargs["no_behaviour"]:
         if kwargs["transitions"]:
-            for name, trans in get_transitions(obj, as_dict=True).items():
-                body.append(generate(trans, name, obj, **kwargs))
+            for name_, trans in get_transitions(obj, as_dict=True).items():
+                body += "\n" + generate(trans, name_, obj, **kwargs)
 
     if not kwargs["interface_only"]:
-        for name, entity in get_entities(obj, as_dict=True).items():
-            if name != PARENT_IDENTIFIER: # don't
-                centre.append(generate(entity, name, obj, **kwargs))
+        for name_, entity in get_entities(obj, as_dict=True).items():
+            if name_ != PARENT_IDENTIFIER: # don't
+                centre += "\n" + generate(entity, name_, obj, **kwargs)
 
     if not kwargs["interface_only"]:
-        for name, influence in get_influences(obj, as_dict=True).items():
-            body.append(generate(influence, name, obj, **kwargs))
+        for name_, influence in get_influences(obj, as_dict=True).items():
+            body += "\n" + generate(influence, name_, obj, **kwargs)
 
     if not kwargs["interface_only"] and not kwargs["no_behaviour"]:
         if kwargs["updates"]:
-            for name, update in get_updates(obj, as_dict=True).items():
-                body.append(generate(update, name, obj, **kwargs))
+            for name_, update in get_updates(obj, as_dict=True).items():
+                body += "\n" + "\n".join(generate(update, name_, obj, **kwargs))
 
-    subst["INPUTS"] = "\n".join(inputs)
-    subst["OUTPUTS"] = "\n".join(outputs)
-    # subst["VARIABLES"] = "\n".join(variables)
-    # subst["STATES"] = "\n".join(states)
-    subst["CENTRE"] = "\n".join(centre)
-    subst["BODY"] = "\n".join(body)
-    return src.safe_substitute(subst)
+    return f"""
+        subgraph cluster_{id(obj)} {{
+        label = "{name} <<{obj.__class__.__name__}>>"
+        style={style}
+        {{
+            rank=source;
+            {inputs}
+        }}
+        {{
+            {centre}
+            {body}
+        }}
+        {{
+            rank=sink;
+            {outputs}
+        }}
+        }}
+        """
