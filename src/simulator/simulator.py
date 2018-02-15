@@ -40,7 +40,7 @@ class Simulator(object):
 
     def set_values(self, port_value_map):
         self._value_change(port_value_map)
-        self.stabilise_fp(self.entity)
+        self._stabilise_fp(self.entity)
 
     def _value_change(self, port_value_map):
         for port, value in port_value_map.items():
@@ -48,19 +48,23 @@ class Simulator(object):
 
     """ stabilise """
 
-    def stabilise_fp(self, entity=None):
+    def stabilise(self, entity=None):
+        """This one looks nicer in the API"""
+        return self._stabilise_fp(entity)
+
+    def _stabilise_fp(self, entity=None):
         if entity == None:
             entity = self.entity
 
         logger.debug("stabilise FP for entity %s (%s)", entity._name, entity.__class__.__name__)
-        stabilise_changes = self.stabilise(entity)
+        stabilise_changes = self._stabilise(entity)
         if stabilise_changes:
-            self.stabilise_fp(entity)
+            self._stabilise_fp(entity)
 
         return stabilise_changes
 
 
-    def stabilise(self, entity):
+    def _stabilise(self, entity):
         logger.debug("stabilise entity %s (%s)", entity._name, entity.__class__.__name__)
         influence_changes = self.influence_fp(entity)
         transition_changes = self.transition(entity)
@@ -88,7 +92,7 @@ class Simulator(object):
 
         subchanges = []
         for subentity in get_entities(entity):
-            subchanges.append(self.stabilise_fp(subentity))
+            subchanges.append(self._stabilise_fp(subentity))
 
         # return if something changed
         return (len(changes) > 0) or any(subchanges)
@@ -102,7 +106,7 @@ class Simulator(object):
         if len(enabled_transitions) >= 1:
             transition = random.choice(enabled_transitions)
             entity.current = transition.target
-            logger.info("Fired transition in %s (%s) : %s -> %s",
+            logger.info("Firing transition in %s (%s) : %s -> %s",
                 entity._name, entity.__class__.__name__ ,
                 transition.source._name, transition.target._name)
 
@@ -130,43 +134,51 @@ class Simulator(object):
 
     """ advance """
     def advance(self, t):
+        logger.info(f"Received instructions to advance {t} time steps")
         logger.debug("starting advance of %s time units. (global time now: %s)", t, self.global_time)
         if t <= 0:
             logger.warn("Advancing 0 is not allowed. Use stabilise_fp instead.")
             return
 
-        next_trans = self.get_next_transition_time()
+        next_trans = self.next_transition_time()
         if next_trans == None:
-            logger.info("No next transition, just advance")
+            logger.info(f"No next transition, just advance {t}")
             # execute all updates in all entities
             for e in get_all_entities(self.entity):
                 self.update(e, t)
 
             # stabilise the system
-            self.stabilise_fp(self.entity)
+            self._stabilise_fp(self.entity)
             self.global_time += t
             return
 
 
-        dt = next_trans[3]
-        logger.debug("next transition %s in %s time units", next_trans[2], dt)
-        if dt == None or dt >= t:
-            logger.info("advancing %s", t)
+        ntt = next_trans[3]
+        if ntt == None or ntt >= t:
+            logger.info("Advancing %s", t)
             # execute all updates in all entities
             for e in get_all_entities(self.entity):
                 self.update(e, t)
 
             # stabilise the system
-            self.stabilise_fp(self.entity)
+            self._stabilise_fp(self.entity)
             self.global_time += t
         else:
-            logger.debug("advancing more than than next transition time. starting with %s", dt)
-            self.advance(dt)
-            logger.info("still left to advance: %s", t - dt)
-            self.advance(t - dt)
-            logger.debug("finished total advance of %s (time is now %s)", t, self.global_time)
+            logger.info(f"The next transition is in {ntt} time units. Advancing that first, then the rest of the {t}.")
+            self.advance(ntt)
+            logger.info(f"Now need to advane the rest of the {t}: {t - ntt}")
+            self.advance(t - ntt)
+            logger.debug(f"finished total advance of {t} (time is now {self.global_time})")
 
     """ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - """
     def get_next_transition_time(self):
+        """ this function is a convenience for debugging, so we don't have to create a TransitionTimeCalculator manually """
+        ntt = self.next_transition_time()
+        if ntt:
+            logger.info(f"The next transition to fire is '{ntt[2]}' in ntt={ntt[3]} time steps")
+        else:
+            logger.info("There is no transition reachable by time advance.")
+
+    def next_transition_time(self):
         """ this function is a convenience for debugging, so we don't have to create a TransitionTimeCalculator manually """
         return TransitionTimeCalculator(self.entity, self.timeunit).get_next_transition_time()

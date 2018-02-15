@@ -4,6 +4,10 @@ import types
 import src.simulator.sourcehelper as SH
 from src.model import *
 
+import logging
+logger = logging.getLogger(__name__)
+
+
 class Validator(object):
 
     def __init__(self, model):
@@ -19,6 +23,8 @@ class Validator(object):
         self.test_parents_and_duplicate_usages()
         self.check_update_sanity()
         self.check_influence_sanity()
+
+        logger.info("Did not find any problem. Beware, this tool does not check everything!")
 
     def test_entity_hierarchy(self):
         """
@@ -45,31 +51,45 @@ class Validator(object):
         - check that ports, states, updates, influences and transitions have a parent specificaiton each.
         - Test that they also are only used once (i.e. they only appear once in the list)
         """
+        # logger.debug("ports:")
         all_objs = get_all_ports(self.model)
+        # for o in all_objs:
+        #     print(o._name, o._parent)
         for obj in all_objs:
             assert all_objs.count(obj) == 1, "Port %s has been used multiple times" % obj._name
             assert obj._parent != None, "Port %s has no parent definition" % obj._name
 
+        # logger.debug("states:")
         all_objs = get_all_states(self.model)
+        # for o in all_objs:
+        #     print(o._name, o._parent)
         for obj in all_objs:
             assert all_objs.count(obj) == 1, "State %s has been used multiple times" % obj._name
             assert obj._parent != None, "State %s has no parent definition" % obj._name
 
+        # logger.debug("updates:")
         all_objs = get_all_updates(self.model)
+        # for o in all_objs:
+        #     print(o._name, o._parent)
         for obj in all_objs:
             assert all_objs.count(obj) == 1, "Update %s has been used multiple times" % obj._name
             assert obj._parent != None, "Update %s has no parent definition" % obj._name
 
+        # logger.debug("influences")
         all_objs = get_all_influences(self.model)
+        # for o in all_objs:
+        #     print(o._name, o._parent)
         for obj in all_objs:
             assert all_objs.count(obj) == 1, "Influence %s has been used multiple times" % obj._name
             assert obj._parent != None, "Influence %s has no parent definition" % obj._name
 
-
+        # logger.debug("transitions:")
         all_objs = get_all_transitions(self.model)
+        # for o in all_objs:
+        #     print(o._name, o._parent)
         for obj in all_objs:
-            assert all_objs.count(obj) == 1, "Transition %s has been used multiple times" % obj._name
-            assert obj._parent != None, "Transition %s has no parent definition" % obj._name
+            assert all_objs.count(obj) == 1, f"Transition '{obj._name}' has been used multiple times"
+            assert obj._parent != None, f"Transition '{obj._name}' has no parent definition"
 
     def check_port_connections(self):
         all_ports = get_all_ports(self.model)
@@ -110,7 +130,7 @@ class Validator(object):
             entity = update._parent
             assert update.target in targets(entity)
 
-            for port in SH.get_read_ports_from_update(up.function, up):
+            for port in SH.get_read_ports_from_update(update.function, update):
                 assert port in sources(entity)
 
             assert type(update.function) is types.FunctionType

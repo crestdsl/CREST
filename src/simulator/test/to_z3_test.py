@@ -47,7 +47,7 @@ class TestZ3Conversion(unittest.TestCase):
 
     def get_test_z3vars_fixture(self, instance):
         z3_vars = {'dt': z3.Int('dt')}
-        z3_vars['dt'].cresttype = int
+        z3_vars['dt'].type = REAL
 
         z3_vars[instance.port] = {instance.port._name : get_z3_variable(instance.port, instance.port._name)}
         z3_vars[instance.port][instance.port._name+"_0"] = get_z3_value(instance.port, instance.port._name+"_0")
@@ -109,6 +109,26 @@ class TestZ3Conversion(unittest.TestCase):
     def test_update_variable_dereference(self):
         def update(self, dt):
             var = 15
+            return var
+
+        instance = self.get_test_fixture(update)
+        z3_vars = self.get_test_z3vars_fixture(instance)
+        conv = Z3Converter(z3_vars, entity=instance, container=instance.update)
+
+        # execute
+        constraints = conv.to_z3(instance.update.function)
+        sexprs = [c.sexpr() for c in constraints]
+        # test
+        update_id = id(instance.update)
+        self.assertInMulti([
+            f"(= var_1_{update_id} 15.0)",
+            f"(= port_{id(instance.port)} var_1_{update_id})"
+            ],sexprs)
+
+    def test_update_variable_type_annotation(self):
+        def update(self, dt):
+            var = 15.0
+            var = var
             return var
 
         instance = self.get_test_fixture(update)
@@ -314,44 +334,53 @@ class TestZ3Conversion(unittest.TestCase):
 
     def test_resolve_two_types(self):
         conv = Z3Converter(None, None, None)
-        self.assertEqual(INT, conv.resolve_two_types(INT, INT))
-        self.assertEqual(INTEGER, conv.resolve_two_types(INT, INTEGER))
-        self.assertEqual(FLOAT, conv.resolve_two_types(INT, FLOAT))
-        self.assertEqual(REAL, conv.resolve_two_types(INT, REAL))
-        self.assertRaises(ValueError, conv.resolve_two_types, INT, BOOL)
-        self.assertRaises(ValueError, conv.resolve_two_types, INT, STRING)
-        self.assertEqual(INTEGER, conv.resolve_two_types(INTEGER, INT))
-        self.assertEqual(INTEGER, conv.resolve_two_types(INTEGER, INTEGER))
-        self.assertEqual(FLOAT, conv.resolve_two_types(INTEGER, FLOAT))
-        self.assertEqual(REAL, conv.resolve_two_types(INTEGER, REAL))
-        self.assertEqual(INTEGER, conv.resolve_two_types(INTEGER, BOOL))
-        self.assertRaises(ValueError, conv.resolve_two_types, INTEGER, STRING)
-        self.assertEqual(FLOAT, conv.resolve_two_types(FLOAT, INT))
-        self.assertEqual(FLOAT, conv.resolve_two_types(FLOAT, INTEGER))
-        self.assertEqual(FLOAT, conv.resolve_two_types(FLOAT, FLOAT))
-        self.assertEqual(INT, conv.resolve_two_types(FLOAT, REAL))
-        self.assertEqual(INT, conv.resolve_two_types(FLOAT, BOOL))
-        self.assertRaises(ValueError, conv.resolve_two_types, FLOAT, STRING)
-        self.assertEqual(REAL, conv.resolve_two_types(REAL, INT))
-        self.assertEqual(REAL, conv.resolve_two_types(REAL, INTEGER))
-        self.assertEqual(REAL, conv.resolve_two_types(REAL, FLOAT))
-        self.assertEqual(REAL, conv.resolve_two_types(REAL, REAL))
-        self.assertEqual(INT, conv.resolve_two_types(REAL, BOOL))
-        self.assertRaises(ValueError, conv.resolve_two_types, REAL, STRING)
-        self.assertRaises(ValueError, conv.resolve_two_types, BOOL, INT)
-        self.assertEqual(INTEGER, conv.resolve_two_types(BOOL, INTEGER))
-        self.assertEqual(INT, conv.resolve_two_types(BOOL, FLOAT))
-        self.assertRaises(ValueError, conv.resolve_two_types, BOOL, REAL)
-        self.assertEqual(BOOL, conv.resolve_two_types(BOOL, BOOL))
-        self.assertRaises(ValueError, conv.resolve_two_types, BOOL, STRING)
-        self.assertRaises(ValueError, conv.resolve_two_types, STRING, INT)
-        self.assertRaises(ValueError, conv.resolve_two_types, STRING, INTEGER)
-        self.assertRaises(ValueError, conv.resolve_two_types, STRING, FLOAT)
-        self.assertRaises(ValueError, conv.resolve_two_types, STRING, REAL)
-        self.assertRaises(ValueError, conv.resolve_two_types, STRING, BOOL)
-        self.assertEqual(STRING, conv.resolve_two_types(STRING, STRING))
+        triples = [
+            (INT, INT, INT),
+            (INTEGER, INT, INTEGER),
+            (FLOAT, INT, FLOAT),
+            (REAL, INT, REAL),
+            (INTEGER, INTEGER, INT),
+            (INTEGER, INTEGER, INTEGER),
+            (FLOAT, INTEGER, FLOAT),
+            (REAL, INTEGER, REAL),
+            (INTEGER, INTEGER, BOOL),
+            (FLOAT, FLOAT, INT),
+            (FLOAT, FLOAT, INTEGER),
+            (FLOAT, FLOAT, FLOAT),
+            (REAL, REAL, INT),
+            (REAL, REAL, INTEGER),
+            (REAL, REAL, REAL),
+            (INTEGER, BOOL, INTEGER),
+            (BOOL, BOOL, BOOL),
+            (STRING, STRING, STRING)
+        ]
+        for (expected, left, right) in triples:
+            self.assertEqual(expected, conv.resolve_two_types(left, right))
 
-
+    def test_assert_resolution_errors(self):
+        conv = Z3Converter(None, None, None)
+        pairs = [
+            (INT, BOOL),
+            (INT, STRING),
+            (INTEGER, STRING),
+            (FLOAT, REAL),
+            (FLOAT, BOOL),
+            (FLOAT, STRING),
+            (REAL, FLOAT),
+            (REAL, BOOL),
+            (REAL, STRING),
+            (BOOL, INT),
+            (BOOL, REAL),
+            (BOOL, FLOAT),
+            (BOOL, STRING),
+            (STRING, INT),
+            (STRING, INTEGER),
+            (STRING, FLOAT),
+            (STRING, REAL),
+            (STRING, BOOL)
+        ]
+        for (left, right) in pairs:
+            self.assertRaises(ValueError, conv.resolve_two_types, left, right)
 
 
     # def atest_resolve_type_dereference(self):
