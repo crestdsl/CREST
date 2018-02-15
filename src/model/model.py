@@ -7,17 +7,8 @@ import inspect
 """" DECORATORS """
 
 def transition(source="", target=""):
-    def decorator(action_or_transition):
-        if isinstance(action_or_transition, Transition):
-            action_or_transition.source = source
-            action_or_transition.target = target
-            return action_or_transition
-        else:
-            trans = Transition()
-            trans.source = source
-            trans.target = target
-            trans.action = action_or_transition
-            return trans
+    def decorator(guard):
+        return Transition(source=source, target=target, guard=guard)
     return decorator
 
 def influence(source="", target=""):

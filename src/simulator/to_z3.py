@@ -117,6 +117,7 @@ class Z3Converter(object):
     def find_z3_variable(self, identifier):
         if isinstance(identifier, Port):
             path_to_port = get_path_to_attribute(self.entity, identifier)
+            path_to_port = path_to_port.split(".")[-1]
             return self.z3_vars[identifier][path_to_port]
         else:
             return self.z3_vars[identifier+"_"+str(id(self.container))][identifier]
@@ -175,10 +176,11 @@ class Z3Converter(object):
 
             if z3_var_name_to_find not in self.z3_vars[key]:
                 logger.debug(f"<str>to_z3: '{z3_var_name_to_find}' not in {self.z3_vars[key]}, adding a new variable!")
-                # import pdb; pdb.set_trace()
-                # print(f"Actually we should be creating a {str(var_type)} here!!")
-                self.z3_vars[key][z3_var_name_to_find] = z3.Real("{}_{}".format(z3_var_name_to_find, id(self.container)))
-                self.z3_vars[key][z3_var_name_to_find].type = Types.REAL
+
+                print(f"Actually we should be creating a {str(var_type)} for var {obj}({z3_var_name_to_find}) here!!")
+                new_var = get_z3_var(var_type, "{}_{}".format(z3_var_name_to_find, id(self.container)))
+                self.z3_vars[key][z3_var_name_to_find] = new_var #z3.Real("{}_{}".format(z3_var_name_to_find, id(self.container)))
+                # self.z3_vars[key][z3_var_name_to_find].type = var_type
 
             return self.z3_vars[key][z3_var_name_to_find]
         # if obj not in self.z3_vars:
@@ -260,7 +262,18 @@ class Z3Converter(object):
                 return self.to_z3(name, new_varname)
             # left of =:
             else:
-                var_type = self.resolve_type(ancestor_assign.value)
+                # TODO
+                var_type = None
+                if isinstance(ancestor_assign, ast.AnnAssign):
+                    print(111)
+                    var_type = eval(SH.get_attribute_string(ancestor_assign.annotation))
+                elif isinstance(ancestor_assign, ast.Assign):
+                    var_type = self.resolve_type(ancestor_assign.value)
+                    print(222)
+                elif isinstance(ancestor_assign, ast.AugAssign):
+                    var_type = self.resolve_type(ancestor_assign)
+                    print(333)
+                print(var_type)
                 new_varname = "{}_{}".format(varname_with_parent_if_id, previous_count+1)
                 return self.to_z3(name, new_varname, var_type)
         # RETURN
@@ -278,7 +291,6 @@ class Z3Converter(object):
         z3_constraints = []
         value = self.to_z3(obj.value)
         for target in obj.targets:
-            assignee_type = self.resolve_type(target)
             assignee = self.to_z3(target)
             z3_constraints.append(assignee == value)
         return z3_constraints
@@ -348,14 +360,16 @@ class Z3Converter(object):
         if not obj.value:
             return []
         value = self.to_z3(obj.value)
-        target = self.find_z3_variable(self.target)
-        return target == value
+
+        if type(self.target) == State:
+            return value
+        else:
+            return self.find_z3_variable(self.target) == value
 
     @to_z3.register(ast.IfExp)
     def to_z3_astIfExp(self, obj):
         """ a if b else c"""
         ret_val = z3.If(self.to_z3(ob.test), self.to_z3(obj.body), self.to_z3(obj.orelse))
-        import pdb;pdb.set_trace()
         return ret_val
 
     @to_z3.register(ast.If)
@@ -465,7 +479,7 @@ class Z3Converter(object):
     def _(self, obj):
         left_type = self.resolve_type(obj.left)
         right_type = self.resolve_type(obj.right)
-        types = [left_type, right_type]
+        return self.resolve_two_types(left_type, right_type, obj.op)
 
     def resolve_two_types(self, left, right, op=None):
         """
@@ -495,18 +509,22 @@ class Z3Converter(object):
         elif INT in types and REAL in types:
             return REAL
         elif INTEGER in types and BOOL in types:
-            return INT
+            return INTEGER
         elif INTEGER in types and FLOAT in types:
             return FLOAT
         elif INTEGER in types and REAL in types:
             return REAL
-        elif FLOAT in types and REAL in types:
-            return REAL
+        # elif FLOAT in types and REAL in types:
+        #     return REAL
 
         """ unsupported conversions """
         if STRING in types: # string and something that's not a string
             raise ValueError(f"it is not allowed to mix {left} and {right} in an expression")
-
+        elif (INT in types and BOOL in types) or \
+             (FLOAT in types and REAL in types) or \
+             (FLOAT in types and BOOL in types) or \
+             (REAL in types and BOOL in types):
+            raise ValueError(f"it is not allowed to mix {left} and {right} in an expression")
 
         raise NotImplementedError(f"I do not know how to compute the resulting type of: {left} and {right} (operator: {astor.get_op_symbol(op) if op else 'None'})")
 
@@ -517,6 +535,12 @@ class Z3Converter(object):
     @resolve_type.register(ast.Compare)
     def _(self, obj):
         return Types.BOOL
+
+    @resolve_type.register(ast.AugAssign)
+    def _(self, obj):
+        left_type = self.resolve_type(obj.target) # TODO: I think this creates an infinite loop
+        val_type = self.resolve_type(obj.value)
+        return self.resolve_two_types(left_type, val_type)
 
     @resolve_type.register(ast.IfExp)
     def _(self, obj):
@@ -538,7 +562,10 @@ def get_identifier_from_target(target):
     raise Exception("Don't know how we got here... something's off")
 
 def get_self_or_ancester_assign_or_if(obj):
-    return obj if isinstance(obj, (ast.Assign, ast.AugAssign, ast.AnnAssign, ast.If, ast.Return)) else SH.get_ancestor_of_type(obj, (ast.Assign, ast.AugAssign, ast.If, ast.Return))
+    if isinstance(obj, (ast.Assign, ast.AugAssign, ast.AnnAssign, ast.If, ast.Return)):
+        return obj
+    else:
+        return SH.get_ancestor_of_type(obj, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.If, ast.Return))
 
 def count_previous_assignments_with_name_on_left(name, obj):
     ancestor_assign = get_self_or_ancester_assign_or_if(obj)

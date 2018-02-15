@@ -1,8 +1,14 @@
 import inspect
-import src.simulator.sourcehelper as SH
-from src.model.entity import *
+import types
 
-class ValidityCheck(object):
+import src.simulator.sourcehelper as SH
+from src.model import *
+
+import logging
+logger = logging.getLogger(__name__)
+
+
+class Validator(object):
 
     def __init__(self, model):
         if inspect.isclass(model):
@@ -15,6 +21,10 @@ class ValidityCheck(object):
         self.check_current_states()
         self.check_port_connections()
         self.test_parents_and_duplicate_usages()
+        self.check_update_sanity()
+        self.check_influence_sanity()
+
+        logger.info("Did not find any problem. Beware, this tool does not check everything!")
 
     def test_entity_hierarchy(self):
         """
@@ -41,32 +51,45 @@ class ValidityCheck(object):
         - check that ports, states, updates, influences and transitions have a parent specificaiton each.
         - Test that they also are only used once (i.e. they only appear once in the list)
         """
+        # logger.debug("ports:")
         all_objs = get_all_ports(self.model)
+        # for o in all_objs:
+        #     print(o._name, o._parent)
         for obj in all_objs:
             assert all_objs.count(obj) == 1, "Port %s has been used multiple times" % obj._name
             assert obj._parent != None, "Port %s has no parent definition" % obj._name
 
+        # logger.debug("states:")
         all_objs = get_all_states(self.model)
+        # for o in all_objs:
+        #     print(o._name, o._parent)
         for obj in all_objs:
             assert all_objs.count(obj) == 1, "State %s has been used multiple times" % obj._name
             assert obj._parent != None, "State %s has no parent definition" % obj._name
 
+        # logger.debug("updates:")
         all_objs = get_all_updates(self.model)
+        # for o in all_objs:
+        #     print(o._name, o._parent)
         for obj in all_objs:
             assert all_objs.count(obj) == 1, "Update %s has been used multiple times" % obj._name
             assert obj._parent != None, "Update %s has no parent definition" % obj._name
 
+        # logger.debug("influences")
         all_objs = get_all_influences(self.model)
+        # for o in all_objs:
+        #     print(o._name, o._parent)
         for obj in all_objs:
             assert all_objs.count(obj) == 1, "Influence %s has been used multiple times" % obj._name
             assert obj._parent != None, "Influence %s has no parent definition" % obj._name
 
-
+        # logger.debug("transitions:")
         all_objs = get_all_transitions(self.model)
+        # for o in all_objs:
+        #     print(o._name, o._parent)
         for obj in all_objs:
-            assert all_objs.count(obj) == 1, "Transition %s has been used multiple times" % obj._name
-            assert obj._parent != None, "Transition %s has no parent definition" % obj._name
-
+            assert all_objs.count(obj) == 1, f"Transition '{obj._name}' has been used multiple times"
+            assert obj._parent != None, f"Transition '{obj._name}' has no parent definition"
 
     def check_port_connections(self):
         all_ports = get_all_ports(self.model)
@@ -81,10 +104,9 @@ class ValidityCheck(object):
             influences_to_port[inf.target].append(inf)
 
         for up in get_all_updates(self.model):
-            for port in SH.get_written_ports_from_update(up):
-                updates_to_port[port].append(up)
+            updates_to_port[up.target].append(up)
 
-            for port in SH.get_read_ports_from_update(up):
+            for port in SH.get_read_ports_from_update(up.function, up):
                 updates_reading_port[port].append(up)
 
         # perform tests
@@ -102,3 +124,31 @@ class ValidityCheck(object):
         for inf in get_all_influences(self.model):
             assert inf.source in sources(inf._parent), "Specified influence source %s is not one of the entity's source ports" % inf.source
             assert inf.target in targets(inf._parent), "Specified influence target %s is not one of the entity's target ports" % inf.target
+
+    def check_update_sanity(self):
+        for update in get_all_updates(self.model):
+            entity = update._parent
+            assert update.target in targets(entity)
+
+            for port in SH.get_read_ports_from_update(update.function, update):
+                assert port in sources(entity)
+
+            assert type(update.function) is types.FunctionType
+            assert len(inspect.signature(update.function).parameters) == 2, "An update should have one argument 'dt' (besides 'self')"
+            assert 'dt' in inspect.signature(update.function).parameters
+
+    def check_influence_sanity(self):
+        for influence in get_all_influences(self.model):
+            entity = influence._parent
+            assert influence.source in sources(entity)
+            assert influence.target in targets(entity)
+            assert type(influence.function) is types.FunctionType
+            assert len(inspect.signature(influence.function).parameters) == 1, "An influence should not have arguments (except 'self')"
+
+    def check_transition_sanity(self):
+        for trans in get_all_transitions(self.model):
+            entity = trans._parent
+            assert trans.source in get_states(entity)
+            assert trans.target in get_states(entity)
+            assert type(trans.function) is types.FunctionType
+            assert len(inspect.signature(trans.function).parameters) == 1, "A transition should not have arguments (except self)"

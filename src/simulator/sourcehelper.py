@@ -156,6 +156,7 @@ def get_all_following_siblings(ast_node):
     return result
 
 def get_accessed_ports(function, container):
+    # print(container._name, "in", container._parent._name)
     ast_body = get_ast_body(function)
     varnames = get_used_variable_names(ast_body)
     portnames = []
@@ -168,8 +169,15 @@ def get_accessed_ports(function, container):
         elif splits == 2:
             portnames.append(splits[1])
 
+    # print("varnames", varnames)
+    # print("portnames", portnames)
+
+    src = sources(container._parent)
+
     entity_ports = get_ports(container._parent, as_dict=True) # FIXME: this needs to be sources
+    # print("entityports", entity_ports)
     ports = [entity_ports[portname] for portname in portnames if portname in portnames]
+    # print("ports", [p._name for p in ports])
     return ports
 
 def get_written_ports_from_update(function, container):
@@ -310,6 +318,11 @@ def get_attribute_string(ast_obj):
 class Analyser(object):
 
     def __init__(self):
+        import warnings, inspect
+        previous_frame = inspect.currentframe().f_back
+        (filename, line_number, function_name, lines, index) = inspect.getframeinfo(previous_frame)
+        stack = inspect.stack()[1]
+        warnings.warn(f"deprecated, use 'get_attribute_string(ast_object)' instead. Called from {stack[3]} ( {stack[1]}: {stack[2]})", DeprecationWarning)
         self.accessed = []
 
     def __getattr__(self, name):
