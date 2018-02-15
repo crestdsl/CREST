@@ -1,9 +1,9 @@
 from copy import deepcopy, copy
 from operator import attrgetter
 
-from src.model.meta import CrestObject, PARENT_IDENTIFIER, CURRENT_IDENTIFIER
-from src.model.ports import Port, Input, Output, Local, LocalConst
-from src.model.model import State, Transition, Influence, Update
+from .meta import CrestObject, PARENT_IDENTIFIER, CURRENT_IDENTIFIER
+from .ports import Port, Input, Output, Local
+from .model import State, Transition, Influence, Update
 
 import logging
 logger = logging.getLogger(__name__)
@@ -12,11 +12,30 @@ class Entity(CrestObject):
 
     def __new__(cls, *args, **kwargs):
         newobj = super().__new__(cls)
+        # print(f"creating a {type(newobj)}")
         if not hasattr(newobj, "_name"):
             newobj._name = "" # set default name and parent
         if not hasattr(newobj, PARENT_IDENTIFIER):
             setattr(newobj, PARENT_IDENTIFIER, None)
-        return Entity.make_crest_copy(cls, newobj)
+
+        # all_objs = get_transitions(cls)
+        # print("class transitions", len(all_objs))
+        # for o in all_objs:
+        #     print(cls, "000", o, o._name, o._parent)
+        #
+        # all_objs = get_transitions(newobj)
+        # print("object transitions", len(all_objs))
+        # for o in all_objs:
+        #     print(newobj, "000", o, o._name, o._parent)
+
+        initialised = Entity.make_crest_copy(cls, newobj)
+
+        # all_objs = get_transitions(newobj)
+        # print("object transitions after init", len(all_objs))
+        # for o in all_objs:
+        #    print(newobj, "000", o, o._name, o._parent)
+
+        return initialised
 
     def __deepcopy__(self, memo):
         newobj = super().__new__(self.__class__)
@@ -47,15 +66,6 @@ class Entity(CrestObject):
                     identifier = get_path_to_attribute(original_obj, identifier)
 
             return attrgetter(identifier)(newobj)
-
-        # def get_path_to_attribute(object_to_find):
-        #     """ finds the path to an object (port) in the original object
-        #     by repeatedly going to the parent and recording the names on the way """
-        #     path = []
-        #     while original_obj != object_to_find:
-        #         path.append(object_to_find._name)
-        #         object_to_find = getattr(object_to_find, PARENT_IDENTIFIER)
-        #     return path.join(".")
 
         def _create_crestobject_path_map(root):
             object_path_map = {v : k for k, v in get_crest_objects(root, as_dict=True).items()}
@@ -101,7 +111,16 @@ class Entity(CrestObject):
                 setattr(newobj, name, newentity)
 
         """ get transitions and adapt them """
-        logger.debug("copying transitions")
+        logger.debug("copying transitions", newobj)
+        # import pdb; pdb.set_trace()
+        all_objs = get_transitions(newobj)
+        # print(222, len(all_objs))
+        # for o in all_objs:
+        #     print(newobj, "222", o, o._name, o._parent)
+        all_objs = get_transitions(original_obj)
+        # print(111, len(all_objs))
+        # for o in all_objs:
+        #     print(newobj, "111", o, o._name, o._parent)
         for name, trans in get_transitions(original_obj, as_dict=True).items():
             source = get_local_attribute(trans.source)
             target = get_local_attribute(trans.target)
@@ -109,15 +128,21 @@ class Entity(CrestObject):
             newtransition._name = name
             setattr(newtransition, PARENT_IDENTIFIER, newobj) # save reference to parent
             setattr(newobj, name, newtransition)
+        listattrs = get_by_klass(newobj, list, as_dict=True)
+        if len(listattrs) > 0:
+            import pdb; pdb.set_trace()
+        # TODO delete all lists of transitions that end in "__X" where X is a number
 
         """ get updates and adapt them """
         logger.debug("copying updates")
         for name, update in get_updates(original_obj, as_dict=True).items():
             state = get_local_attribute(update.state)
-            newupdate = Update(state=state, function=update.function)
+            target = get_local_attribute(update.target)
+            newupdate = Update(state=state, function=update.function, target=target)
             newupdate._name = name
             newupdate._parent = newobj # save reference to parent
             setattr(newobj, name, newupdate)
+        # TODO delete all lists of updates that end in "__X" where X is a number
 
         """ get influences and adapt them """
         logger.debug("copying influences")
@@ -128,6 +153,7 @@ class Entity(CrestObject):
             newinfluence._name = name
             setattr(newinfluence, PARENT_IDENTIFIER, newobj) # save reference to parent
             setattr(newobj, name, newinfluence)
+        # TODO delete all lists of influences that end in "__X" where X is a number
 
         return newobj
 
@@ -158,8 +184,28 @@ def get_all_influences(entity):
 def get_all_updates(entity):
     return [up for e in get_all_entities(entity) for up in get_updates(e)]
 
+def get_all_ports(entity):
+    return [p for e in get_all_entities(entity) for p in get_ports(e)]
+
+def get_all_states(entity):
+    return [s for e in get_all_entities(entity) for s in get_states(e)]
+
+def get_all_transitions(entity):
+    return [s for e in get_all_entities(entity) for s in get_transitions(e)]
+
 
 """ get_X_from_entity functions"""
+def sources(entity):
+    return get_inputs(entity) + get_locals(entity) + [o for e in get_entities(entity) for o in get_outputs(e)]
+
+def targets(entity):
+    return get_outputs(entity) + get_locals(entity) + [i for e in get_entities(entity) for i in get_inputs(e)]
+
+def parent(entity):
+    return entity._parent
+
+def children(entity):
+    return get_entities(entity)
 
 def get_states(entity, as_dict=False):
     return get_by_klass(entity, State, as_dict)
@@ -197,8 +243,8 @@ def get_crest_objects(entity, as_dict=False):
 
 def get_by_klass(entity, klass, as_dict=False):
     if as_dict:
-        attrs = {attr: get_dict_attr(entity, attr) for attr in dir(entity)}
         retval = dict()
+        attrs = {attr: get_dict_attr(entity, attr) for attr in dir(entity)}
         for name, attr in attrs.items():
             if isinstance(attr, klass):
                 retval[name] = attr
@@ -208,16 +254,37 @@ def get_by_klass(entity, klass, as_dict=False):
                         retval["{}___{}".format(name, idx)] = value
         return retval
     else:
-         attrs = [get_dict_attr(entity, attr) for attr in dir(entity)]
-         retval = []
-         for attr in attrs:
-             if isinstance(attr, klass):
-                 retval.append(attr)
-             elif isinstance(attr, list):
-                 for v in attr:
-                     if isinstance(v, klass):
-                         retval.append(v)
-         return list(set(retval))
+        retval = []
+        for attrname in dir(entity):
+            attr = get_dict_attr(entity, attrname)
+            if isinstance(attr, klass):
+                # print("\tadding1", attrname, attr, attr._name)
+                retval.append(attr)
+            elif isinstance(attr, list):
+                for v in attr:
+                    if isinstance(v, klass):
+                        # print("\tadding2", attrname, v, v._name)
+                        retval.append(v)
+        # print("# - # - "*20)
+        # for attr in dir(entity):
+        #     print(attr, get_dict_attr(entity, attr))
+        # print("# - # - "*20)
+        # attrs = [get_dict_attr(entity, attr) for attr in dir(entity)]
+         # for a in attrs:
+         #     print(a, a._name if hasattr(a, "_name") else "")
+
+        # retval = []
+        # for attr in attrs:
+        #      # print("trying", attr)
+        #      if isinstance(attr, klass):
+        #          print("\tadding1", attr, attr._name)
+        #          retval.append(attr)
+        #      elif isinstance(attr, list):
+        #          for v in attr:
+        #              if isinstance(v, klass):
+        #                  print("\tadding2", attr, v)
+        #                  retval.append(v)
+        return list(set(retval))
 
 def get_dict_attr(obj, attr):
     potential = [obj] + obj.__class__.mro() if isinstance(obj, Entity) else [obj] + obj.mro()
