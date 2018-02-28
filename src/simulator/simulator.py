@@ -9,11 +9,12 @@ logger = logging.getLogger(__name__)
 
 class Simulator(object):
 
-    def __init__(self, entity, timeunit=REAL, plotter=None):
+    def __init__(self, entity, timeunit=REAL, plotter=None, default_to_integer_real=True):
         self.entity = entity
         self.timeunit = timeunit
         self.plotter = plotter
         self.global_time = 0
+        self.default_to_integer_real = default_to_integer_real
 
     def plot(self, entity=None, **kwargs):
         """
@@ -181,4 +182,4 @@ class Simulator(object):
 
     def next_transition_time(self):
         """ this function is a convenience for debugging, so we don't have to create a TransitionTimeCalculator manually """
-        return TransitionTimeCalculator(self.entity, self.timeunit).get_next_transition_time()
+        return TransitionTimeCalculator(self.entity, self.timeunit, use_integer_and_real=self.default_to_integer_real).get_next_transition_time()

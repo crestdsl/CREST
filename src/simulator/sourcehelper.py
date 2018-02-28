@@ -2,16 +2,17 @@ import ast
 import types
 import inspect
 import astor
+from copy import deepcopy
 from operator import attrgetter
 from src.model.entity import *
 
-def get_ast_body(function_or_lambda):
+def get_ast_body(function_or_lambda, rewrite_if_else=False):
     if is_lambda(function_or_lambda):
         # this means we're a lambda
         return get_ast_from_lambda(function_or_lambda)
     else:
         # this is a "normal" function def
-        return get_ast_body_from_function_definition(function_or_lambda)
+        return get_ast_body_from_function_definition(function_or_lambda, rewrite_if_else)
 
 def get_param_names(function_or_lambda):
     if is_lambda(function_or_lambda):
@@ -21,19 +22,41 @@ def get_param_names(function_or_lambda):
         # this is a "normal" function def
         return get_param_names_from_function_definition(function_or_lambda)
 
-def get_ast_from_function_definition(function):
+def get_ast_from_function_definition(function, rewrite_if_else=False):
     module = getast(function)
     functiondef  = module.body[0]
+    if rewrite_if_else:
+        RewriteIfElse().walk(functiondef)
     add_parent_info(functiondef)
     return functiondef
+
+class RewriteIfElse(astor.TreeWalk):
+
+    def pre_If(self):
+        idx_in_parent = self.parent.index(self.cur_node)
+        siblings_after = self.parent[idx_in_parent+1:]
+        if not siblings_after:
+            return False
+        if type(self.cur_node.body[-1]) != ast.Return:
+            self.cur_node.body.extend(deepcopy(siblings_after))
+        if type(self.cur_node.orelse[-1]) != ast.Return:
+            self.cur_node.orelse.extend(deepcopy(siblings_after))
+
+        #remove items afterwards:
+        self.parent[idx_in_parent+1:] = []
+
+
+
+def rewrite_single_if_else(if_else_ast):
+    following_siblings = None
 
 def get_param_names_from_function_definition(function):
     module = getast(function)
     functiondef  = module.body[0]
     return [arg.arg for arg in functiondef.args.args]
 
-def get_ast_body_from_function_definition(function):
-    return get_ast_from_function_definition(function).body
+def get_ast_body_from_function_definition(function, rewrite_if_else=False):
+    return get_ast_from_function_definition(function, rewrite_if_else=rewrite_if_else).body
 
 def get_ast_from_lambda(lambda_func):
     module = getast(lambda_func)
@@ -129,31 +152,46 @@ def get_number_of_previous_writes_to_var_with_name(ast_node, var_name):
     if not assign_or_augassign:
         return None
 
-def is_decendant_of(decendant, ancestor):
-    for node in ast.walk(ancestor):
-        if node == decendant:
-            return True
+def is_decendant_of(decendant, ancestors):
+    if type(ancestors) != list:
+        ancestors = [ancestors]
+    for ancestor in ancestors:
+        for node in ast.walk(ancestor):
+            if node == decendant:
+                return True
     return False
 
 def get_all_previous_siblings(ast_node):
-    result = []
-    for child in ast.iter_child_nodes(ast_node.parent):
-        if child == ast_node:
+    # necessarily, we're part of a list of elements in a functiondefinition or in an if body/else_type
+    # but the assign's .parent points to the function (or if)
+    # so figure out in which list we're in, then get all previous elements of that
+    correct_field = None
+    for fieldname in ast_node.parent._fields:
+        field = getattr(ast_node.parent, fieldname)
+        if type(field) == list and ast_node in field:
+            correct_field = field
             break
-        else:
-            result.append(child)
-    return result
+    assert correct_field != None, "Ancestor is not part of the surrounding funcDef/if/... statement"
+
+    position = correct_field.index(ast_node)
+    return correct_field[0:position]
 
 def get_all_following_siblings(ast_node):
-    match = False
-    result = []
-    for child in ast.iter_child_nodes(ast_node.parent):
-        if child == ast_node:
-            match = True
-        else:
-            if match:
-                result.append(child)
-    return result
+    # necessarily, we're part of a list of elements in a functiondefinition or in an if body/else_type
+    # but the assign's .parent points to the function (or if)
+    # so figure out in which list we're in, then get all previous elements of that
+    correct_field = None
+    for fieldname in ast_node.parent._fields:
+        field = getattr(ast_node.parent, fieldname)
+        if type(field) == list and ast_node in field:
+            correct_field = field
+            break
+    assert correct_field != None, "Ancestor is not part of the surrounding funcDef/if/... statement"
+
+    position = correct_field.index(ast_node)
+    with_node = correct_field[position:]
+    node, *without_node = with_node
+    return without_node
 
 def get_accessed_ports(function, container):
     # print(container._name, "in", container._parent._name)
@@ -281,10 +319,10 @@ class VarRecursionSkipper(ast.NodeVisitor):
         self.used_variable_names = set()
 
     def visit_Name(self, node):
-        self.used_variable_names.add(get_name_from_target(node))
+        self.used_variable_names.add(get_attribute_string(node))
 
     def visit_Attribute(self, node):
-        self.used_variable_names.add(get_name_from_target(node))
+        self.used_variable_names.add(get_attribute_string(node))
 
 def get_used_variable_names(ast_object):
     if ast_object == None:

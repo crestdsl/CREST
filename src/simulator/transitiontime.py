@@ -9,9 +9,10 @@ logger = logging.getLogger(__name__)
 
 class TransitionTimeCalculator(object):
 
-    def __init__(self, system, timeunit=REAL):
+    def __init__(self, system, timeunit=REAL, use_integer_and_real=True):
         self.entity = system
         self.timeunit = timeunit
+        self.use_integer_and_real = use_integer_and_real
 
     def get_next_transition_time(self, entity=None):
         """calculates the time until one of the transitions can fire"""
@@ -137,7 +138,7 @@ class TransitionTimeCalculator(object):
         for port, modifiers in modifier_map.items():
             for modifier in modifiers:
                 logger.debug("adding constraints for %s", modifier._name)
-                conv = Z3Converter(z3_vars, entity=modifier._parent, container=modifier)
+                conv = Z3Converter(z3_vars, entity=modifier._parent, container=modifier, use_integer_and_real=self.use_integer_and_real)
                 conv.target = modifier.target  # the target of the influence/update
 
                 if isinstance(modifier, Update):
@@ -177,7 +178,7 @@ class TransitionTimeCalculator(object):
 
 
         logger.debug("adding constraints for transition guard: %s", transition._name)
-        conv = Z3Converter(z3_vars, entity=transition._parent, container=transition)
+        conv = Z3Converter(z3_vars, entity=transition._parent, container=transition, use_integer_and_real=self.use_integer_and_real)
         solver.add(conv.to_z3(transition.guard))
 
         # import pprint;pprint.pprint(z3_vars)

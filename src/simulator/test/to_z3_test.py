@@ -3,34 +3,22 @@ import ast
 from src.model import *
 
 from src.simulator.to_z3 import *
+from pprint import pprint
+
+import logging
+logging.basicConfig(level=logging.INFO)  # basic logging level
+entityLog = logging.getLogger(name="src.model.entity") # specific logging level
+entityLog.setLevel(logging.INFO)
+simLog = logging.getLogger(name="src.simulator.simulator") # specific logging level
+simLog.setLevel(logging.INFO)
+ttLog = logging.getLogger(name="src.simulator.transitiontime") # specific logging level
+ttLog.setLevel(logging.DEBUG)
+toZ3Log = logging.getLogger(name="src.simulator.to_z3") # specific logging level
+toZ3Log.setLevel(logging.DEBUG)
 
 class TestZ3Conversion(unittest.TestCase):
 
-    """
-    def test_influence_lambda_constant(self):
-        res = Resource("float-resource", float)
-        src = Local(resource=res, value=3.14)
-        port = Local(resource=res, value=3.14)
-        inf = Influence(source=src, target=port, function=(lambda value: 3))
-        conv = Z3Converter(dict(), entity=None, container=inf)
-        constraints = conv.to_z3(inf.function)
-
-    def test_influence_lambda_passthrough(self):
-        res = Resource("float-resource", float)
-        src = Local(resource=res, value=3.14)
-        port = Local(resource=res, value=3.14)
-        inf = Influence(source=src, target=port, function=(lambda value: value))
-        conv = Z3Converter(dict(), entity=None, container=inf)
-        constraints = conv.to_z3(inf.function)
-
-    def test_influence_lambda_conversion(self):
-        res = Resource("float-resource", float)
-        src = Local(resource=res, value=3.14)
-        port = Local(resource=res, value=3.14)
-        inf = Influence(source=src, target=port, function=(lambda value: (value - 32) * 5 / 9))
-        conv = Z3Converter(dict(), entity=None, container=inf)
-        constraints = conv.to_z3(inf.function)
-    """
+    """ Helpers / Setup """
 
     def assertInMulti(self, elements, referenceList):
         for el in elements:
@@ -121,13 +109,13 @@ class TestZ3Conversion(unittest.TestCase):
         # test
         update_id = id(instance.update)
         self.assertInMulti([
-            f"(= var_1_{update_id} 15.0)",
-            f"(= port_{id(instance.port)} var_1_{update_id})"
+            f"(= var_1_{update_id} 15)",
+            f"(= port_{id(instance.port)} (to_real var_1_{update_id}))"
             ],sexprs)
 
     def test_update_variable_type_annotation(self):
         def update(self, dt):
-            var = 15.0
+            var : FLOAT = 15.0
             var = var
             return var
 
@@ -141,8 +129,9 @@ class TestZ3Conversion(unittest.TestCase):
         # test
         update_id = id(instance.update)
         self.assertInMulti([
-            f"(= var_1_{update_id} 15.0)",
-            f"(= port_{id(instance.port)} var_1_{update_id})"
+            f"(= var_1_{update_id} (fp #b0 #x82 #b11100000000000000000000))",
+            f"(= var_2_{update_id} var_1_{update_id})",
+            f"(= port_{id(instance.port)} (fp.to_real var_2_{update_id}))"
             ],sexprs)
 
     def test_update_two_variable_dereference_addition(self):
@@ -161,9 +150,9 @@ class TestZ3Conversion(unittest.TestCase):
         # test
         update_id = id(instance.update)
         self.assertInMulti([
-            f"(= var_1_{update_id} 15.0)",
-            f"(= var2_1_{update_id} 3.0)",
-            f"(= port_{id(instance.port)} (+ var_1_{update_id} var2_1_{update_id}))"
+            f"(= var_1_{update_id} 15)",
+            f"(= var2_1_{update_id} 3)",
+            f"(= port_{id(instance.port)} (to_real (+ var_1_{update_id} var2_1_{update_id})))"
             ],sexprs)
 
 
@@ -184,10 +173,10 @@ class TestZ3Conversion(unittest.TestCase):
         # test
         update_id = id(instance.update)
         self.assertInMulti([
-            f"(= var_1_{update_id} 15.0)",
-            f"(= var_2_{update_id} (+ var_1_{update_id} 4.0))",
-            f"(= var_3_{update_id} (* var_2_{update_id} (- 1.0)))",
-            f"(= port_{id(instance.port)} var_3_{update_id})"
+            f"(= var_1_{update_id} 15)",
+            f"(= var_2_{update_id} (+ var_1_{update_id} 4))",
+            f"(= var_3_{update_id} (* var_2_{update_id} (- 1)))",
+            f"(= port_{id(instance.port)} (to_real var_3_{update_id}))"
             ], sexprs)
 
     def test_update_variable_port_reference(self):
@@ -289,98 +278,124 @@ class TestZ3Conversion(unittest.TestCase):
             f"(= port_{id(instance.port)} (+ var_1_{update_id} var2_1_{update_id}))"
             ], sexprs)
 
-    def test_resolve_type_int(self):
-        code = "15"
-        tree = ast.parse(code, mode='eval').body
-        conv = Z3Converter(None, entity=None, container=None)
-        assert conv.resolve_type(tree) == INT, f"Resolved type for '{code}' : {conv.resolve_type(tree)}. (expected int)"
+    def test_update_if_expression(self):
+        def update(self, dt):
+            x = 15
+            y = 18.1
+            var : INTEGER = 25 if x < y else 35
 
-    def test_resolve_type_float(self):
-        code = "15.1"
-        tree = ast.parse(code, mode='eval').body
-        conv = Z3Converter(None, entity=None, container=None)
-        assert conv.resolve_type(tree) == FLOAT, f"Resolved type for '{code}' : {conv.resolve_type(tree)}. (expected float)"
+        instance = self.get_test_fixture(update)
+        z3_vars = self.get_test_z3vars_fixture(instance)
+        conv = Z3Converter(z3_vars, entity=instance, container=instance.update)
 
-    def test_resolve_type_float_that_can_be_int(self):
-        code = "15.0"
-        tree = ast.parse(code, mode='eval').body
-        conv = Z3Converter(None, entity=None, container=None)
-        assert conv.resolve_type(tree) == FLOAT, f"Resolved type for '{code}' : {conv.resolve_type(tree)}. (expected float)"
+        # execute
+        constraints = conv.to_z3(instance.update.function)
+        sexprs = [c.sexpr() for c in constraints]
+        # test
+        update_id = id(instance.update)
+        self.assertInMulti([
+            f'(= x_1_{update_id} 15)',
+            f'(= y_1_{update_id} (/ 181.0 10.0))',
+            f'(let ((a!1 (ite (and (< (to_real x_1_{update_id}) y_1_{update_id})) 25 35)))\n  (= var_1_{update_id} a!1))'
+            ], sexprs)
 
-    def test_resolve_binary_type_int_int(self):
-        code = "15 + 23"
-        tree = ast.parse(code, mode='eval').body
-        conv = Z3Converter(None, entity=None, container=None)
-        assert conv.resolve_type(tree) == INT, f"Resolved type for '{code}' : {conv.resolve_type(tree)}. (expected int)"
+    def test_update_nested_if_expression(self):
+        def update(self, dt):
+            x = 15
+            y = 18.1
+            var : INTEGER = 33 + ((25 if y < 25 else 26) if x < y else (35 if x < 19 else 36) )
 
-    def test_resolve_binary_type_int_float(self):
-        code = "15 + 23.0"
-        tree = ast.parse(code, mode='eval').body
-        conv = Z3Converter(None, entity=None, container=None)
-        assert conv.resolve_type(tree) == FLOAT, f"Resolved type for '{code}' : {conv.resolve_type(tree)}. (expected float)"
+        instance = self.get_test_fixture(update)
+        z3_vars = self.get_test_z3vars_fixture(instance)
+        conv = Z3Converter(z3_vars, entity=instance, container=instance.update)
 
-    def test_resolve_binary_type_int_division(self):
-        code = "15 / 23"
-        tree = ast.parse(code, mode='eval').body
-        conv = Z3Converter(None, entity=None, container=None)
-        assert conv.resolve_type(tree) == FLOAT, f"Resolved type for '{code}' : {conv.resolve_type(tree)}. (expected float)"
+        # execute
+        constraints = conv.to_z3(instance.update.function)
+        sexprs = [c.sexpr() for c in constraints]
+        # test
+        update_id = id(instance.update)
+        self.assertInMulti([
+            f'(= x_1_{update_id} 15)',
+            f'(= y_1_{update_id} (/ 181.0 10.0))',
+            f"""\
+(let ((a!1 (ite (and (< (to_real x_1_{update_id}) y_1_{update_id}))
+                (ite (and (< y_1_{update_id} 25.0)) 25 26)
+                (ite (and (< x_1_{update_id} 19)) 35 36))))
+  (= var_1_{update_id} (+ 33 a!1)))"""
+            ], sexprs)
 
-    def test_resolve_binary_type_floor_int_division(self):
-        code = "15 // 23"
-        tree = ast.parse(code, mode='eval').body
-        conv = Z3Converter(None, entity=None, container=None)
-        assert conv.resolve_type(tree) == INT, f"Resolved type for '{code}' : {conv.resolve_type(tree)}. (expected int)"
+    def test_update_if_statement(self):
+        def update(self, dt):
+            x = 15
+            if x < 30:
+                x = 111
+            else:
+                x = 222
 
+        instance = self.get_test_fixture(update)
+        z3_vars = self.get_test_z3vars_fixture(instance)
+        conv = Z3Converter(z3_vars, entity=instance, container=instance.update)
 
-    def test_resolve_two_types(self):
-        conv = Z3Converter(None, None, None)
-        triples = [
-            (INT, INT, INT),
-            (INTEGER, INT, INTEGER),
-            (FLOAT, INT, FLOAT),
-            (REAL, INT, REAL),
-            (INTEGER, INTEGER, INT),
-            (INTEGER, INTEGER, INTEGER),
-            (FLOAT, INTEGER, FLOAT),
-            (REAL, INTEGER, REAL),
-            (INTEGER, INTEGER, BOOL),
-            (FLOAT, FLOAT, INT),
-            (FLOAT, FLOAT, INTEGER),
-            (FLOAT, FLOAT, FLOAT),
-            (REAL, REAL, INT),
-            (REAL, REAL, INTEGER),
-            (REAL, REAL, REAL),
-            (INTEGER, BOOL, INTEGER),
-            (BOOL, BOOL, BOOL),
-            (STRING, STRING, STRING)
-        ]
-        for (expected, left, right) in triples:
-            self.assertEqual(expected, conv.resolve_two_types(left, right))
+        # execute
+        constraints = conv.to_z3(instance.update.function)
+        sexprs = [c.sexpr() for c in constraints]
+        # test
+        update_id = id(instance.update)
+        pprint(sexprs)
 
-    def test_assert_resolution_errors(self):
-        conv = Z3Converter(None, None, None)
-        pairs = [
-            (INT, BOOL),
-            (INT, STRING),
-            (INTEGER, STRING),
-            (FLOAT, REAL),
-            (FLOAT, BOOL),
-            (FLOAT, STRING),
-            (REAL, FLOAT),
-            (REAL, BOOL),
-            (REAL, STRING),
-            (BOOL, INT),
-            (BOOL, REAL),
-            (BOOL, FLOAT),
-            (BOOL, STRING),
-            (STRING, INT),
-            (STRING, INTEGER),
-            (STRING, FLOAT),
-            (STRING, REAL),
-            (STRING, BOOL)
-        ]
-        for (left, right) in pairs:
-            self.assertRaises(ValueError, conv.resolve_two_types, left, right)
+    def test_update_if_elif_statement(self):
+        def update(self, dt):
+            x = 15
+            if x < 30:
+                x = 111
+            elif x > 100:
+                x = 222
+            else:
+                x = 333
+
+        instance = self.get_test_fixture(update)
+        z3_vars = self.get_test_z3vars_fixture(instance)
+        conv = Z3Converter(z3_vars, entity=instance, container=instance.update)
+
+        # execute
+        constraints = conv.to_z3(instance.update.function)
+        sexprs = [c.sexpr() for c in constraints]
+        # test
+        update_id = id(instance.update)
+        pprint(sexprs)
+
+    def test_update_if_statement_no_return(self):
+        def update(self, dt):
+            x = 15
+            y = 0
+            z = 5
+            if x < 30:
+                y = 50
+            else:
+                z = 100.5
+            y += 3.3333
+            return y + z
+
+        instance = self.get_test_fixture(update)
+        z3_vars = self.get_test_z3vars_fixture(instance)
+        conv = Z3Converter(z3_vars, entity=instance, container=instance.update)
+
+        # execute
+        constraints = conv.to_z3(instance.update.function)
+        sexprs = [c.sexpr() for c in constraints]
+        # test
+        update_id = id(instance.update)
+        pprint(sexprs)
+#         self.assertInMulti([
+#             f'(= x_1_{update_id} 15)',
+#             f'(= y_1_{update_id} (/ 181.0 10.0))',
+#             f"""\
+# (let ((a!1 (ite (and (< (to_real x_1_{update_id}) y_1_{update_id}))
+#                 (ite (and (< y_1_{update_id} 25.0)) 25 26)
+#                 (ite (and (< x_1_{update_id} 19)) 35 36))))
+#   (= var_1_{update_id} (+ 33 a!1)))"""
+#             ], sexprs)
+
 
 
     # def atest_resolve_type_dereference(self):
