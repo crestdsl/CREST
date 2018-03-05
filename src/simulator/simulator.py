@@ -27,6 +27,7 @@ class Simulator(object):
             interface_only = False
             no_behaviour = False
             show_update_ports = False
+            color_updates : False
         """
         if not entity:
             entity = self.entity

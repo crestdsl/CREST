@@ -287,18 +287,24 @@ class ReadVariableAggregator(ast.NodeVisitor):
         self.read_variable_names = set()
 
     def visit_Name(self, node):
-        if is_descendant_of_type(node, ast.Assign):
+        if is_descendant_of_type(node, (ast.Assign, ast.AnnAssign)):
             if is_decendant_of(node, get_ancestor_of_type(node, (ast.Assign, ast.AnnAssign)).value):
                 self.read_variable_names.add(get_name_from_target(node))
         elif is_descendant_of_type(node, ast.AugAssign):
             self.read_variable_names.add(get_name_from_target(node))
+        elif is_descendant_of_type(node, (ast.If, ast.While)):
+            if is_decendant_of(node, get_ancestor_of_type(node, (ast.If, ast.While)).test):
+                self.read_variable_names.add(get_name_from_target(node))
 
     def visit_Attribute(self, node):
-        if is_descendant_of_type(node, ast.Assign):
+        if is_descendant_of_type(node, (ast.Assign, ast.AnnAssign)):
             if is_decendant_of(node, get_ancestor_of_type(node, (ast.Assign, ast.AnnAssign)).value):
                 self.read_variable_names.add(get_name_from_target(node))
         elif is_descendant_of_type(node, ast.AugAssign):
             self.read_variable_names.add(get_name_from_target(node))
+        elif is_descendant_of_type(node, (ast.If, ast.While)):
+            if is_decendant_of(node, get_ancestor_of_type(node, (ast.If, ast.While)).test):
+                self.read_variable_names.add(get_name_from_target(node))
 
 def get_read_variables(ast_object):
     reads = set()
@@ -309,7 +315,8 @@ def get_read_variables(ast_object):
     for ast_obj in ast_objects:
         readAgg = ReadVariableAggregator()
         readAgg.visit(ast_obj)
-        reads.update(readAgg.read_variable_names)
+        captured_reads = readAgg.read_variable_names
+        reads.update(captured_reads)
 
     return reads
 

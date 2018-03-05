@@ -84,7 +84,7 @@ class TransitionTimeCalculator(object):
                         logger.debug(f"'{port._name}' is modified by update '{up._name}'")
                         read_ports = SH.get_read_ports_from_update(up.function, up) #+[up.target]
                         accessed_ports = SH.get_accessed_ports(up.function, up)
-                        logger.debug(f"'{up._name} in {up._parent._name}' reads the following ports: {[(p._name, p._parent._name) for p in read_ports]}")
+                        logger.debug(f"'{up._name}' in '{up._parent._name}' reads the following ports: {[(p._name, p._parent._name) for p in read_ports]}")
                         for read_port in read_ports:
                             # this means there are updates and we change the map
                             map_change = True

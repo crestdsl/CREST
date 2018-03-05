@@ -151,7 +151,6 @@ class Z3Converter(object):
         or port names in the form self.port.value
         """
         logger.debug(f"<str>to_z3(obj={obj}, z3_var_name_to_find={z3_var_name_to_find})")
-        # import pdb; pdb.set_trace()
 
         if z3_var_name_to_find == None:
             z3_var_name_to_find = obj
@@ -166,8 +165,9 @@ class Z3Converter(object):
             referenced_port = attrgetter(obj)(self.entity) # get the referenced port from the entity
             if referenced_port == self.target:
                 # we're updating, so get the current value: portname_0
-                # it's already stored in the z3_var_name_to_find
-                return self.z3_vars[referenced_port][z3_var_name_to_find]
+                # z3_var_name_to_find contains something that potentially has some parent-if info
+                # therefore take the varname (obj) and add a _0 manually
+                return self.z3_vars[referenced_port][obj+"_0"]
             else:
                 # just get the normal port, no _0
                 return self.z3_vars[referenced_port][obj]
@@ -179,7 +179,6 @@ class Z3Converter(object):
                 self.z3_vars[key] = {}
 
             if z3_var_name_to_find not in self.z3_vars[key]:
-                # pprint(self.z3_vars)
                 logger.debug(f"<str>to_z3:[key={key}] '{z3_var_name_to_find}' not in {pformat(self.z3_vars[key])}, adding a new variable! type = {var_type}")
                 new_var = get_z3_var(var_type, f"{z3_var_name_to_find}_{id(self.container)}")
                 self.z3_vars[key][z3_var_name_to_find] = new_var #z3.Real("{}_{}".format(z3_var_name_to_find, id(self.container)))
@@ -196,7 +195,6 @@ class Z3Converter(object):
         """This one is actually for normal Function objects, not for AST Nodes"""
         param_name = body_ast = None
         self.body_ast = SH.get_ast_body(obj, rewrite_if_else=True)  # we want to make sure all our if/else conditions are proper (we have a tree)
-        print(astor.dump_tree(self.body_ast))
         return self.to_z3(self.body_ast)
 
     """ AST TYPES """
@@ -239,6 +237,24 @@ class Z3Converter(object):
         attr_name = ".".join(full_attr_string.split(".")[1:-1])
         return self.get_linearized_z3_var(obj, attr_name)
 
+    def _get_varname_with_parentif_and_previous_count(self, obj, name):
+        parent_if = SH.get_ancestor_of_type(obj, ast.If)
+        # if we're in the condition of the if, then we don't add the parent-if, but its parent (so we work on the outer layer)
+        in_if_test = SH.is_decendant_of(obj, parent_if.test) if parent_if else None
+        if in_if_test:
+            parent_if = SH.get_ancestor_of_type(parent_if, ast.If)
+
+        varname_with_parent_if_id = name
+        if parent_if:
+            suffix = "body" if SH.is_decendant_of(obj, parent_if.body) else "else"
+            varname_with_parent_if_id = f"{name}_{id(parent_if)}-{suffix}"
+
+
+        previous_count = count_previous_assignments_with_name_on_left(name, obj) + \
+                         count_previous_ifs_with_assignments_with_name_on_left(name, obj)
+
+        return varname_with_parent_if_id, previous_count
+
     def get_linearized_z3_var(self, obj, name):
         logger.debug(f"Linearizing {obj} - {name}")
         # stuff we need
@@ -247,7 +263,6 @@ class Z3Converter(object):
         in_if_test = SH.is_decendant_of(obj, parent_if.test) if parent_if else None
         if in_if_test:
             parent_if = SH.get_ancestor_of_type(parent_if, ast.If)
-        ancestor_assign = SH.get_ancestor_of_type(obj, (ast.Assign, ast.AugAssign, ast.AnnAssign))
 
         previous_count = count_previous_assignments_with_name_on_left(name, obj) + \
                          count_previous_ifs_with_assignments_with_name_on_left(name, obj)
@@ -256,8 +271,9 @@ class Z3Converter(object):
         if parent_if:
             suffix = "body" if SH.is_decendant_of(obj, parent_if.body) else "else"
             varname_with_parent_if_id = f"{name}_{id(parent_if)}-{suffix}"
-
+        # varname_with_parent_if_id, previous_count = self._get_varname_with_parentif_and_previous_count(obj, name)
         # are we part of an assignment?
+        ancestor_assign = SH.get_ancestor_of_type(obj, (ast.Assign, ast.AugAssign, ast.AnnAssign))
         # yes (part of assignment):
         if ancestor_assign:
             in_value = SH.is_decendant_of(obj, ancestor_assign.value)
@@ -835,6 +851,8 @@ def get_self_or_ancester_assign_or_if(obj):
 
 def get_previous_assignments_with_name_on_left(name, obj):
     ancestor_assign = get_self_or_ancester_assign_or_if(obj)
+    if not ancestor_assign: # there is no ancestor assign or if, we're probably in a lambda, return [] (no siblings)
+        return []
     previous_siblings = SH.get_all_previous_siblings(ancestor_assign)
     matching_assignments = extract_assignments_with_name_on_left(name, previous_siblings)
     return matching_assignments
@@ -844,6 +862,8 @@ def count_previous_assignments_with_name_on_left(name, obj):
 
 def count_previous_ifs_with_assignments_with_name_on_left(name, obj):
     ancestor_assign = get_self_or_ancester_assign_or_if(obj)
+    if not ancestor_assign: # there is no ancestor assign or if, we're probably in a lambda, return 0
+        return 0
     previous_siblings = SH.get_all_previous_siblings(ancestor_assign)
     ifs_with_assignments_to_name = extract_ifs_that_write_to_target_with_name(name, previous_siblings)
     return len(ifs_with_assignments_to_name)

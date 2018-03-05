@@ -2,9 +2,10 @@ from graphviz import Source
 from src.model.meta import PARENT_IDENTIFIER
 from src.model import *
 import astor
-from src.simulator.sourcehelper import *
+import src.simulator.sourcehelper as SH
 from functools import singledispatch
 from operator import attrgetter
+import random
 
 options = {
     "updates": True,
@@ -14,7 +15,8 @@ options = {
     "influence_labels": False,
     "interface_only": False,
     "no_behaviour": False,
-    "show_update_ports" : False
+    "show_update_ports" : False,
+    "color_updates" : False,
 }
 
 def plot(object_to_dot, name="", **kwargs):
@@ -66,7 +68,7 @@ def _(obj, name="", parent=None, **kwargs):
 def _(obj, name="", parent=None, **kwargs):
     label = ""
     if kwargs["transition_labels"]:
-        guard_ast = get_ast_body(obj.guard)
+        guard_ast = SH.get_ast_body(obj.guard)
         label = astor.to_source(guard_ast)
     return f"{id(obj.source)} -> {id(obj.target)} [label=\"{label}\"]"
 
@@ -75,26 +77,26 @@ def _(obj, name="", parent=None, **kwargs):
     label = ""
     if kwargs["influence_labels"]:
         if obj.function:
-            guard_ast = get_ast_from_lambda_transition_guard(obj.function)
+            guard_ast = SH.getast(obj.function)
             label = astor.to_source(guard_ast)
     return f"{id(obj.source)} -> {id(obj.target)} [label=\"{label}\"]"
 
 @generate.register(Update)
 def _(obj, name="", parent=None, **kwargs):
     returnlist = []
-
+    color = get_color(id(obj)) if kwargs["color_updates"] else "black"
     label = ""
     if kwargs["update_labels"]:
         # print("There's an issue with the display of update-labels. Waiting for astor 0.6 to be available...")
         # """ deactivate until astor 0.6 is available"""
-        func_ast = get_ast_from_function_definition(obj.function)
+        func_ast = SH.get_ast_from_function_definition(obj.function)
         label = astor.to_source(func_ast)
-    returnlist.append(f"{id(obj.state)} -> {id(obj.target)} [style=\"dashed\" label=\"{label}\"]")
+    returnlist.append(f"{id(obj.state)} -> {id(obj.target)} [style=\"dashed\" color=\"{color}\" label=\"{label}\"]")
 
-    accessed = get_accessed_ports(obj.function, obj)
+    accessed = SH.get_accessed_ports(obj.function, obj)
     for acc in accessed:
         style = "dashed" if kwargs["show_update_ports"] else "invis"
-        returnlist.append(f"{id(acc)} -> {id(obj.target)} [style=\"{style}\" color=\"darkgreen\" ]")
+        returnlist.append(f"{id(acc)} -> {id(obj.target)} [style=\"{style}\" color=\"{color}\" ]")
 
     return returnlist
 
@@ -163,3 +165,12 @@ def _(obj, name="", parent=None, **kwargs):
         }}
         }}
         """
+
+def get_color(seed=None):
+    random.seed(seed)
+    rcol = lambda: random.randint(0,255)
+    r, g, b = 0, 0, 0
+    while r + g + b < 255 or r + g + b > 255*2:
+        r, g, b = rcol(),rcol(),rcol()
+    color = "#%02X%02X%02X" % (r, g, b)
+    return color
