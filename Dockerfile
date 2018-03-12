@@ -18,6 +18,16 @@ RUN mkdir /var/lib/apt/lists/partial && \
 # install astor and gaphviz
 RUN pip install --no-cache-dir astor graphviz
 
+# install jupyter extensions
+RUN pip install --no-cache-dir jupyter_contrib_nbextensions
+RUN jupyter contrib nbextension install --system
+
+RUN jupyter nbextension enable hide_input/main
+RUN jupyter nbextension enable python-markdown/main
+RUN jupyter nbextension enable code_prettify/main
+RUN jupyter nbextension enable toc2/main
+RUN jupyter nbextension enable codefolding/main
+
 # copy CREST into the container so we can use it
 COPY src ${HOME}/src/
 
