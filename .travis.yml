@@ -8,8 +8,6 @@ services:
   - docker
 
 before_install:
-- docker build -t stklik/crest .
-- docker run stklik/crest /bin/sh -c "cd CREST; python -m unittest -v"
-
+ - docker build -t stklik/crest .
 script:
-- python -m unittest -v
+ - docker run stklik/crest /bin/sh -c "cd CREST; python -m unittest -v"
