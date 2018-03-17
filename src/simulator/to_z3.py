@@ -1,5 +1,6 @@
 from src.model import *
 import src.simulator.sourcehelper as SH
+from operator import attrgetter
 
 from functools import singledispatch, update_wrapper
 import ast
@@ -11,36 +12,40 @@ import logging
 from pprint import pprint, pformat
 logger = logging.getLogger(__name__)
 
-""" this code allows us to dispatch within a class """
+
 def methoddispatch(func):
+    """ this code allows us to dispatch within a class """
     dispatcher = singledispatch(func)
+
     def wrapper(*args, **kw):
         return dispatcher.dispatch(args[1].__class__)(*args, **kw)
     wrapper.register = dispatcher.register
     update_wrapper(wrapper, func)
     return wrapper
 
+
 operator_to_operation = {
     ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
     ast.Mod: operator.mod,
     ast.Div: operator.truediv, ast.Pow: operator.pow, ast.BitXor: operator.xor,
-    ast.FloorDiv : operator.truediv, # NOT operator.floordiv, because it doesn't work (z3 does floordiv automatically if only ints are present)
+    ast.FloorDiv: operator.truediv,  # NOT operator.floordiv, because it doesn't work (z3 does floordiv automatically if only ints are present)
     ast.BitAnd: operator.and_, ast.BitOr: operator.or_,
     ast.Lt: operator.lt, ast.Gt: operator.gt, ast.LtE: operator.le, ast.GtE: operator.ge,
     ast.Eq: operator.eq, ast.NotEq: operator.ne,
     ast.Is: operator.is_, ast.IsNot: operator.is_not,
-    ast.In: operator.contains, # ast.NotIn: need to find something for this one...
+    ast.In: operator.contains,  # ast.NotIn: need to find something for this one...
     # unary ops
     ast.Invert: operator.invert, ast.UAdd: operator.pos,
     ast.Not: operator.not_, ast.USub: operator.neg,
     # boolean ops, defined as lambdas because this way we have short circuiting, hopefully
     # ast.And: (lambda l, r: l and r), # unused, using z3.And and z3.Or now
     # ast.Or: (lambda l, r: l or r),  # unused, using z3.And and z3.Or now
-    }
-
+}
 
 
 """ PORT TREATMENT """
+
+
 def get_z3_val(valtype, value, name):
     # logger.debug(f"getting z3 val: {valtype}, {value}")
     val = None
@@ -67,6 +72,7 @@ def get_z3_val(valtype, value, name):
 
     val.type = valtype
     return val
+
 
 def get_z3_var(vartype, name):
     # logger.debug(f"getting z3 var: {vartype}, {name}")
@@ -99,13 +105,15 @@ def get_z3_value(port, name):
     # logger.debug(f"getting z3 val: {port}, {name}")
     return get_z3_val(port.resource.domain, port.value, name)
 
+
 def get_z3_variable(port, name, suffix=None):
     # logger.debug(f"getting z3 var: {port}, {name}, {suffix}")
     # z3_var = None
     if not suffix:
         suffix = id(port)
-    varname = "{}_{}".format(name,suffix)
+    varname = "{}_{}".format(name, suffix)
     return get_z3_var(port.resource.domain, varname)
+
 
 class Z3Converter(object):
 
@@ -113,7 +121,7 @@ class Z3Converter(object):
         self.z3_vars = z3_vars
         self.entity = entity
         self.container = container
-        self.target = None if container == None else container.target
+        self.target = None if container is None else container.target
         self.use_integer_and_real = use_integer_and_real
 
     def find_z3_variable(self, identifier):
@@ -122,11 +130,11 @@ class Z3Converter(object):
             path_to_port = path_to_port.split(".")[-1]
             return self.z3_vars[identifier][path_to_port]
         else:
-            return self.z3_vars[identifier+"_"+str(id(self.container))][identifier]
+            return self.z3_vars[identifier + "_" + str(id(self.container))][identifier]
 
     @methoddispatch
     def to_z3(self, obj):
-        logger.info("\t\t","Nothing special for (perhaps unknown) node of type", type(obj))
+        logger.info("\t\t", "Nothing special for (perhaps unknown) node of type", type(obj))
         return obj
 
     """ GENERAL TYPES """
@@ -152,7 +160,7 @@ class Z3Converter(object):
         """
         logger.debug(f"<str>to_z3(obj={obj}, z3_var_name_to_find={z3_var_name_to_find})")
 
-        if z3_var_name_to_find == None:
+        if z3_var_name_to_find is None:
             z3_var_name_to_find = obj
 
         # TODO: stop this special treatment, create a new dt variable for each update and pass it in... it's more consistent
@@ -162,12 +170,12 @@ class Z3Converter(object):
 
         referenced_port = None
         try:
-            referenced_port = attrgetter(obj)(self.entity) # get the referenced port from the entity
+            referenced_port = attrgetter(obj)(self.entity)  # get the referenced port from the entity
             if referenced_port == self.target:
                 # we're updating, so get the current value: portname_0
                 # z3_var_name_to_find contains something that potentially has some parent-if info
                 # therefore take the varname (obj) and add a _0 manually
-                return self.z3_vars[referenced_port][obj+"_0"]
+                return self.z3_vars[referenced_port][obj + "_0"]
             else:
                 # just get the normal port, no _0
                 return self.z3_vars[referenced_port][obj]
@@ -181,14 +189,13 @@ class Z3Converter(object):
             if z3_var_name_to_find not in self.z3_vars[key]:
                 logger.debug(f"<str>to_z3:[key={key}] '{z3_var_name_to_find}' not in {pformat(self.z3_vars[key])}, adding a new variable! type = {var_type}")
                 new_var = get_z3_var(var_type, f"{z3_var_name_to_find}_{id(self.container)}")
-                self.z3_vars[key][z3_var_name_to_find] = new_var #z3.Real("{}_{}".format(z3_var_name_to_find, id(self.container)))
+                self.z3_vars[key][z3_var_name_to_find] = new_var  # z3.Real("{}_{}".format(z3_var_name_to_find, id(self.container)))
 
             return self.z3_vars[key][z3_var_name_to_find]
         # if obj not in self.z3_vars:
         #     self.z3_vars[obj] = (z3.Real(obj), None)
         #     # FIXME: not finished here!!!
         return self.z3_vars[obj][0]
-
 
     @to_z3.register(types.FunctionType)
     def to_z3_typesFunctionType(self, obj):
@@ -216,14 +223,14 @@ class Z3Converter(object):
         if not hasattr(obj, "parent"):
             # this happens if we return the param value within the lambda
             # we're adding the _0 version because the input mapping provides it with _0 already
-            return self.to_z3(obj.id, obj.id+"_0")
+            return self.to_z3(obj.id, obj.id + "_0")
 
         if isinstance(obj.parent, ast.Attribute):
             return obj.id
         # special treatment for dt, we dereference directly, no need for checking weird things
         elif obj.id == "dt":
             return self.to_z3(obj.id)
-        #otherwise we dereference so we get the variable
+        # otherwise we dereference so we get the variable
         else:
             linearized = self.get_linearized_z3_var(obj, obj.id)
             return linearized
@@ -249,9 +256,8 @@ class Z3Converter(object):
             suffix = "body" if SH.is_decendant_of(obj, parent_if.body) else "else"
             varname_with_parent_if_id = f"{name}_{id(parent_if)}-{suffix}"
 
-
         previous_count = count_previous_assignments_with_name_on_left(name, obj) + \
-                         count_previous_ifs_with_assignments_with_name_on_left(name, obj)
+            count_previous_ifs_with_assignments_with_name_on_left(name, obj)
 
         return varname_with_parent_if_id, previous_count
 
@@ -265,7 +271,7 @@ class Z3Converter(object):
             parent_if = SH.get_ancestor_of_type(parent_if, ast.If)
 
         previous_count = count_previous_assignments_with_name_on_left(name, obj) + \
-                         count_previous_ifs_with_assignments_with_name_on_left(name, obj)
+            count_previous_ifs_with_assignments_with_name_on_left(name, obj)
 
         varname_with_parent_if_id = name
         if parent_if:
@@ -305,7 +311,7 @@ class Z3Converter(object):
             return self.to_z3(name, new_varname)
         # not part of assignment or return -- probably in a lambda
         else:
-            return self.to_z3(name, name+"_0")
+            return self.to_z3(name, name + "_0")
 
     @to_z3.register(ast.Assign)
     def to_z3_astAssign(self, obj):
@@ -326,10 +332,10 @@ class Z3Converter(object):
         targetname = SH.get_assignment_target_names(obj)[0]
         parent_if = SH.get_ancestor_of_type(obj, ast.If)
         previous_count = count_previous_assignments_with_name_on_left(targetname, obj.target) + \
-                         count_previous_ifs_with_assignments_with_name_on_left(targetname, obj.target)
+            count_previous_ifs_with_assignments_with_name_on_left(targetname, obj.target)
 
         varname_for_value = targetname
-        if parent_if: # adds the id of the if-condition when possible
+        if parent_if:  # adds the id of the if-condition when possible
             suffix = "body" if SH.is_decendant_of(obj, parent_if.body) else "else"
             # varname_with_parent_if_id = f"{name}_{id(parent_if)}-{suffix}"
             varname_for_value = f"{targetname}_{id(parent_if)}-{suffix}"
@@ -338,10 +344,22 @@ class Z3Converter(object):
         target_in_value = self.to_z3(targetname, varname_for_value)
         previous_type = target_in_value.type
 
+        # problem: if we have a z3-Int as target and a python-float (e.g. 4.3333) as value,
+        # then the result will be a z3-Int, which is wrong!
+        # We have to cast the value to Real/Float to prevent wrong actions
+        if previous_type in [INT, INTEGER] and isinstance(value, float):
+            value = get_z3_val(REAL, value, None) if self.use_integer_and_real else get_z3_val(FLOAT, value, None)
+            value.type = REAL if self.use_integer_and_real else FLOAT
+            v_type = value.type
+
         resulting_type = self.resolve_two_types(v_type, previous_type, obj.op)
 
+        left = self.cast(target_in_value, previous_type, resulting_type)
+        right = self.cast(value, v_type, resulting_type)
+
         operation = operator_to_operation[type(obj.op)]
-        return assignee == operation(target_in_value, value)
+
+        return assignee == operation(left, right)
 
     @to_z3.register(ast.AnnAssign)
     def to_z3_astAnnAssign(self, obj):
@@ -395,7 +413,7 @@ class Z3Converter(object):
     @to_z3.register(ast.Compare)
     def to_z3_astCompare(self, obj):
         operands = [self.to_z3(obj.left)]
-        operands.extend( [self.to_z3(comp) for comp in obj.comparators])
+        operands.extend([self.to_z3(comp) for comp in obj.comparators])
         operators = [operator_to_operation[type(op)] for op in obj.ops]
 
         comparisons = zip(operators, operands, operands[1:])
@@ -429,9 +447,9 @@ class Z3Converter(object):
         target_type = self.resolve_two_types(then_type, else_type)
 
         ret_val = z3.If(condition_cast,
-            self.cast(self.to_z3(obj.body),   then_type, target_type),
-            self.cast(self.to_z3(obj.orelse), else_type, target_type)
-            )
+                        self.cast(self.to_z3(obj.body), then_type, target_type),
+                        self.cast(self.to_z3(obj.orelse), else_type, target_type)
+                        )
         return ret_val
 
     @to_z3.register(ast.If)
@@ -444,7 +462,7 @@ class Z3Converter(object):
         used_vars_in_body = SH.get_used_variable_names(obj.body)
         used_vars_in_orelse = SH.get_used_variable_names(obj.orelse)
         used_vars = set(used_vars_in_body + used_vars_in_orelse)
-        used_vars_without_ports = used_vars # TODO: remove the ports
+        used_vars_without_ports = used_vars  # TODO: remove the ports
 
         body_ins = []
         else_ins = []
@@ -454,9 +472,9 @@ class Z3Converter(object):
                 logging.debug(f"{varname} has not been used so far, skipping it")
                 continue
             previous_count = count_previous_assignments_with_name_on_left(varname, obj) + \
-                             count_previous_ifs_with_assignments_with_name_on_left(varname, obj)
+                count_previous_ifs_with_assignments_with_name_on_left(varname, obj)
             varname_with_parent_if_id = varname
-            if parent_if: # adds the id of the if-condition when possible
+            if parent_if:  # adds the id of the if-condition when possible
                 suffix = "body" if SH.is_decendant_of(obj, parent_if.body) else "else"
                 # varname_with_parent_if_id = f"{name}_{id(parent_if)}-{suffix}"
                 varname_with_parent_if_id = f"{varname}_{id(parent_if)}-{suffix}"
@@ -465,10 +483,10 @@ class Z3Converter(object):
             last_assigned_var = self.to_z3(varname, f"{varname_with_parent_if_id}_{previous_count}")
             var_type = last_assigned_var.type
             into_body = last_assigned_var == \
-                   self.to_z3(varname, f"{varname}_{id(obj)}-body_0", var_type=var_type)
+                self.to_z3(varname, f"{varname}_{id(obj)}-body_0", var_type=var_type)
             body_ins.append(into_body)
             into_else = last_assigned_var == \
-                   self.to_z3(varname, f"{varname}_{id(obj)}-else_0", var_type=var_type)
+                self.to_z3(varname, f"{varname}_{id(obj)}-else_0", var_type=var_type)
             else_ins.append(into_else)
             # get z3_var for port outside (i.e. the count of assignments)
             # get new z3_var for port (varname_with_parent_if_id)
@@ -480,107 +498,18 @@ class Z3Converter(object):
 
         body_outs = []
         else_outs = []
-        # for varname in used_vars_without_ports:
-        #     previous_count = count_previous_assignments_with_name_on_left(varname, obj) + \
-        #                      count_previous_ifs_with_assignments_with_name_on_left(varname, obj)
-        #     varname_with_parent_if_id = varname
-        #     if parent_if:
-        #         varname_with_parent_if_id += "_"+str(id(parent_if))
-        #
-        #
-        #     count_var_assigns_in_body = len(extract_assignments_with_name_on_left(varname, obj.body) + \
-        #                                     extract_ifs_that_write_to_target_with_name(varname, obj.body))
-        #     last_var_name_inside_body =  f"{varname}_{id(obj)}-body_{count_var_assigns_in_body}"
-        #     last_var_assigned_in_body = self.to_z3(varname, last_var_name_inside_body)
-        #     body_type = last_var_assigned_in_body.type
-        #
-        #
-        #
-        #     count_var_assigns_in_else = len(extract_assignments_with_name_on_left(varname, obj.orelse) + \
-        #                                     extract_ifs_that_write_to_target_with_name(varname, obj.orelse))
-        #     last_var_name_inside_else =  f"{varname}_{id(obj)}-else_{count_var_assigns_in_else}"
-        #     last_var_assigned_in_else = self.to_z3(varname, last_var_name_inside_else)
-        #     else_type = last_var_assigned_in_else.type
-        #
-        #     # create a new var outside to take the values
-        #     resulting_type = self.resolve_two_types(body_type, else_type)
-        #     resulting_var_name = f"{varname_with_parent_if_id}_{previous_count+1}"
-        #     resulting_var = self.to_z3(varname, resulting_var_name, var_type=resulting_type)
-        #     # append
-        #     body_outs.append(resulting_var == self.cast(last_var_assigned_in_body, body_type, resulting_type))
-        #     else_outs.append(resulting_var == self.cast(last_var_assigned_in_else, else_type, resulting_type))
 
-        ifstmt = z3.If(test, z3.And(body_ins+body+body_outs), z3.And(else_ins+orelse+else_outs))
+        ifstmt = z3.If(test,
+                       z3.And(body_ins + body + body_outs),
+                       z3.And(else_ins + orelse + else_outs))
         return ifstmt
-
-
-        parent_if = SH.get_ancestor_of_type(obj, ast.If)
-        # written_targets = set(get_assignment_target_names(obj))
-
-        test = self.to_z3(obj.test) # FIXME: test should work on "outer" variables
-        return test
-        body = self.to_z3(obj.body)
-        orelse = self.to_z3(obj.orelse) if obj.orelse else None
-
-        var_in_outs = []
-        for varname in set(get_used_variable_names(obj.body)+get_used_variable_names(obj.orelse)):
-            if "." in varname: # if it's composed... (otherwise it's a normal variable name)
-                varname = ".".join(varname.split(".")[1:-1])
-
-            previous_count = count_previous_assignments_with_name_on_left(varname, obj) + \
-                             count_previous_ifs_with_assignments_with_name_on_left(varname, obj)
-            following_count = count_following_assignments_with_name_on_left(varname, obj) + \
-                              count_following_ifs_with_assignments_with_name_on_left(varname, obj)
-
-            varname_with_parent_if_id = varname
-            if parent_if:
-                varname_with_parent_if_id += "_"+str(id(parent_if))
-
-            # pass into body
-            into = self.to_z3(varname, "{}_{}".format(varname_with_parent_if_id, previous_count)) == \
-                   self.to_z3(varname, "{}_{}_0".format(varname, str(id(obj))))
-            var_in_outs.append(into)
-
-            # take out of body
-            out = None
-            if following_count == 0:
-                # pass to parent
-                out = self.to_z3(varname, varname_with_parent_if_id) == \
-                      self.to_z3(varname, "{}_{}".format(varname, str(id(obj))) )
-            else:
-                # pass to parent
-                out = self.to_z3(varname, "{}_{}".format(varname_with_parent_if_id, (previous_count+1) ))== \
-                      self.to_z3(varname, "{}_{}".format(varname, str(id(obj))) )
-            var_in_outs.append(out)
-
-        for varname in written_targets:
-            if "." in varname: # if it's composed... (otherwise it's a normal variable name)
-                varname = ".".join(varname.split(".")[1:-1])
-
-            # if we don't modify a variable that's written, then just pass it through
-            if varname not in get_assignment_target_names(obj.body):
-                passthrough = self.to_z3(varname, varname+"_"+str(id(obj))     ) == \
-                              self.to_z3(varname, varname+"_"+str(id(obj))+"_0")
-                # body.append(passthrough)
-
-            if obj.orelse and varname not in get_assignment_target_names(obj.orelse):
-                passthrough = self.to_z3(varname, varname+"_"+str(id(obj))     ) == \
-                              self.to_z3(varname, varname+"_"+str(id(obj))+"_0")
-                # orelse.append(passthrough)
-
-        z3_if = None
-        if orelse:
-            z3_if = z3.If(z3.And(test), z3.And(body), z3.And(orelse))
-        else:
-            z3_if = z3.If(z3.And(test), z3.And(body), True)
-        return var_in_outs + [z3_if]
 
     @to_z3.register(ast.Call)
     def to_z3_astCall(self, obj):
         raise NotImplementedError("This version of CREST does not yet support function call statements.")
 
     def cast(self, value, is_type, to_type):
-        if is_type == to_type: # already correct type, just return the value
+        if is_type == to_type:  # already correct type, just return the value
             return value
 
             """ INT <---> INTEGER """
@@ -606,7 +535,6 @@ class Z3Converter(object):
                 return value
             else:
                 return z3.fpSignedToFP(z3.RNE(), value, z3.Float32())
-
 
             """ INTEGER <---> FLOAT """
         elif is_type == FLOAT and to_type == INTEGER:
@@ -643,7 +571,7 @@ class Z3Converter(object):
                 return z3.fpRealToFP(z3.RNE(), value, z3.Float32())
 
             """ to REAL """
-        elif is_type == INT     and to_type == REAL:
+        elif is_type == INT and to_type == REAL:
             if type(value) in [int, float]:  # int numeral
                 return value
             else:
@@ -653,33 +581,32 @@ class Z3Converter(object):
                 return value
             else:
                 return z3.ToReal(value)
-        elif is_type == FLOAT   and to_type == REAL:
+        elif is_type == FLOAT and to_type == REAL:
             if type(value) in [int, float]:
                 return value  # this happens if it is a float numeral (e.g. 3.14)
             else:
                 return z3.fpToReal(value)
 
             """ FROM BOOL conversions """
-        elif is_type == BOOL    and to_type == INT:
+        elif is_type == BOOL and to_type == INT:
             return z3.If(value, z3.BitVecVal(1, 32), z3.BitVecVal(0, 32))
-        elif is_type == BOOL    and to_type == INTEGER:
+        elif is_type == BOOL and to_type == INTEGER:
             return z3.If(value, 1, 0)
-        elif is_type == BOOL    and to_type == REAL:
+        elif is_type == BOOL and to_type == REAL:
             return z3.If(value, 1.0, 0.0)
-        elif is_type == BOOL    and to_type == FLOAT:
+        elif is_type == BOOL and to_type == FLOAT:
             return z3.If(value, z3.FPVal(1.0, z3.Float32()), z3.FPVal(0.0, z3.Float32()))
             """ TO BOOL conversions """
-        elif is_type == INT     and to_type == BOOL:
+        elif is_type == INT and to_type == BOOL:
             return value == 1
         elif is_type == INTEGER and to_type == BOOL:
             return value == 1
-        elif is_type == REAL    and to_type == BOOL:
+        elif is_type == REAL and to_type == BOOL:
             return value == 1
-        elif is_type == FLOAT   and to_type == BOOL:
+        elif is_type == FLOAT and to_type == BOOL:
             return value == 1
 
         raise TypeError(f"Don't know how to cast from {is_type} to {to_type}!")
-
 
     """
     THIS IS WHERE TYPE RESOLVING HAPPENS!!!
@@ -693,10 +620,10 @@ class Z3Converter(object):
 
     @resolve_type.register(ast.NameConstant)
     def resolve_astNameConstant(self, obj):
-        if obj.value == None:
+        if obj.value is None:
             return None
         else:
-            return BOOL # this is in case of True or False
+            return BOOL  # this is in case of True or False
 
     @resolve_type.register(ast.Attribute)
     def resolve_astAttribute(self, obj):
@@ -722,7 +649,7 @@ class Z3Converter(object):
         return self.resolve_type(obj.operand)
 
     @resolve_type.register(ast.BinOp)
-    def _(self, obj):
+    def resolve_type_BinOp(self, obj):
         left_type = self.resolve_type(obj.left)
         right_type = self.resolve_type(obj.right)
         return self.resolve_two_types(left_type, right_type, type(obj.op))
@@ -746,7 +673,8 @@ class Z3Converter(object):
                 return REAL
             # if they're equal, the type remains the same
             # (unless it's one of the above cases)
-            else: return left
+            else:
+                return left
 
         # if bool and number -> return number
         if left is BOOL and right in [INT, INTEGER, FLOAT, REAL]:
@@ -774,30 +702,30 @@ class Z3Converter(object):
         #     return REAL
 
         """ unsupported conversions """
-        if STRING in types: # string and something that's not a string
+        if STRING in types:  # string and something that's not a string
             raise ValueError(f"it is not allowed to mix {left} and {right} in an expression")
 
         raise NotImplementedError(f"I do not know how to compute the resulting type of: {left} and {right} (operator: {op if op else 'None'})")
 
     @resolve_type.register(ast.BoolOp)
-    def _(self, obj):
+    def resolve_type_BoolOp(self, obj):
         return Types.BOOL
 
     @resolve_type.register(ast.Compare)
-    def _(self, obj):
+    def resolve_type_Compare(self, obj):
         return Types.BOOL
 
     @resolve_type.register(ast.AugAssign)
-    def _(self, obj):
+    def resolve_type_AugAssign(self, obj):
         v_type = self.resolve_type(obj.value)
 
         targetname = SH.get_assignment_target_names(obj)[0]
         parent_if = SH.get_ancestor_of_type(obj, ast.If)
         previous_count = count_previous_assignments_with_name_on_left(targetname, obj.target) + \
-                         count_previous_ifs_with_assignments_with_name_on_left(targetname, obj.target)
+            count_previous_ifs_with_assignments_with_name_on_left(targetname, obj.target)
 
         varname_for_value = targetname
-        if parent_if: # adds the id of the if-condition when possible
+        if parent_if:  # adds the id of the if-condition when possible
             suffix = "body" if SH.is_decendant_of(obj, parent_if.body) else "else"
             # varname_with_parent_if_id = f"{name}_{id(parent_if)}-{suffix}"
             varname_for_value = f"{targetname}_{id(parent_if)}-{suffix}"
@@ -808,20 +736,16 @@ class Z3Converter(object):
         resulting_type = self.resolve_two_types(v_type, previous_type, obj.op)
         return resulting_type
 
-    def get_previous_assignment_to_target(self, target):
-        target = SH.get_assignment_target_names(obj)[0]
-        prev = get_previous_assignments_with_name_on_left(target_name, target)
-
     @resolve_type.register(ast.Assign)
-    def _(self, obj):
+    def resolve_type_Assign(self, obj):
         return self.resolve_type(obj.targets[0])
 
     @resolve_type.register(ast.AnnAssign)
-    def _(self, obj):
+    def resolve_type_AnnAssign(self, obj):
         return eval(SH.get_attribute_string(obj.annotation))
 
     @resolve_type.register(ast.IfExp)
-    def _(self, obj):
+    def resolve_type_IfExp(self, obj):
         """ The type of an if-expression is always the result of resolving the two alternatives """
         then_type = self.resolve_type(obj.body)
         else_type = self.resolve_type(obj.orelse)
@@ -830,6 +754,7 @@ class Z3Converter(object):
 
 
 """ End of Class - Start of helpers """
+
 
 def get_identifier_from_target(target):
     """Returns the name (variable) or the name.name.name (attribute/port) from a target"""
@@ -843,36 +768,42 @@ def get_identifier_from_target(target):
 
     raise Exception("Don't know how we got here... something's off")
 
+
 def get_self_or_ancester_assign_or_if(obj):
     if isinstance(obj, (ast.Assign, ast.AugAssign, ast.AnnAssign, ast.If, ast.Return)):
         return obj
     else:
         return SH.get_ancestor_of_type(obj, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.If, ast.Return))
 
+
 def get_previous_assignments_with_name_on_left(name, obj):
     ancestor_assign = get_self_or_ancester_assign_or_if(obj)
-    if not ancestor_assign: # there is no ancestor assign or if, we're probably in a lambda, return [] (no siblings)
+    if not ancestor_assign:  # there is no ancestor assign or if, we're probably in a lambda, return [] (no siblings)
         return []
     previous_siblings = SH.get_all_previous_siblings(ancestor_assign)
     matching_assignments = extract_assignments_with_name_on_left(name, previous_siblings)
     return matching_assignments
 
+
 def count_previous_assignments_with_name_on_left(name, obj):
     return len(get_previous_assignments_with_name_on_left(name, obj))
 
+
 def count_previous_ifs_with_assignments_with_name_on_left(name, obj):
     ancestor_assign = get_self_or_ancester_assign_or_if(obj)
-    if not ancestor_assign: # there is no ancestor assign or if, we're probably in a lambda, return 0
+    if not ancestor_assign:  # there is no ancestor assign or if, we're probably in a lambda, return 0
         return 0
     previous_siblings = SH.get_all_previous_siblings(ancestor_assign)
     ifs_with_assignments_to_name = extract_ifs_that_write_to_target_with_name(name, previous_siblings)
     return len(ifs_with_assignments_to_name)
+
 
 def extract_assignments_with_name_on_left(name, siblings):
     assignments = list(filter((lambda x: isinstance(x, (ast.Assign, ast.AugAssign, ast.AnnAssign))), siblings))
     assignments_variable_targets = [t for fa in assignments for t in SH.get_targets_from_assignment(fa) if isinstance(t, (ast.Name, ast.Attribute))]
     with_matching_name = [var_target for var_target in assignments_variable_targets if get_identifier_from_target(var_target) == name]
     return with_matching_name
+
 
 def extract_ifs_that_write_to_target_with_name(name, siblings):
     ifs = list(filter((lambda x: isinstance(x, ast.If)), siblings))

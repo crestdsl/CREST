@@ -1,15 +1,13 @@
-from .meta import CrestObject
-from .ports import *
-from .resource import Resource
-from copy import copy, deepcopy
-import inspect
+from .meta import CrestObject, crestlist
 
 """" DECORATORS """
+
 
 def transition(source="", target=""):
     def decorator(guard):
         return Transition(source=source, target=target, guard=guard)
     return decorator
+
 
 def influence(source="", target=""):
     def decorator(function=None):
@@ -32,17 +30,19 @@ def update(*args, **kwargs):
         target = kwargs["target"]
         return _update
 
+
 class State(CrestObject):
     def __init__(self, name=None, parent=None):
         super().__init__(name, parent)
         self._dt = 0
+
 
 class Transition(CrestObject):
     def __new__(cls, source, target, guard, name="", parent=None):
         """ this is so we can define a transition to a target from multiple source states """
         if isinstance(source, list):
             dbg = [cls(source=src, target=target, guard=guard, name=name, parent=parent) for src in source]
-            return dbg
+            return crestlist.fromlist(dbg)
         else:
             return super().__new__(cls)
 
@@ -52,6 +52,7 @@ class Transition(CrestObject):
         self.target = target
         self.guard = guard
 
+
 class Influence(CrestObject):
     def __init__(self, source, target, function=None, guard=None, name="", parent=None):
         super().__init__(name, parent)
@@ -60,7 +61,7 @@ class Influence(CrestObject):
         if function:
             self.function = function
         else:
-            self.function = (lambda v : v)
+            self.function = (lambda v: v)
 
     def execute(self):
         self.target.value = self.get_function_value()
@@ -71,13 +72,14 @@ class Influence(CrestObject):
         else:
             return self.function(self.source.value)
 
+
 class Update(CrestObject):
 
     def __new__(cls, function, state, target, name="", parent=None):
         """ this is so we can define the same update for multiple states """
         if isinstance(state, list):
             dbg = [cls(function=function, state=s, target=target) for s in state]
-            return dbg
+            return crestlist.fromlist(dbg)
         else:
             return super().__new__(cls)
 

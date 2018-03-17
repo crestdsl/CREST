@@ -7,6 +7,7 @@ import random
 import logging
 logger = logging.getLogger(__name__)
 
+
 class Simulator(object):
 
     def __init__(self, entity, timeunit=REAL, plotter=None, default_to_integer_real=True):
@@ -55,7 +56,7 @@ class Simulator(object):
         return self._stabilise_fp(entity)
 
     def _stabilise_fp(self, entity=None):
-        if entity == None:
+        if entity is None:
             entity = self.entity
 
         logger.debug("stabilise FP for entity %s (%s)", entity._name, entity.__class__.__name__)
@@ -64,7 +65,6 @@ class Simulator(object):
             self._stabilise_fp(entity)
 
         return stabilise_changes
-
 
     def _stabilise(self, entity):
         logger.debug("stabilise entity %s (%s)", entity._name, entity.__class__.__name__)
@@ -89,7 +89,7 @@ class Simulator(object):
 
     def influence(self, entity):
         logger.debug("influence in entity %s (%s)", entity._name, entity.__class__.__name__)
-        changes = {inf.target : inf.get_function_value() for inf in get_influences(entity) if inf.get_function_value() != inf.target.value }
+        changes = {inf.target: inf.get_function_value() for inf in get_influences(entity) if inf.get_function_value() != inf.target.value}
         self._value_change(changes)
 
         subchanges = []
@@ -109,18 +109,18 @@ class Simulator(object):
             transition = random.choice(enabled_transitions)
             entity.current = transition.target
             logger.info("Firing transition in %s (%s) : %s -> %s",
-                entity._name, entity.__class__.__name__ ,
-                transition.source._name, transition.target._name)
+                        entity._name, entity.__class__.__name__,
+                        transition.source._name, transition.target._name)
 
         # return if a transition was fired
-        return (transition != None)
+        return (transition is not None)
 
     def update(self, entity, time):
         logger.debug("update in entity %s (%s)", entity._name, entity.__class__.__name__)
         updates_from_current = [up for up in get_updates(entity) if up.state == entity.current]
 
         # save values
-        original_target_values = {t : t.value for t in targets(entity)}
+        original_target_values = {t: t.value for t in get_targets(entity)}
 
         changes = False
         # execute updates
@@ -143,7 +143,7 @@ class Simulator(object):
             return
 
         next_trans = self.next_transition_time()
-        if next_trans == None:
+        if next_trans is None:
             logger.info(f"No next transition, just advance {t}")
             # execute all updates in all entities
             for e in get_all_entities(self.entity):
@@ -154,9 +154,8 @@ class Simulator(object):
             self.global_time += t
             return
 
-
         ntt = next_trans[3]
-        if ntt == None or ntt >= t:
+        if ntt is None or ntt >= t:
             logger.info("Advancing %s", t)
             # execute all updates in all entities
             for e in get_all_entities(self.entity):

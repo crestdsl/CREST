@@ -1,28 +1,37 @@
 import unittest
-import ast
 from src.model import *
 
-from src.simulator.to_z3 import *
+import re
+import z3
+from src.simulator.to_z3 import Z3Converter, get_z3_value, get_z3_variable
 from pprint import pprint
 
 import logging
 logging.basicConfig(level=logging.INFO)  # basic logging level
-entityLog = logging.getLogger(name="src.model.entity") # specific logging level
+entityLog = logging.getLogger(name="src.model.entity")  # specific logging level
 entityLog.setLevel(logging.INFO)
-simLog = logging.getLogger(name="src.simulator.simulator") # specific logging level
+simLog = logging.getLogger(name="src.simulator.simulator")  # specific logging level
 simLog.setLevel(logging.INFO)
-ttLog = logging.getLogger(name="src.simulator.transitiontime") # specific logging level
-ttLog.setLevel(logging.DEBUG)
-toZ3Log = logging.getLogger(name="src.simulator.to_z3") # specific logging level
-toZ3Log.setLevel(logging.DEBUG)
+ttLog = logging.getLogger(name="src.simulator.transitiontime")  # specific logging level
+ttLog.setLevel(logging.INFO)
+toZ3Log = logging.getLogger(name="src.simulator.to_z3")  # specific logging level
+toZ3Log.setLevel(logging.INFO)
+
 
 class TestZ3Conversion(unittest.TestCase):
 
     """ Helpers / Setup """
 
     def assertInMulti(self, elements, referenceList):
+        def clean_whites(string):
+            """replaces linebreaks, tabs, etc with whitespaces, reduces multiple whitespaces to one"""
+            string = re.sub("\s", " ", string)
+            string = re.sub(' +', ' ', string)
+            return string
+        referenceList = [clean_whites(ref) for ref in referenceList]
+
         for el in elements:
-            self.assertIn(el, referenceList)
+            self.assertIn(clean_whites(el), referenceList)
 
     def get_test_fixture(self, function):
         class TestEntity(Entity):
@@ -37,11 +46,11 @@ class TestZ3Conversion(unittest.TestCase):
         z3_vars = {'dt': z3.Int('dt')}
         z3_vars['dt'].type = REAL
 
-        z3_vars[instance.port] = {instance.port._name : get_z3_variable(instance.port, instance.port._name)}
-        z3_vars[instance.port][instance.port._name+"_0"] = get_z3_value(instance.port, instance.port._name+"_0")
+        z3_vars[instance.port] = {instance.port._name: get_z3_variable(instance.port, instance.port._name)}
+        z3_vars[instance.port][instance.port._name + "_0"] = get_z3_value(instance.port, instance.port._name + "_0")
 
-        z3_vars[instance.port2] = {instance.port2._name : get_z3_variable(instance.port2, instance.port2._name)}
-        z3_vars[instance.port2][instance.port2._name+"_0"] = get_z3_value(instance.port2, instance.port2._name+"_0")
+        z3_vars[instance.port2] = {instance.port2._name: get_z3_variable(instance.port2, instance.port2._name)}
+        z3_vars[instance.port2][instance.port2._name + "_0"] = get_z3_value(instance.port2, instance.port2._name + "_0")
 
         return z3_vars
 
@@ -64,7 +73,7 @@ class TestZ3Conversion(unittest.TestCase):
         self.assertIn(f"(= port_{id(instance.port)} 15.0)", sexprs)
 
     def test_lambda_update_variable_assignment(self):
-        update = lambda self, dt: 15
+        update = (lambda self, dt: 15)
 
         instance = self.get_test_fixture(update)
         z3_vars = self.get_test_z3vars_fixture(instance)
@@ -92,7 +101,7 @@ class TestZ3Conversion(unittest.TestCase):
         self.assertInMulti([
             f"(= var_1_{update_id} (to_real (+ 15 dt)))",
             f"(= port_{id(instance.port)} var_1_{update_id})"
-            ],sexprs)
+        ], sexprs)
 
     def test_update_variable_dereference(self):
         def update(self, dt):
@@ -111,11 +120,11 @@ class TestZ3Conversion(unittest.TestCase):
         self.assertInMulti([
             f"(= var_1_{update_id} 15)",
             f"(= port_{id(instance.port)} (to_real var_1_{update_id}))"
-            ],sexprs)
+        ], sexprs)
 
     def test_update_variable_type_annotation(self):
         def update(self, dt):
-            var : FLOAT = 15.0
+            var: FLOAT = 15.0
             var = var
             return var
 
@@ -132,7 +141,7 @@ class TestZ3Conversion(unittest.TestCase):
             f"(= var_1_{update_id} (fp #b0 #x82 #b11100000000000000000000))",
             f"(= var_2_{update_id} var_1_{update_id})",
             f"(= port_{id(instance.port)} (fp.to_real var_2_{update_id}))"
-            ],sexprs)
+        ], sexprs)
 
     def test_update_two_variable_dereference_addition(self):
         def update(self, dt):
@@ -153,8 +162,7 @@ class TestZ3Conversion(unittest.TestCase):
             f"(= var_1_{update_id} 15)",
             f"(= var2_1_{update_id} 3)",
             f"(= port_{id(instance.port)} (to_real (+ var_1_{update_id} var2_1_{update_id})))"
-            ],sexprs)
-
+        ], sexprs)
 
     def test_update_variable_multi_transformation(self):
         def update(self, dt):
@@ -177,7 +185,7 @@ class TestZ3Conversion(unittest.TestCase):
             f"(= var_2_{update_id} (+ var_1_{update_id} 4))",
             f"(= var_3_{update_id} (* var_2_{update_id} (- 1)))",
             f"(= port_{id(instance.port)} (to_real var_3_{update_id}))"
-            ], sexprs)
+        ], sexprs)
 
     def test_update_variable_port_reference(self):
         def update(self, dt):
@@ -196,7 +204,7 @@ class TestZ3Conversion(unittest.TestCase):
         self.assertInMulti([
             f"(= 314.0 var_1_{update_id})",
             f"(= port_{id(instance.port)} var_1_{update_id})"
-            ], sexprs)
+        ], sexprs)
 
     def test_update_read_and_write_same_port(self):
         def update(self, dt):
@@ -215,7 +223,7 @@ class TestZ3Conversion(unittest.TestCase):
         self.assertInMulti([
             f"(= 314.0 var_1_{update_id})",
             f"(= port_{id(instance.port)} var_1_{update_id})"
-            ], sexprs)
+        ], sexprs)
 
     def test_update_read_and_write_different_port(self):
         def update(self, dt):
@@ -234,7 +242,7 @@ class TestZ3Conversion(unittest.TestCase):
         self.assertInMulti([
             f"(= var_1_{update_id} port2_{id(instance.port2)})",
             f"(= port_{id(instance.port)} var_1_{update_id})"
-            ], sexprs)
+        ], sexprs)
 
     def test_update_two_references_to_same_port_variable(self):
         def update(self, dt):
@@ -255,7 +263,7 @@ class TestZ3Conversion(unittest.TestCase):
             f"(= 314.0 var_1_{update_id})",
             f"(= 314.0 var2_1_{update_id})",
             f"(= port_{id(instance.port)} (+ var_1_{update_id} var2_1_{update_id}))"
-            ], sexprs)
+        ], sexprs)
 
     def test_update_two_references_to_same_port_value(self):
         def update(self, dt):
@@ -276,13 +284,13 @@ class TestZ3Conversion(unittest.TestCase):
             f"(= var_1_{update_id} port2_{id(instance.port2)})",
             f"(= var2_1_{update_id} port2_{id(instance.port2)})",
             f"(= port_{id(instance.port)} (+ var_1_{update_id} var2_1_{update_id}))"
-            ], sexprs)
+        ], sexprs)
 
     def test_update_if_expression(self):
         def update(self, dt):
             x = 15
             y = 18.1
-            var : INTEGER = 25 if x < y else 35
+            var: INTEGER = 25 if x < y else 35
 
         instance = self.get_test_fixture(update)
         z3_vars = self.get_test_z3vars_fixture(instance)
@@ -297,13 +305,13 @@ class TestZ3Conversion(unittest.TestCase):
             f'(= x_1_{update_id} 15)',
             f'(= y_1_{update_id} (/ 181.0 10.0))',
             f'(let ((a!1 (ite (and (< (to_real x_1_{update_id}) y_1_{update_id})) 25 35)))\n  (= var_1_{update_id} a!1))'
-            ], sexprs)
+        ], sexprs)
 
     def test_update_nested_if_expression(self):
         def update(self, dt):
             x = 15
             y = 18.1
-            var : INTEGER = 33 + ((25 if y < 25 else 26) if x < y else (35 if x < 19 else 36) )
+            var: INTEGER = 33 + ((25 if y < 25 else 26) if x < y else (35 if x < 19 else 36))
 
         instance = self.get_test_fixture(update)
         z3_vars = self.get_test_z3vars_fixture(instance)
@@ -322,9 +330,9 @@ class TestZ3Conversion(unittest.TestCase):
                 (ite (and (< y_1_{update_id} 25.0)) 25 26)
                 (ite (and (< x_1_{update_id} 19)) 35 36))))
   (= var_1_{update_id} (+ 33 a!1)))"""
-            ], sexprs)
+        ], sexprs)
 
-    def test_update_if_statement(self):
+    def test_update_if_statement_structural_check_only(self):
         def update(self, dt):
             x = 15
             if x < 30:
@@ -338,12 +346,12 @@ class TestZ3Conversion(unittest.TestCase):
 
         # execute
         constraints = conv.to_z3(instance.update.function)
-        sexprs = [c.sexpr() for c in constraints]
-        # test
-        update_id = id(instance.update)
-        pprint(sexprs)
+        assert len(constraints) == 2
+        assert constraints[1].num_args() == 3
+        assert constraints[1].arg(1).num_args() == 2, "two entries in then"
+        assert constraints[1].arg(2).num_args() == 2, "two entries in orelse"
 
-    def test_update_if_elif_statement(self):
+    def test_update_if_elif_statement_structural_check_only(self):
         def update(self, dt):
             x = 15
             if x < 30:
@@ -359,10 +367,14 @@ class TestZ3Conversion(unittest.TestCase):
 
         # execute
         constraints = conv.to_z3(instance.update.function)
-        sexprs = [c.sexpr() for c in constraints]
-        # test
-        update_id = id(instance.update)
-        pprint(sexprs)
+        assert len(constraints) == 2
+        assert constraints[1].num_args() == 3
+
+        assert constraints[1].arg(1).num_args() == 2, "there is not an x-variable passing + if-else"  # first is passing vars, second is if
+        insideif = constraints[1].arg(2).arg(1)
+        assert insideif.num_args() == 3, "inside if doesn'nt have three parts"
+        assert insideif.arg(1).num_args() == 2, "two entries in then"
+        assert insideif.arg(2).num_args() == 2, "two entries in orelse"
 
     def test_update_if_statement_no_return(self):
         def update(self, dt):
@@ -373,7 +385,7 @@ class TestZ3Conversion(unittest.TestCase):
                 y = 50
             else:
                 z = 100.5
-            y += 3.3333
+            y += 4.3333
             return y + z
 
         instance = self.get_test_fixture(update)
@@ -382,34 +394,18 @@ class TestZ3Conversion(unittest.TestCase):
 
         # execute
         constraints = conv.to_z3(instance.update.function)
-        sexprs = [c.sexpr() for c in constraints]
-        # test
-        update_id = id(instance.update)
-        pprint(sexprs)
-#         self.assertInMulti([
-#             f'(= x_1_{update_id} 15)',
-#             f'(= y_1_{update_id} (/ 181.0 10.0))',
-#             f"""\
-# (let ((a!1 (ite (and (< (to_real x_1_{update_id}) y_1_{update_id}))
-#                 (ite (and (< y_1_{update_id} 25.0)) 25 26)
-#                 (ite (and (< x_1_{update_id} 19)) 35 36))))
-#   (= var_1_{update_id} (+ 33 a!1)))"""
-#             ], sexprs)
+        assert len(constraints) == 4
 
+        # the fourth one is interesting
+        ifelse = constraints[3]
+        assert ifelse.num_args() == 3
 
+        then = ifelse.arg(1)
+        orelse = ifelse.arg(2)
 
-    # def atest_resolve_type_dereference(self):
-    #     def update(self, dt):
-    #         var = 15
-    #         return var
-    #
-    #     instance = self.get_test_fixture(update)
-    #     z3_vars = self.get_test_z3vars_fixture(instance)
-    #     conv = Z3Converter(z3_vars, entity=instance, container=instance.update)
-    #     constraints = conv.to_z3(instance.update.function)
-    #
-    #     var_node = SH.get_assignment_targets(conv.body_ast)[0]
-    #     assert conv.resolve_type(var_node)
+        # assert that the line with the += 4.3333 was copied into both sides
+        assert "(/ 43333.0 10000.0)" in then.arg(3).sexpr()
+        assert "(/ 43333.0 10000.0)" in orelse.arg(3).sexpr()
 
 
 if __name__ == '__main__':

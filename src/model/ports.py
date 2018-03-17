@@ -1,44 +1,25 @@
-from .meta import CrestObject
+from .meta import CrestObject, PARENT_IDENTIFIER, NAME_IDENTIFIER
 # from .resource import Resource
 # from weakref import WeakKeyDictionary
 
 """ PORTS """
+
+
 class Port(CrestObject):
-    def __init__(self, resource=None, value=None, name=None):
+    def __init__(self, resource=None, value=None, name=None, parent=None):
         self.resource = resource
         self.value = value
-        self.name = name
+        setattr(self, NAME_IDENTIFIER, name)
+        setattr(self, PARENT_IDENTIFIER, parent)
 
-class RequestablePort(Port):
-    def __init__(self, resource=None, init=None):
-        super().__init__(resource, init)
-        self._requested = None
 
 class Input(Port):
     pass
 
+
 class Output(Port):
     pass
 
+
 class Local(Port):
     pass
-
-class LocalConst(Local):
-    pass
-
-
-
-# class RequestableInput(Input):
-#     @property
-#     def request(self):
-#         return self._requested
-#
-#     @request.setter
-#     def request(self, value):
-#         self._requested = value
-#
-# class RequestableOutput(Output):
-#
-#     @property
-#     def requested(self):
-#         return self._requested

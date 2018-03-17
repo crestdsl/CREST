@@ -1,15 +1,16 @@
 import unittest
-import ast, astor
+# import ast
+import astor
 import src.simulator.sourcehelper as SH
-from pprint import pprint
+# from pprint import pprint
 
 import logging
 logging.basicConfig(level=logging.INFO)  # basic logging level
 
+
 class TestSourceHelper_ast(unittest.TestCase):
 
-    """ Tests """
-
+    @unittest.skip("this is a test for manual debugging")
     def test_getast_of_function(self):
         def func(self, dt):
                 y = 1
@@ -25,15 +26,14 @@ class TestSourceHelper_ast(unittest.TestCase):
         tree = SH.getast(func)
         print(astor.dump_tree(tree))
 
-
+    @unittest.skip("this is a test for manual debugging")
     def test_getast_of_lambda(self):
-        func = (lambda x : x)
-        y = func
+        func = (lambda x: x)
         tree = SH.getast(func)
         print(astor.dump_tree(tree))
         print(astor.dump_tree(SH.get_ast_from_lambda(func)))
 
-
+    @unittest.skip("this is a test for manual debugging")
     def test_getast_of_lambda_with_comments(self):
         pass
 

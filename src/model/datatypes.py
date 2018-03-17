@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class Types(Enum):
     INT = int
     FLOAT = float
@@ -7,6 +8,7 @@ class Types(Enum):
     REAL = "real"
     STRING = str
     BOOL = bool
+
 
 # this is shorter to use!
 INT = Types.INT

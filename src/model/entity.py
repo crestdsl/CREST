@@ -1,164 +1,238 @@
 from copy import deepcopy, copy
 from operator import attrgetter
 
-from .meta import CrestObject, PARENT_IDENTIFIER, CURRENT_IDENTIFIER
-from .ports import Port, Input, Output, Local
-from .model import State, Transition, Influence, Update
+from .model import Transition, Update, Influence, State
+from .meta import PARENT_IDENTIFIER, CURRENT_IDENTIFIER, CrestObject, crestlist
+from .ports import Port, Input, Local, Output
+import pprint
 
 import logging
 logger = logging.getLogger(__name__)
 
-class Entity(CrestObject):
+
+class MetaEntity(type):
+    """ Black magic! """
+    def __new__(cls, clsname, superclasses, attributedict):
+        cls._name = clsname
+
+        # flatten the attributedict, so we don't have lists of crestobjects anymore
+        for key, value in attributedict.copy().items():
+            if isinstance(value, crestlist):  # this happens when we do updates or transitions for multiple states
+                # flatten it already here...
+                for idx, item in enumerate(value):
+                    newattname = f"{key}___{idx}"
+                    attributedict[newattname] = item
+                del attributedict[key]
+
+        new_entity = type.__new__(cls, clsname, superclasses, attributedict)
+
+        # make sure each element in the attributedict knows what they're called and who's their daddy
+        for key, value in attributedict.copy().items():
+            if isinstance(value, CrestObject):
+                value._parent = new_entity
+                value._name = key
+        return new_entity
+
+    def __call__(cls, *args, **kwargs):
+        """Called when you call MyNewClass() """
+        obj = type.__call__(cls, *args, **kwargs)
+
+        # after init call all __post__ of all subentities
+        for subentity in get_entities(obj):
+            if hasattr(subentity, "__post__"):
+                subentity.__post__()
+        return obj
+
+
+class Entity(CrestObject, metaclass=MetaEntity):
 
     def __new__(cls, *args, **kwargs):
         newobj = super().__new__(cls)
-        # print(f"creating a {type(newobj)}")
+        logger.debug(f"creating a {type(newobj)}")
         if not hasattr(newobj, "_name"):
-            newobj._name = "" # set default name and parent
+            newobj._name = ""  # set default name and parent
         if not hasattr(newobj, PARENT_IDENTIFIER):
             setattr(newobj, PARENT_IDENTIFIER, None)
 
-        # all_objs = get_transitions(cls)
-        # print("class transitions", len(all_objs))
-        # for o in all_objs:
-        #     print(cls, "000", o, o._name, o._parent)
-        #
-        # all_objs = get_transitions(newobj)
-        # print("object transitions", len(all_objs))
-        # for o in all_objs:
-        #     print(newobj, "000", o, o._name, o._parent)
-
-        initialised = Entity.make_crest_copy(cls, newobj)
-
-        # all_objs = get_transitions(newobj)
-        # print("object transitions after init", len(all_objs))
-        # for o in all_objs:
-        #    print(newobj, "000", o, o._name, o._parent)
-
-        return initialised
+        return make_crest_copy(cls, newobj)
 
     def __deepcopy__(self, memo):
+        logger.debug(f"Creating a deepcopy of entity {self}")
         newobj = super().__new__(self.__class__)
-        newobj = Entity.make_crest_copy(self, newobj)
+        newobj = make_crest_copy(self, newobj)
         return newobj
 
-    @staticmethod
-    def make_crest_copy(original_obj, newobj):
-        copymap = dict() # dict of pairs {name: (new_object, old_object)}
-        def getcopy(attrname, original_object, deep_copy=False):
-            if attrname not in copymap:
-                new_object = deepcopy(original_object) if deep_copy else copy(original_object)
-                copymap[attrname] = new_object
-                copymap[original_object] = new_object
-            return copymap[attrname] # return the new one
+    def __setattr__(self, name, value):
+        """This automatically saves the name and parent for any CrestObject we are storing somewhere"""
+        # make sure we're not doing this for _parent, otherwise we'll have infinite loops!
+        if isinstance(value, CrestObject) and name != PARENT_IDENTIFIER:
+            value._parent = self
+            value._name = name
 
-        def get_local_attribute(identifier):
-            """ if string, then get it,
-            otherwise find the attribute path in the original and find it in the new one """
-            if not isinstance(identifier, str): # if we have a string, get it by string
-                assert(original_obj != None)
-                name_by_lookup = _create_crestobject_path_map(original_obj).get(identifier, None)
-                if name_by_lookup: # see if we can find it by reverse lookup
-                    identifier = name_by_lookup
-                else:
-                    # search for it in (it's probably in a subentity)
-                    logger.error("Couldn't find path to %s (%s)", identifier._name, identifier)
-                    identifier = get_path_to_attribute(original_obj, identifier)
-
-            return attrgetter(identifier)(newobj)
-
-        def _create_crestobject_path_map(root):
-            object_path_map = {v : k for k, v in get_crest_objects(root, as_dict=True).items()}
-            for name, subentity in get_entities(root, as_dict=True).items():
-                if name != PARENT_IDENTIFIER:
-                    object_path_map.update(
-                        {obj : name+"."+path for obj, path in _create_crestobject_path_map(subentity).items()}
-                    )
-            return object_path_map
-
-        """ copy ports (shallow copy, because they reference resources, which are unique) """
-        logger.debug("copying ports")
-        for name, port in get_ports(original_obj, as_dict=True).items():
-            # newport = getcopy(name, port, deep_copy=False)
-            newport = copy(port)
-            newport._name = name
-            newport._parent = newobj # save reference to parent
-            setattr(newobj, name, newport)
-
-        """ copy states (deep copy) """
-        logger.debug("copying states")
-        for name, state in get_states(original_obj, as_dict=True).items():
-            if name != CURRENT_IDENTIFIER: # skip current state for now
-                # newstate = getcopy(name, state, deep_copy=True)
-                newstate = copy(state)
-                newstate._name = name
-                setattr(newstate, PARENT_IDENTIFIER, newobj) # save reference to parent
-                setattr(newobj, name, newstate)
+        super().__setattr__(name, value)
 
 
-        """ we treat "current" specially """
-        if hasattr(original_obj, CURRENT_IDENTIFIER):
-            setattr(newobj, CURRENT_IDENTIFIER, get_local_attribute(original_obj.current))
+def make_crest_copy(original_obj, newobj):
+    logger.debug(f"make_crest_copy. original_obj: {original_obj}, newobj: {newobj}")
+    copymap = dict()  # dict of pairs {name: (new_object, old_object)}
 
-        """ copy Entities (deep copy) """
-        logger.debug("copying subentities")
-        for name, entity in get_entities(original_obj, as_dict=True).items():
+    def getcopy(attrname, original_object, deep_copy=False):
+        if attrname not in copymap:
+            new_object = deepcopy(original_object) if deep_copy else copy(original_object)
+            copymap[attrname] = new_object
+            copymap[original_object] = new_object
+        return copymap[attrname]  # return the new one
+
+    def get_local_attribute(identifier):
+        """ if string, then get it,
+        otherwise find the attribute path in the original and find it in the new one """
+        if not isinstance(identifier, str):  # if we have a string, get it by string
+            assert(original_obj is not None)
+            crestobject_path_map = _create_crestobject_path_map(original_obj)
+            name_by_lookup = crestobject_path_map.get(identifier, None)
+            if name_by_lookup:  # see if we can find it by reverse lookup
+                identifier = name_by_lookup
+            else:
+                # search for it in (it's probably in a subentity)
+                logger.error("Couldn't find path to %s (%s)", identifier._name, identifier)
+                identifier = get_path_to_attribute(original_obj, identifier)
+        return attrgetter(identifier)(newobj)
+
+    def _create_crestobject_path_map(root):
+        object_path_map = {v: k for k, v in get_crest_objects(root, as_dict=True).items() if k != CURRENT_IDENTIFIER}  # remove current from the map, otherwise we run into issues
+        for name, subentity in get_entities(root, as_dict=True).items():
             if name != PARENT_IDENTIFIER:
+                object_path_map.update(
+                    {obj: f"{name}.{path}" for obj, path in _create_crestobject_path_map(subentity).items()}
+                )
+        return object_path_map
+
+    """ copy ports (shallow copy, because they reference resources, which are unique) """
+    logger.debug(f"copying PORTS {pprint.pformat(get_ports(original_obj, as_dict=True))}")
+    for name, port in get_ports(original_obj, as_dict=True).items():
+        logger.debug(name)
+        # assert getattr(original_obj, name) == getattr(newobj, name), f"There is a port that is different in original and new: {name}"
+        # newport = getcopy(name, port, deep_copy=False)
+        newport = copy(port)
+        newport._parent = newobj
+        newport._name = name
+        setattr(newobj, name, newport)
+
+    """ copy states (deep copy) """
+    logger.debug(f"copying STATES {pprint.pformat(get_states(original_obj, as_dict=True))}")
+    for name, state in get_states(original_obj, as_dict=True).items():
+        logger.debug(name)
+        # assert getattr(original_obj, name) == getattr(newobj, name), f"There is a state that is different in original and new: {name}"
+        if name != CURRENT_IDENTIFIER:  # skip current state for now
+            # newstate = getcopy(name, state, deep_copy=True)
+            newstate = copy(state)
+            newstate._parent = newobj
+            newstate._name = name
+            setattr(newobj, name, newstate)
+    # we treat "current" specially:
+    if hasattr(original_obj, CURRENT_IDENTIFIER):
+        local_att = get_local_attribute(original_obj.current)
+        setattr(newobj, CURRENT_IDENTIFIER, local_att)
+
+    """ copy Entities (deep copy) """
+    logger.debug(f"copying SUBENTITIES {pprint.pformat(get_entities(original_obj, as_dict=True))}")
+    for name, entity in get_entities(original_obj, as_dict=True).items():
+        logger.debug(name)
+        # assert getattr(original_obj, name) == getattr(newobj, name), f"There is a subentity that is different in original and new: {name}"
+        if name != PARENT_IDENTIFIER:
             # newentity = getcopy(name, entity, deep_copy=True)
-                newentity = deepcopy(entity)
-                newentity._name = name
-                setattr(newentity, PARENT_IDENTIFIER, newobj) # save reference to parent
-                setattr(newobj, name, newentity)
+            newentity = deepcopy(entity)
+            setattr(newobj, name, newentity)
 
-        """ get transitions and adapt them """
-        logger.debug("copying transitions", newobj)
-        # import pdb; pdb.set_trace()
-        all_objs = get_transitions(newobj)
-        # print(222, len(all_objs))
-        # for o in all_objs:
-        #     print(newobj, "222", o, o._name, o._parent)
-        all_objs = get_transitions(original_obj)
-        # print(111, len(all_objs))
-        # for o in all_objs:
-        #     print(newobj, "111", o, o._name, o._parent)
-        for name, trans in get_transitions(original_obj, as_dict=True).items():
-            source = get_local_attribute(trans.source)
-            target = get_local_attribute(trans.target)
-            newtransition = Transition(source=source, target=target, guard=trans.guard)
-            newtransition._name = name
-            setattr(newtransition, PARENT_IDENTIFIER, newobj) # save reference to parent
-            setattr(newobj, name, newtransition)
-        listattrs = get_by_klass(newobj, list, as_dict=True)
-        if len(listattrs) > 0:
-            import pdb; pdb.set_trace()
-        # TODO delete all lists of transitions that end in "__X" where X is a number
+    """ get transitions and adapt them """
+    logger.debug("copying transitions")
+    for name, trans in get_transitions(original_obj, as_dict=True).items():
+        source = get_local_attribute(trans.source)
+        target = get_local_attribute(trans.target)
+        newtransition = Transition(source=source, target=target, guard=trans.guard)
+        newtransition._parent = newobj
+        newtransition._name = name
+        setattr(newobj, name, newtransition)
 
-        """ get updates and adapt them """
-        logger.debug("copying updates")
-        for name, update in get_updates(original_obj, as_dict=True).items():
-            state = get_local_attribute(update.state)
-            target = get_local_attribute(update.target)
-            newupdate = Update(state=state, function=update.function, target=target)
-            newupdate._name = name
-            newupdate._parent = newobj # save reference to parent
-            setattr(newobj, name, newupdate)
-        # TODO delete all lists of updates that end in "__X" where X is a number
+    """ get updates and adapt them """
+    logger.debug("copying updates")
+    for name, update in get_updates(original_obj, as_dict=True).items():
+        state = get_local_attribute(update.state)
+        target = get_local_attribute(update.target)
+        newupdate = Update(state=state, function=update.function, target=target)
+        newupdate._parent = newobj
+        newupdate._name = name
+        setattr(newobj, name, newupdate)
+    # TODO delete all lists of updates that end in "__X" where X is a number
 
-        """ get influences and adapt them """
-        logger.debug("copying influences")
-        for name, influence in get_influences(original_obj, as_dict=True).items():
-            source = get_local_attribute(influence.source)
-            target = get_local_attribute(influence.target)
-            newinfluence = Influence(source=source, target=target, function=influence.function)
-            newinfluence._name = name
-            setattr(newinfluence, PARENT_IDENTIFIER, newobj) # save reference to parent
-            setattr(newobj, name, newinfluence)
-        # TODO delete all lists of influences that end in "__X" where X is a number
+    """ get influences and adapt them """
+    logger.debug("copying influences")
+    for name, influence in get_influences(original_obj, as_dict=True).items():
+        source = get_local_attribute(influence.source)
+        target = get_local_attribute(influence.target)
+        newinfluence = Influence(source=source, target=target, function=influence.function)
+        newinfluence._parent = newobj
+        newinfluence._name = name
+        setattr(newobj, name, newinfluence)
+    # TODO delete all lists of influences that end in "__X" where X is a number
 
-        return newobj
+    # cleanup, remove CrestObjects that are the same in old and new:
+    for name in dir(newobj):
+        if hasattr(original_obj, name):
+            newattr = getattr(newobj, name)
+            oldattr = getattr(original_obj, name)
+            if newattr == oldattr and isinstance(newattr, CrestObject):
+                # delattr(newobj, name)
+                logger.debug(f"deleted attribute {name} from entity, because it is a direct pointer to the original object's attribute")
+            elif newattr == oldattr and type(newattr) == list and all([isinstance(l, CrestObject) for l in newattr]):
+                # import pdb; pdb.set_trace()
+                # delattr(newobj, name)
+                logger.debug(f"deleted attribute {name} from entity, because it is a direct pointer to the original object's attribute")
+        else:
+            # print(f"{name} not present in old_object")
+            pass
+    return newobj
+
 
 class LogicalEntity(Entity):
     pass
+
+
+def add(entity, name, obj):
+    """ similar to setattr, but does some string resolving beforehand """
+    def slice_self(attrstring):
+        if attrstring.startswith("self."):
+            attrstring = attrstring[5:]
+        return attrstring
+
+    if isinstance(obj, (Influence, Transition)) and isinstance(obj.source, str):
+            obj.source = attrgetter(slice_self(obj.source))(entity)
+    if isinstance(obj, (Influence, Update, Transition)) and isinstance(obj.target, str):
+            obj.target = attrgetter(slice_self(obj.target))(entity)
+    if isinstance(obj, (Update)) and isinstance(obj.state, str):
+            obj.state = attrgetter(slice_self(obj.state))(entity)
+
+    setattr(entity, name, obj)
+
+
+def get_parent(entity):
+    return entity._parent
+
+
+def get_name(entity):
+    return entity._name
+
+
+def get_children(entity):
+    return get_entities(entity)
+
+
+def get_sources(entity):
+    return get_inputs(entity) + get_locals(entity) + [o for e in get_entities(entity) for o in get_outputs(e)]
+
+
+def get_targets(entity):
+    return get_outputs(entity) + get_locals(entity) + [i for e in get_entities(entity) for i in get_inputs(e)]
 
 
 def get_path_to_attribute(root, object_to_find):
@@ -171,123 +245,116 @@ def get_path_to_attribute(root, object_to_find):
     path = path[::-1]
     return ".".join(path)
 
+
 """ helper functions """
+
+
 def get_all_entities(entity):
     entities = [entity]
     for name, ent in get_entities(entity, as_dict=True).items():
         entities.extend(get_all_entities(ent))
     return entities
 
+
 def get_all_influences(entity):
     return [inf for e in get_all_entities(entity) for inf in get_influences(e)]
+
 
 def get_all_updates(entity):
     return [up for e in get_all_entities(entity) for up in get_updates(e)]
 
+
 def get_all_ports(entity):
     return [p for e in get_all_entities(entity) for p in get_ports(e)]
 
+
 def get_all_states(entity):
     return [s for e in get_all_entities(entity) for s in get_states(e)]
+
 
 def get_all_transitions(entity):
     return [s for e in get_all_entities(entity) for s in get_transitions(e)]
 
 
 """ get_X_from_entity functions"""
-def sources(entity):
-    return get_inputs(entity) + get_locals(entity) + [o for e in get_entities(entity) for o in get_outputs(e)]
 
-def targets(entity):
-    return get_outputs(entity) + get_locals(entity) + [i for e in get_entities(entity) for i in get_inputs(e)]
-
-def parent(entity):
-    return entity._parent
-
-def children(entity):
-    return get_entities(entity)
 
 def get_states(entity, as_dict=False):
     return get_by_klass(entity, State, as_dict)
 
+
 def get_inputs(entity, as_dict=False):
     return get_by_klass(entity, Input, as_dict)
+
 
 def get_outputs(entity, as_dict=False):
     return get_by_klass(entity, Output, as_dict)
 
+
 def get_locals(entity, as_dict=False):
     return get_by_klass(entity, Local, as_dict)
 
+
 def get_ports(entity, as_dict=False):
     return get_by_klass(entity, Port, as_dict)
+
+
+def get_updates(entity, as_dict=False):
+    return get_by_klass(entity, Update, as_dict)
+
+
+def get_transitions(entity, as_dict=False):
+    return get_by_klass(entity, Transition, as_dict)
+
+
+def get_influences(entity, as_dict=False):
+    return get_by_klass(entity, Influence, as_dict)
+
 
 def get_entities(entity, as_dict=False):
     # prevent recursion, don't return reference to parent !!!
     if as_dict:
         return {name: ent for name, ent in get_by_klass(entity, Entity, True).items() if name not in (PARENT_IDENTIFIER, CURRENT_IDENTIFIER)}
     else:
-         return [ent for name, ent in get_by_klass(entity, Entity, True).items() if name not in (PARENT_IDENTIFIER, CURRENT_IDENTIFIER)]
+        return [ent for name, ent in get_by_klass(entity, Entity, True).items() if name not in (PARENT_IDENTIFIER, CURRENT_IDENTIFIER)]
 
-def get_updates(entity, as_dict=False):
-    return get_by_klass(entity, Update, as_dict)
-
-def get_transitions(entity, as_dict=False):
-    return get_by_klass(entity, Transition, as_dict)
-
-def get_influences(entity, as_dict=False):
-    return get_by_klass(entity, Influence, as_dict)
 
 def get_crest_objects(entity, as_dict=False):
     return get_by_klass(entity, CrestObject, as_dict)
 
-def get_by_klass(entity, klass, as_dict=False):
+
+def get_by_klass(class_or_entity, klass, as_dict=False):
+    isclass = type(class_or_entity) == type
+    attrs = dir(class_or_entity)  # if isclass else class_or_entity.__dict__.keys()
     if as_dict:
         retval = dict()
-        attrs = {attr: get_dict_attr(entity, attr) for attr in dir(entity)}
+        # attrs = {attr: get_dict_attr(entity, attr) for attr in dir(entity)}
+        attrs = {attr: getattr(class_or_entity, attr) for attr in attrs}
         for name, attr in attrs.items():
             if isinstance(attr, klass):
                 retval[name] = attr
-            elif isinstance(attr, list):
-                for idx, value in enumerate(attr):
-                    if isinstance(value, klass):
-                        retval["{}___{}".format(name, idx)] = value
+            elif isinstance(attr, crestlist):
+                raise AttributeError(f"Class or Entity {class_or_entity} has an attribute {name} which is a crestlist. This is forbidden!!")
         return retval
     else:
         retval = []
-        for attrname in dir(entity):
-            attr = get_dict_attr(entity, attrname)
+        for attrname in attrs:
+            # attr = get_dict_attr(entity, attrname)
+            attr = getattr(class_or_entity, attrname)
             if isinstance(attr, klass):
-                # print("\tadding1", attrname, attr, attr._name)
                 retval.append(attr)
-            elif isinstance(attr, list):
-                for v in attr:
-                    if isinstance(v, klass):
-                        # print("\tadding2", attrname, v, v._name)
-                        retval.append(v)
-        # print("# - # - "*20)
-        # for attr in dir(entity):
-        #     print(attr, get_dict_attr(entity, attr))
-        # print("# - # - "*20)
-        # attrs = [get_dict_attr(entity, attr) for attr in dir(entity)]
-         # for a in attrs:
-         #     print(a, a._name if hasattr(a, "_name") else "")
-
-        # retval = []
-        # for attr in attrs:
-        #      # print("trying", attr)
-        #      if isinstance(attr, klass):
-        #          print("\tadding1", attr, attr._name)
-        #          retval.append(attr)
-        #      elif isinstance(attr, list):
-        #          for v in attr:
-        #              if isinstance(v, klass):
-        #                  print("\tadding2", attr, v)
-        #                  retval.append(v)
+            elif isinstance(attr, crestlist):
+                raise AttributeError(f"Class or Entity {class_or_entity} has an attribute {attrname} which is a crestlist. This is forbidden!!")
         return list(set(retval))
 
+
 def get_dict_attr(obj, attr):
-    potential = [obj] + obj.__class__.mro() if isinstance(obj, Entity) else [obj] + obj.mro()
+    potential = []
+    if isinstance(obj, Entity):
+        potential = [obj] + obj.__class__.mro()
+    else:
+        potential = [obj] + obj.mro()
+
     for obj in potential:
         if attr in obj.__dict__:
             return obj.__dict__[attr]
