@@ -16,6 +16,7 @@ RUN mkdir /var/lib/apt/lists/partial && \
     rm -rf /var/lib/apt/lists/*
 
 # install astor and gaphviz
+RUN pip install --no-cache-dir --upgrade pip matplotlib
 RUN pip install --no-cache-dir astor graphviz
 
 # install jupyter extensions
