@@ -1,5 +1,6 @@
 from copy import deepcopy, copy
 from operator import attrgetter
+from functools import lru_cache
 
 from .model import Transition, Update, Influence, State
 from .meta import PARENT_IDENTIFIER, CURRENT_IDENTIFIER, CrestObject, crestlist
@@ -323,6 +324,7 @@ def get_crest_objects(entity, as_dict=False):
     return get_by_klass(entity, CrestObject, as_dict)
 
 
+@lru_cache(maxsize=4096)
 def get_by_klass(class_or_entity, klass, as_dict=False):
     isclass = type(class_or_entity) == type
     attrs = dir(class_or_entity)  # if isclass else class_or_entity.__dict__.keys()

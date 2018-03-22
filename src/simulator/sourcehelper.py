@@ -4,9 +4,11 @@ import inspect
 import astor
 from copy import deepcopy
 from operator import attrgetter
+from functools import lru_cache
 from src.model.entity import *
 
 
+@lru_cache(maxsize=1024)
 def get_ast_body(function_or_lambda, rewrite_if_else=False):
     if is_lambda(function_or_lambda):
         # this means we're a lambda
@@ -98,6 +100,7 @@ def get_ast_from_lambda_transition_guard(func):
     return guard_body
 
 
+@lru_cache(maxsize=4096)
 def getast(function):
     func_ast = ast.parse(getsource(function))
     return func_ast
@@ -251,6 +254,7 @@ def get_written_ports_from_update(function, container):
     return ports
 
 
+@lru_cache(maxsize=1024)
 def get_read_ports_from_update(function, container):
     ast_body = get_ast_body(function)
     varnames = get_read_variables(ast_body)

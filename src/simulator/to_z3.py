@@ -2,7 +2,7 @@ from src.model import *
 import src.simulator.sourcehelper as SH
 from operator import attrgetter
 
-from functools import singledispatch, update_wrapper
+from functools import singledispatch, update_wrapper, lru_cache
 import ast
 import astor
 import z3
@@ -46,10 +46,23 @@ operator_to_operation = {
 """ PORT TREATMENT """
 
 
-def get_z3_val(valtype, value, name):
-    # logger.debug(f"getting z3 val: {valtype}, {value}")
+count = 0
+
+
+def _get_datatype_from_list(values, datatype_name):
+    global count
+    count += 1
+    datatype = z3.Datatype(datatype_name)
+    for v in values:
+        datatype.declare(v)
+    return datatype.create()
+
+
+def get_z3_val(valtype, value, name, datatype_name=None):
     val = None
-    if valtype == Types.INT:
+    if isinstance(valtype, z3.z3.DatatypeSortRef):  # discrete values datatype
+        val = getattr(valtype, value)
+    elif valtype == Types.INT:
         val = z3.BitVecVal(value, 32)
     elif valtype == Types.INTEGER:
         val = z3.IntVal(value)
@@ -62,22 +75,22 @@ def get_z3_val(valtype, value, name):
     elif valtype == Types.STRING:
         val = z3.StringVal(value)
     elif type(valtype) is list:
-        my_enum = z3.Datatype(name)
-        for v in valtype:
-            my_enum.declare(v)
-        my_enum = my_enum.create()
-        val = getattr(my_enum, value)
+        datatype = _get_datatype_from_list(valtype, datatype_name)
+        val = getattr(datatype, value)
+        valtype = datatype
     else:
         raise ValueError(f"I do not know how to create a z3-value for type {valtype}")
 
+    assert val is not None, f"Value wasn't converted: valtype: {valtype}, value: {value}, name: {name}"
     val.type = valtype
     return val
 
 
-def get_z3_var(vartype, name):
-    # logger.debug(f"getting z3 var: {vartype}, {name}")
+def get_z3_var(vartype, name, datatype_name=None):
     var = None
-    if vartype == Types.INT:
+    if isinstance(vartype, z3.z3.DatatypeSortRef):  # discrete values datatype
+        var = z3.Const(name, vartype)
+    elif vartype == Types.INT:
         var = z3.BitVec(name, 32)
     elif vartype == Types.INTEGER:
         var = z3.Int(name)
@@ -90,29 +103,46 @@ def get_z3_var(vartype, name):
     elif vartype == Types.STRING:
         var = z3.String(name)
     elif type(vartype) is list:
-        enum = z3.Datatype(name)
-        for v in vartype:
-            enum.declare(v)
-        val = enum
+        datatype = _get_datatype_from_list(vartype, datatype_name)
+        var = z3.Const(name, datatype)
+        vartype = datatype
     else:
         raise ValueError(f"I do not know how to create a z3-variable for type {vartype}")
+
+    assert var is not None, f"Var wasn't converted: vartype: {vartype}, name: {name}"
 
     var.type = vartype
     return var
 
 
 def get_z3_value(port, name):
-    # logger.debug(f"getting z3 val: {port}, {name}")
-    return get_z3_val(port.resource.domain, port.value, name)
+    # here we try to avoid creation of multiple datatypes for the same resource
+    if isinstance(port.resource.domain, list):
+        if hasattr(port.resource, "_z3_datatype"):
+            return get_z3_val(port.resource._z3_datatype, port.value, name)
+        else:
+            val = get_z3_val(port.resource.domain, port.value, name, port.resource.unit)
+            port.resource._z3_datatype = val.type
+            return val
+    # default behaviour
+    return get_z3_val(port.resource.domain, port.value, name, port.resource.unit)
 
 
 def get_z3_variable(port, name, suffix=None):
-    # logger.debug(f"getting z3 var: {port}, {name}, {suffix}")
-    # z3_var = None
     if not suffix:
         suffix = id(port)
     varname = "{}_{}".format(name, suffix)
-    return get_z3_var(port.resource.domain, varname)
+
+    # here we try to avoid creation of multiple datatypes for the same resource
+    if isinstance(port.resource.domain, list):
+        if hasattr(port.resource, "_z3_datatype"):
+            return get_z3_var(port.resource._z3_datatype, varname)
+        else:
+            var = get_z3_var(port.resource.domain, varname, port.resource.unit)
+            port.resource._z3_datatype = var.type
+            return var
+    # default behaviour
+    return get_z3_var(port.resource.domain, varname, port.resource.unit)
 
 
 class Z3Converter(object):
@@ -469,7 +499,7 @@ class Z3Converter(object):
         for varname in used_vars_without_ports:
             # skip the ones that we do not know yet
             if f"{varname}_{id(self.container)}" not in self.z3_vars:
-                logging.debug(f"{varname} has not been used so far, skipping it")
+                logger.debug(f"{varname} has not been used so far, skipping it")
                 continue
             previous_count = count_previous_assignments_with_name_on_left(varname, obj) + \
                 count_previous_ifs_with_assignments_with_name_on_left(varname, obj)
