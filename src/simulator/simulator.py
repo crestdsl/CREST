@@ -1,8 +1,9 @@
 
-import src.simulator.sourcehelper as SH
 from src.model import *
 from .transitiontime import TransitionTimeCalculator
 import random
+
+import matplotlib.pyplot as plt
 
 import logging
 logger = logging.getLogger(__name__)
@@ -10,12 +11,19 @@ logger = logging.getLogger(__name__)
 
 class Simulator(object):
 
-    def __init__(self, entity, timeunit=REAL, plotter=None, default_to_integer_real=True):
+    def __init__(self, entity, timeunit=REAL, plotter=None, default_to_integer_real=True, record_traces=True):
         self.entity = entity
         self.timeunit = timeunit
         self.plotter = plotter
         self.global_time = 0
         self.default_to_integer_real = default_to_integer_real
+        self.traces = TraceStore()
+        self.record_traces = record_traces
+
+        # go ahead and save the values right away
+        # FIXME: disabled for now, if we do this, then we should also do after stabilise
+        # if self.record_traces:
+        #     self.trace_store.save_entity(self.entity)
 
     def plot(self, entity=None, **kwargs):
         """
@@ -136,7 +144,11 @@ class Simulator(object):
 
     """ advance """
     def advance(self, t):
-        logger.info(f"Received instructions to advance {t} time steps")
+        # save traces
+        if self.record_traces:
+            self.traces.save_entity(self.entity, self.global_time)
+
+        logger.info(f"Received instructions to advance {t} time steps. (Current global time: {self.global_time})")
         logger.debug("starting advance of %s time units. (global time now: %s)", t, self.global_time)
         if t <= 0:
             logger.warn("Advancing 0 is not allowed. Use stabilise_fp instead.")
@@ -152,6 +164,10 @@ class Simulator(object):
             # stabilise the system
             self._stabilise_fp(self.entity)
             self.global_time += t
+
+            # record those traces
+            if self.record_traces:
+                self.traces.save_entity(self.entity, self.global_time)
             return
 
         ntt = next_trans[3]
@@ -171,6 +187,10 @@ class Simulator(object):
             self.advance(t - ntt)
             logger.debug(f"finished total advance of {t} (time is now {self.global_time})")
 
+        # record those traces
+        if self.record_traces:
+            self.traces.save_entity(self.entity, self.global_time)
+
     """ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - """
     def get_next_transition_time(self):
         """ this function is a convenience for debugging, so we don't have to create a TransitionTimeCalculator manually """
@@ -183,3 +203,96 @@ class Simulator(object):
     def next_transition_time(self):
         """ this function is a convenience for debugging, so we don't have to create a TransitionTimeCalculator manually """
         return TransitionTimeCalculator(self.entity, self.timeunit, use_integer_and_real=self.default_to_integer_real).get_next_transition_time()
+
+
+class TraceStore(object):
+
+    def __init__(self):
+        self.datastore = dict()
+
+    def save(self, key, timestamp, value):
+        logger.debug(f"storing {value} at time {timestamp} for key {key}")
+        if key not in self.datastore:
+            self.datastore[key] = dict()
+
+        self.datastore[key][timestamp] = value
+
+        # if timestamp not in self.datastore[key]:
+        #     self.datastore[key][timestamp] = []
+
+        # add the new value to the list of values with that timestamp. But only if it's different!!
+        # if self.datastore[key][timestamp] and self.datastore[key][timestamp][-1] != value:
+        #     self.datastore[key][timestamp].append(value)
+
+    def save_entity(self, root_entity, timestamp):
+        for entity in get_all_entities(root_entity):
+            if get_states(entity):
+                assert hasattr(entity, "current"), f"Entity {entity._name} does not have a current state specified"
+                self.save(entity, timestamp, entity.current)
+
+        for port in get_all_ports(root_entity):
+            self.save(port, timestamp, port.value)
+
+    def plot(self, *args, **kwargs):
+
+        fig = plt.figure()
+
+        # adjust the subplot height & width according to kwargs
+        fig.set_figwidth(kwargs.get("width", 15))
+        fig.set_figheight(kwargs.get("height", 3) * (len(args) + 1))
+
+        for arg in args:
+
+            if isinstance(arg, Entity):
+                if arg in self.datastore:
+                    # to add another subplot, first change the geometry
+                    n = len(fig.axes)
+                    for i in range(n):
+                        fig.axes[i].change_geometry(n + 1, 1, i + 1)
+
+                    # new plot:
+                    ax = fig.add_subplot(n + 1, 1, n + 1)
+
+                    state_names = [s._name for s in get_states(arg)]
+                    ys = [v._name for v in self.datastore[arg].values()]
+                    xs = self.datastore[arg].keys()
+
+                    ax.step(xs, ys, label=f"Entity state: {arg._name}")
+                    ax.set_xlim([min(xs), max(xs)])  # only show between min and max time
+
+                    # assert that all states are present
+                    ax.plot([-100] * len(state_names), state_names)
+                    ax.tick_params(axis='x', which='minor')
+                    ax.set_xticks(xs, minor=True)
+
+                    plt.legend(loc='best')  # label the data
+
+            elif isinstance(arg, Port):
+                # to add another subplot, first change the geometry
+                n = len(fig.axes)
+                for i in range(n):
+                    fig.axes[i].change_geometry(n + 1, 1, i + 1)
+
+                # new plot:
+                ax = fig.add_subplot(n + 1, 1, n + 1)
+
+                # check resource domain whether it's continuous or not
+                ys = list(self.datastore[arg].values())
+                xs = list(self.datastore[arg].keys())
+                dom = arg.resource.domain
+
+                ax.set_xlim([min(xs), max(xs)])  # only show between min and max time
+
+                # plot the domain
+                if isinstance(dom, list):
+                    ax.step(xs, ys, label=f"Port: {arg._name}")
+                    ax.plot([-100] * len(dom), dom)
+                else:
+                    ax.plot(xs, ys, label=f"Port: {arg._name}")
+
+                for x in xs:
+                    ax.axvline(x, color='k', linestyle='--', alpha=0.5, linewidth=.5)
+                plt.legend(loc='best')  # label the data
+
+            else:
+                logger.warning(f"Do not know how to plot a {type(arg)} ")
