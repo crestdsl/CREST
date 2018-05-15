@@ -66,7 +66,7 @@ class Entity(CrestObject, metaclass=MetaEntity):
     def __setattr__(self, name, value):
         """This automatically saves the name and parent for any CrestObject we are storing somewhere"""
         # make sure we're not doing this for _parent, otherwise we'll have infinite loops!
-        if isinstance(value, CrestObject) and name != PARENT_IDENTIFIER:
+        if isinstance(value, CrestObject) and name not in [PARENT_IDENTIFIER, CURRENT_IDENTIFIER]:
             value._parent = self
             value._name = name
 

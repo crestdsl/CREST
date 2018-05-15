@@ -2,27 +2,15 @@ from src.model import *
 import src.simulator.sourcehelper as SH
 from operator import attrgetter
 
-from functools import singledispatch, update_wrapper, lru_cache
+from methoddispatch import singledispatch, SingleDispatchMeta
 import ast
-import astor
 import z3
 import types
 import operator
 import logging
+import copy
 from pprint import pprint, pformat
 logger = logging.getLogger(__name__)
-
-
-def methoddispatch(func):
-    """ this code allows us to dispatch within a class """
-    dispatcher = singledispatch(func)
-
-    def wrapper(*args, **kw):
-        return dispatcher.dispatch(args[1].__class__)(*args, **kw)
-    wrapper.register = dispatcher.register
-    update_wrapper(wrapper, func)
-    return wrapper
-
 
 operator_to_operation = {
     ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
@@ -46,12 +34,7 @@ operator_to_operation = {
 """ PORT TREATMENT """
 
 
-count = 0
-
-
 def _get_datatype_from_list(values, datatype_name):
-    global count
-    count += 1
     datatype = z3.Datatype(datatype_name)
     for v in values:
         datatype.declare(v)
@@ -116,6 +99,10 @@ def get_z3_var(vartype, name, datatype_name=None):
 
 
 def get_z3_value(port, name):
+    # if we get a z3_value, then return a copy of it
+    if isinstance(port.value, z3.z3.AstRef):
+        return port.value
+
     # here we try to avoid creation of multiple datatypes for the same resource
     if isinstance(port.resource.domain, list):
         if hasattr(port.resource, "_z3_datatype"):
@@ -145,7 +132,7 @@ def get_z3_variable(port, name, suffix=None):
     return get_z3_var(port.resource.domain, varname, port.resource.unit)
 
 
-class Z3Converter(object):
+class Z3Converter(metaclass=SingleDispatchMeta):
 
     def __init__(self, z3_vars, entity, container, use_integer_and_real=True):
         self.z3_vars = z3_vars
@@ -162,9 +149,9 @@ class Z3Converter(object):
         else:
             return self.z3_vars[identifier + "_" + str(id(self.container))][identifier]
 
-    @methoddispatch
+    @singledispatch
     def to_z3(self, obj):
-        logger.info("\t\t", "Nothing special for (perhaps unknown) node of type", type(obj))
+        logger.info(f"\t\tNothing special for (perhaps unknown) node of type {type(obj)}")
         return obj
 
     """ GENERAL TYPES """
@@ -174,7 +161,9 @@ class Z3Converter(object):
         constraints = []
         for stmt in obj:
             new_constraint = self.to_z3(stmt)
-            # logger.info("adding", new_constraint)
+            if new_constraint is None:
+                continue  # skip if nothing happened (e.g. for print expressions)
+            # logger.info(f"adding {new_constraint}")
             if type(new_constraint) == list:
                 constraints.extend(new_constraint)
             else:
@@ -205,10 +194,22 @@ class Z3Converter(object):
                 # we're updating, so get the current value: portname_0
                 # z3_var_name_to_find contains something that potentially has some parent-if info
                 # therefore take the varname (obj) and add a _0 manually
-                return self.z3_vars[referenced_port][obj + "_0"]
+                try:
+                    mapping = self.z3_vars[referenced_port]
+                except KeyError as exc:
+                    logger.error(f"Could't find port {referenced_port._name} in {pformat(self.z3_vars)}")
+                    raise exc
+
+                return mapping[obj + "_0"]
+
             else:
                 # just get the normal port, no _0
-                return self.z3_vars[referenced_port][obj]
+                try:
+                    mapping = self.z3_vars[referenced_port]
+                except KeyError as exc:
+                    logger.error(f"Could't find port {referenced_port._name} in {pformat(self.z3_vars)}")
+                    raise exc
+                return mapping[obj]
         except AttributeError:
             # we arrive here if it a python variable, not a port
             # a standard python variable, not a port, assume it's Real
@@ -253,7 +254,8 @@ class Z3Converter(object):
         if not hasattr(obj, "parent"):
             # this happens if we return the param value within the lambda
             # we're adding the _0 version because the input mapping provides it with _0 already
-            return self.to_z3(obj.id, obj.id + "_0")
+            retval = self.to_z3(obj.id, obj.id + "_0")
+            return retval
 
         if isinstance(obj.parent, ast.Attribute):
             return obj.id
@@ -293,6 +295,8 @@ class Z3Converter(object):
 
     def get_linearized_z3_var(self, obj, name):
         logger.debug(f"Linearizing {obj} - {name}")
+        # FIXME: this method is called quite often. perhaps we should buffer something here
+
         # stuff we need
         parent_if = SH.get_ancestor_of_type(obj, ast.If)
         # if we're in the condition of the if, then we don't add the parent-if, but its parent (so we work on the outer layer)
@@ -488,7 +492,58 @@ class Z3Converter(object):
         parent_if = SH.get_ancestor_of_type(obj, ast.If)
 
         logger.debug(f"\nIf-ID: {id(obj)}\nParent-ID: {id(parent_if)}\nContainer-ID: {id(self.container)}")
+        #
+        # used_vars_in_body = SH.get_used_variable_names(obj.body)
+        # used_vars_in_orelse = SH.get_used_variable_names(obj.orelse)
+        # used_vars = set(used_vars_in_body + used_vars_in_orelse)
+        # used_vars_without_ports = used_vars  # TODO: remove the ports
+        #
+        # body_ins = []
+        # else_ins = []
+        # for varname in used_vars_without_ports:
+        #     # skip the ones that we do not know yet
+        #     if f"{varname}_{id(self.container)}" not in self.z3_vars:
+        #         logger.debug(f"{varname} has not been used so far, skipping it")
+        #         continue
+        #     previous_count = count_previous_assignments_with_name_on_left(varname, obj) + \
+        #         count_previous_ifs_with_assignments_with_name_on_left(varname, obj)
+        #     varname_with_parent_if_id = varname
+        #     if parent_if:  # adds the id of the if-condition when possible
+        #         suffix = "body" if SH.is_decendant_of(obj, parent_if.body) else "else"
+        #         # varname_with_parent_if_id = f"{name}_{id(parent_if)}-{suffix}"
+        #         varname_with_parent_if_id = f"{varname}_{id(parent_if)}-{suffix}"
+        #
+        #     # pass into body
+        #     last_assigned_var = self.to_z3(varname, f"{varname_with_parent_if_id}_{previous_count}")
+        #     var_type = last_assigned_var.type
+        #     into_body = last_assigned_var == \
+        #         self.to_z3(varname, f"{varname}_{id(obj)}-body_0", var_type=var_type)
+        #     body_ins.append(into_body)
+        #     into_else = last_assigned_var == \
+        #         self.to_z3(varname, f"{varname}_{id(obj)}-else_0", var_type=var_type)
+        #     else_ins.append(into_else)
+        #     # get z3_var for port outside (i.e. the count of assignments)
+        #     # get new z3_var for port (varname_with_parent_if_id)
+        #     # constraint that both are equal
 
+        body_ins, else_ins = self.get_astIf_ins(obj)
+
+        test = self.to_z3(obj.test)
+        body = self.to_z3(obj.body)
+        orelse = self.to_z3(obj.orelse) if obj.orelse else None
+
+        body_outs = []
+        else_outs = []
+
+        ifstmt = z3.If(test,
+                       z3.And(body_ins + body + body_outs),
+                       z3.And(else_ins + orelse + else_outs))
+        return ifstmt
+
+    def get_astIf_ins(self, obj):
+        parent_if = SH.get_ancestor_of_type(obj, ast.If)
+
+        """get the values that are rewritten to get conditions into the body of the if"""
         used_vars_in_body = SH.get_used_variable_names(obj.body)
         used_vars_in_orelse = SH.get_used_variable_names(obj.orelse)
         used_vars = set(used_vars_in_body + used_vars_in_orelse)
@@ -522,20 +577,23 @@ class Z3Converter(object):
             # get new z3_var for port (varname_with_parent_if_id)
             # constraint that both are equal
 
-        test = self.to_z3(obj.test)
-        body = self.to_z3(obj.body)
-        orelse = self.to_z3(obj.orelse) if obj.orelse else None
+        return body_ins, else_ins
 
-        body_outs = []
-        else_outs = []
-
-        ifstmt = z3.If(test,
-                       z3.And(body_ins + body + body_outs),
-                       z3.And(else_ins + orelse + else_outs))
-        return ifstmt
+    @to_z3.register(ast.Expr)
+    def to_z3_astExpr(self, obj):
+        """ This is a wrapper for expressions. just relay the Expr's value """
+        return self.to_z3(obj.value)
 
     @to_z3.register(ast.Call)
     def to_z3_astCall(self, obj):
+        func_name = SH.get_attribute_string(obj.func)
+        if func_name in ["print"]:  # list of functions that we just ignore
+            return None
+
+        if func_name == "abs":
+            val = self.to_z3(obj.args[0])
+            return z3.If(val > 0, val, -1 * val)
+
         raise NotImplementedError("This version of CREST does not yet support function call statements.")
 
     def cast(self, value, is_type, to_type):
@@ -638,12 +696,30 @@ class Z3Converter(object):
 
         raise TypeError(f"Don't know how to cast from {is_type} to {to_type}!")
 
-    """
-    THIS IS WHERE TYPE RESOLVING HAPPENS!!!
-    Probably should place this in it's own class at some point
-    """
+    """ THIS IS WHERE TYPE RESOLVING HAPPENS!!! """
+    # TODO Probably should place this in it's own class at some point
 
-    @methoddispatch
+    def resolve_type(self, *args, **kwargs):
+        """
+        This is bad programming practice, to_z3 has a dependence to TypeResolver which again depends on the Z3Converter which created it.
+        further we create the resolve_type method, that only calls resolve_type in TR.
+        TR has a method to_z3 which calls the methods in this class...
+        perhaps we should do something smarter somehow, but not now.
+        """
+        tr = TypeResolver(self, use_integer_and_real=self.use_integer_and_real)
+        return tr.resolve_type(*args, **kwargs)
+
+
+class TypeResolver(metaclass=SingleDispatchMeta):
+
+    def __init__(self, z3_converter, use_integer_and_real=True):
+        self.z3_converter = z3_converter
+        self.use_integer_and_real = use_integer_and_real
+
+    def to_z3(self, *args, **kwargs):
+        return self.z3_converter.to_z3(*args, **kwargs)
+
+    @singledispatch
     def resolve_type(self, obj):
         logger.warning("don't know how to resolve type %s", type(obj))
         return None
@@ -689,6 +765,10 @@ class Z3Converter(object):
         This is a helper function that only resolves two types, perhaps depending on the operator
         """
         types = [left, right]
+        if op == ast.Mod:
+            if left is not INTEGER or right is not INTEGER:
+                logger.warn("Beware, Z3 can only do Integer Modulo operations, we we will cast both of the operands to Integer!")
+            return INTEGER
 
         if left == right:
             # (computer) ints become (computer) ints or floats
@@ -838,3 +918,69 @@ def extract_assignments_with_name_on_left(name, siblings):
 def extract_ifs_that_write_to_target_with_name(name, siblings):
     ifs = list(filter((lambda x: isinstance(x, ast.If)), siblings))
     return [if_ for if_ in ifs if name in SH.get_assignment_target_names(if_)]
+
+
+# FIXME: THIS SHOULD BE IN A DIFFERENT CLASS:
+def get_minimum_dt_of_several(comparators, timeunit, epsilon):
+    comparators = [comp for comp in comparators if (comp is not None) and (comp[0] is not None)]
+    if len(comparators) == 0:
+        # Early exit... we should probably check this before we get into this function
+        return None
+
+    solver = z3.Solver()
+    eps = z3.Real("epsilon")
+    solver.add(eps == epsilon)  # FIXME: remove epsilon, z3 can deal with uninterpreted variables
+
+    min_dt = get_z3_var(timeunit, 'min_dt')
+
+    identifiers = {}
+    for (dt, inf_up_trans) in comparators:
+        solver.add(min_dt <= dt)  # min_dt should be maximum this size (trying to find the smallest)
+        is_me = z3.Bool(f"id{id(inf_up_trans)}_{inf_up_trans._name}")  # a bool that will state whether we are the smallest
+        identifiers[inf_up_trans] = is_me
+        solver.add(is_me == (min_dt == dt))
+    logger.debug(f"comparators: {comparators}")
+    solver.add(z3.Or([min_dt == dt for (dt, inf_up_trans) in comparators]))  # but it has to be one of them!
+
+    assert solver.check() == z3.sat, "the constraint to find the minimum dt is not solvable... that's weird"
+    model = solver.model()
+    for inf_up_trans, is_me in identifiers.items():
+        if bool(model[is_me]):
+            return (model[min_dt], inf_up_trans)
+
+
+def get_minimum_dt_of_several_anonymous(comparators, timeunit, epsilon):
+    comparators = [comp for comp in comparators if (comp is not None)]
+    if len(comparators) == 0:
+        # Early exit... we should probably check this before we get into this function
+        return None
+
+    solver = z3.Solver()
+    eps = z3.Real("epsilon")
+    solver.add(eps == epsilon)  # FIXME: remove epsilon, z3 can deal with uninterpreted variables
+
+    min_dt = get_z3_var(timeunit, 'min_dt')
+
+    [solver.add(min_dt <= dt) for dt in comparators]  # min_dt should be maximum this size (trying to find the smallest)
+    logger.debug(f"comparators: {comparators}")
+    solver.add(z3.Or([min_dt == dt for dt in comparators]))  # but it has to be one of them!
+
+    assert solver.check() == z3.sat, "the constraint to find the minimum dt is not solvable... that's weird"
+    model = solver.model()
+    return model[min_dt]
+
+
+def to_python(some_number):
+    some_number = z3.simplify(some_number)
+    if z3.is_algebraic_value(some_number):
+        some_number = some_number.approx(100)  # FIXME: this should be in some config or so...
+
+    if z3.is_int_value(some_number):
+        return some_number.as_long()
+    else:
+        # try:
+            return float(some_number.numerator_as_long()) / float(some_number.denominator_as_long())
+        # except Exception:
+        #     import pdb; pdb.set_trace()
+        #     a = 1 + 1  # dummy
+        #     pass

@@ -5,11 +5,55 @@ from src.model.ports import *
 import inspect
 
 
+def plot(object_to_dot):
+    return """
+<iframe id="map" ,="" srcdoc="
+<html>
+
+<head>
+    <title>Tutorial 1: Getting Started</title>
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.1.3/cytoscape.min.js'></script>
+</head>
+
+<style>
+    #cy {
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        top: 0px;
+        left: 0px;
+    }
+</style>
+
+<body>
+    <div id='cy'></div>
+    <script>
+      var cy = cytoscape({
+        container: document.getElementById('cy'),
+        elements: [
+          { data: { id: 'a' } },
+          { data: { id: 'b' } },
+          {
+            data: {
+              id: 'ab',
+              source: 'a',
+              target: 'b'
+            }
+          }]
+      });
+    </script>
+</body>
+</html>"
+ />
+    """
+
+
 @singledispatch
 def generate_cytoscape(object, name, parent):
     print("there's no generator for {}, skipping it".format(type(object)))
     return None
 
+"""
 @generate_cytoscape.register(Entity)
 def _(obj, name="", parent=None):
     data = []
@@ -30,6 +74,7 @@ def _(obj, name="", parent=None):
         data.extend( newdata if type(newdata) == list else [newdata])
     return [d for d in data if d]
 
+
 @generate_cytoscape.register(State)
 def _(obj, name="", parent=None):
     print("now doing an State")
@@ -41,6 +86,7 @@ def _(obj, name="", parent=None):
             'classes': 'state'
     }
     return node
+
 
 @generate_cytoscape.register(Local)
 def _(obj, name="", parent=None):
@@ -55,6 +101,7 @@ def _(obj, name="", parent=None):
     }
     return node
 
+
 @generate_cytoscape.register(Input)
 def _(obj, name="", parent=None):
     print("now doing an Input")
@@ -66,6 +113,7 @@ def _(obj, name="", parent=None):
 
     }
     return node
+
 
 @generate_cytoscape.register(Output)
 def _(obj, name="", parent=None):
@@ -116,3 +164,4 @@ def _(obj, name="", parent=None):
         }
         edges.append(edge)
     return edges
+"""

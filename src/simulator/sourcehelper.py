@@ -114,15 +114,24 @@ def add_parent_info(ast_root):
 
 
 def getsource(function):
-    return "".join(getsourcelines(function))
-
-
-def getsourcelines(function):
     sl = inspect.getsourcelines(function)
     sourcelines = sl[0]
     indentdepth = len(sourcelines[0]) - len(sourcelines[0].lstrip())
     sourcelines = [s[indentdepth:] for s in sourcelines]
-    return sourcelines
+    return "".join(sourcelines)
+
+
+def ast_contains_node(ast_node, nodetypes):
+    """
+    Check recursively if ast_node has a child of type nodetypes.
+    nodetypes is either a type or a tuple of types.
+    """
+    ast_node = ast_node if type(ast_node) is list else [ast_node]
+    for ast_root in ast_node:
+        for node in ast.walk(ast_root):
+            if isinstance(node, nodetypes):
+                return True
+    return False
 
 
 def is_descendant_of_type(ast_node, reference_type):
