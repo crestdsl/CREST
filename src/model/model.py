@@ -31,6 +31,22 @@ def update(*args, **kwargs):
         return _update
 
 
+def action(*args, **kwargs):
+    def _action(func):
+        return Action(func, transition=transition, target=target)
+    if len(args) == 2 and callable(args[0]):
+        # No arguments, this is the decorator
+        # Set default values for the arguments
+        transition = None
+        target = None
+        return _action(args[0])
+    else:
+        # This is just returning the decorator
+        transition = kwargs["transition"]
+        target = kwargs["target"]
+        return _action
+
+
 class State(CrestObject):
     def __init__(self, name=None, parent=None):
         super().__init__(name, parent)
@@ -87,4 +103,21 @@ class Update(CrestObject):
         super().__init__(name, parent)
         self.function = function
         self.state = state
+        self.target = target
+
+
+class Action(CrestObject):
+
+    def __new__(cls, function, transition, target, name="", parent=None):
+        """ this is so we can define the same update for multiple states """
+        if isinstance(transition, list):
+            dbg = [cls(function=function, transition=t, target=target) for t in transition]
+            return crestlist.fromlist(dbg)
+        else:
+            return super().__new__(cls)
+
+    def __init__(self, function, transition, target, name="", parent=None):
+        super().__init__(name, parent)
+        self.function = function
+        self.transition = transition
         self.target = target

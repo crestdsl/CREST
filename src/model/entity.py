@@ -2,7 +2,7 @@ from copy import deepcopy, copy
 from operator import attrgetter
 from functools import lru_cache
 
-from .model import Transition, Update, Influence, State
+from .model import Transition, Update, Action, Influence, State
 from .meta import PARENT_IDENTIFIER, CURRENT_IDENTIFIER, CrestObject, crestlist
 from .ports import Port, Input, Local, Output
 import pprint
@@ -164,6 +164,15 @@ def make_crest_copy(original_obj, newobj):
         newupdate._parent = newobj
         newupdate._name = name
         setattr(newobj, name, newupdate)
+
+    logger.debug("copying actions")
+    for name, action in get_actions(original_obj, as_dict=True).items():
+        transition = get_local_attribute(action.transition)
+        target = get_local_attribute(action.target)
+        newaction = Action(transition=transition, function=action.function, target=target)
+        newaction._parent = newobj
+        newaction._name = name
+        setattr(newobj, name, newaction)
     # TODO delete all lists of updates that end in "__X" where X is a number
 
     """ get influences and adapt them """
@@ -186,7 +195,6 @@ def make_crest_copy(original_obj, newobj):
                 # delattr(newobj, name)
                 logger.debug(f"deleted attribute {name} from entity, because it is a direct pointer to the original object's attribute")
             elif newattr == oldattr and type(newattr) == list and all([isinstance(l, CrestObject) for l in newattr]):
-                # import pdb; pdb.set_trace()
                 # delattr(newobj, name)
                 logger.debug(f"deleted attribute {name} from entity, because it is a direct pointer to the original object's attribute")
         else:
@@ -208,9 +216,9 @@ def add(entity, name, obj):
 
     if isinstance(obj, (Influence, Transition)) and isinstance(obj.source, str):
             obj.source = attrgetter(slice_self(obj.source))(entity)
-    if isinstance(obj, (Influence, Update, Transition)) and isinstance(obj.target, str):
+    if isinstance(obj, (Influence, Update, Action, Transition)) and isinstance(obj.target, str):
             obj.target = attrgetter(slice_self(obj.target))(entity)
-    if isinstance(obj, (Update)) and isinstance(obj.state, str):
+    if isinstance(obj, (Update, Action)) and isinstance(obj.state, str):
             obj.state = attrgetter(slice_self(obj.state))(entity)
 
     setattr(entity, name, obj)
@@ -298,6 +306,10 @@ def get_locals(entity, as_dict=False):
 
 def get_ports(entity, as_dict=False):
     return get_by_klass(entity, Port, as_dict)
+
+
+def get_actions(entity, as_dict=False):
+    return get_by_klass(entity, Action, as_dict)
 
 
 def get_updates(entity, as_dict=False):
