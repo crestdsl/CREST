@@ -16,6 +16,8 @@ RUN mkdir /var/lib/apt/lists/partial && \
     rm -rf /var/lib/apt/lists/*
 
 # install astor and gaphviz
+RUN pip install --no-cache-dir --upgrade pip
+RUN pip install --no-cache-dir plotly
 RUN pip install --no-cache-dir --upgrade pip matplotlib
 RUN pip install --no-cache-dir astor graphviz methoddispatch
 
@@ -23,9 +25,12 @@ RUN pip install --no-cache-dir astor graphviz methoddispatch
 RUN pip install --no-cache-dir jupyter_contrib_nbextensions
 RUN jupyter contrib nbextension install --system
 
+#RUN jupyter labextension install @jupyterlab/plotly-extension
+
+RUN jupyter nbextension enable init_cell/main
 RUN jupyter nbextension enable hide_input/main
 RUN jupyter nbextension enable python-markdown/main
-RUN jupyter nbextension enable code_prettify/main
+RUN jupyter nbextension enable code_prettify/code_prettify
 RUN jupyter nbextension enable toc2/main
 RUN jupyter nbextension enable codefolding/main
 
