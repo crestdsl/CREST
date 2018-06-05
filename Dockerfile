@@ -40,6 +40,9 @@ COPY src ${HOME}/src/
 # copy the notebooks, so we have some inital stuff
 COPY *.ipynb ${HOME}/
 
+# get mxgraph into the docker
+RUN git clone https://github.com/jgraph/mxgraph.git
+
 # some cleanup
 RUN rmdir work
 

@@ -5,13 +5,13 @@ import src.simulator.sourcehelper as SH
 
 import z3
 from .to_z3 import get_z3_value, get_z3_variable, Z3Converter, get_z3_var
-from .simulator import Simulator
+from .basesimulator import BaseSimulator
 
 import logging
 logger = logging.getLogger(__name__)
 
 
-class Z3Simulator(Simulator):
+class Z3Simulator(BaseSimulator):
 
     def __init__(self, entity, timeunit=REAL, plotter=None, default_to_integer_real=True, record_traces=True):
         entity = self.to_z3_system(entity)

@@ -1,7 +1,7 @@
-from src.model import Influence, get_updates, get_influences, get_transitions
+from src.model import Influence, get_updates, get_influences, get_transitions, get_path_to_attribute
 import src.simulator.sourcehelper as SH
 import ast
-from .to_z3 import Z3Converter, get_z3_var, get_z3_value, get_z3_variable, get_minimum_dt_of_several
+from .to_z3 import Z3Converter, get_z3_var, get_z3_value, get_z3_variable, get_minimum_dt_of_several, to_python
 from .z3conditionchangecalculator import Z3ConditionChangeCalculator
 from .z3calculator import Z3Calculator
 import z3
@@ -54,7 +54,7 @@ class ConditionTimedChangeCalculator(Z3Calculator):
         # TODO: check for transitions whether they can be done by time only
         for name, trans in get_transitions(entity, as_dict=True).items():
             if entity.current == trans.source:
-                trans_dts = self.get_transition_time(entity, trans)
+                trans_dts = self.get_transition_time(trans)
                 all_dts.append(trans_dts)
 
         min_dt = get_minimum_dt_of_several(all_dts, self.timeunit, self.epsilon)
@@ -64,7 +64,6 @@ class ConditionTimedChangeCalculator(Z3Calculator):
 
     def get_condition_change_enablers(self, influence_update):
         logger.debug(f"Calculating condition change time in '{influence_update._name}' in entity '{influence_update._parent._name}' ({influence_update._parent.__class__.__name__})")
-
         solver = z3.Optimize()
 
         # build a mapping that shows the propagation of information to the influence/update source (what influences the guard)
@@ -75,21 +74,9 @@ class ConditionTimedChangeCalculator(Z3Calculator):
             read_ports.append(influence_update.target)
             modifier_map = self.get_modifier_map(read_ports)
 
-        # create the z3 variables
-        z3_vars = {}
-
-        # create the TIME UNIT for dt
-        z3_vars['dt'] = get_z3_var(self.timeunit, 'dt')
-        z3_vars['dt'].type = self.timeunit
+        z3var_constraints, z3_vars = self.get_z3_vars(modifier_map)
+        solver.add(z3var_constraints)
         # NOTE: we do not add a "dt >= 0" or "dt == 0" constraint here, because it would break the solving
-
-        for port, modifiers in modifier_map.items():
-            z3_vars[port] = {port._name: get_z3_variable(port, port._name)}
-            z3_vars[port][port._name + "_0"] = get_z3_value(port, port._name + "_0")
-            if len(modifiers) == 0:
-                # if it is not influenced by anything, add this as a constraint
-                # so Z3 knows it's not allowed to modify the system inputs
-                solver.add(z3_vars[port][port._name] == z3_vars[port][port._name + "_0"])
 
         # create the constraints for updates and influences
         for port, modifiers in modifier_map.items():
@@ -116,8 +103,6 @@ class ConditionTimedChangeCalculator(Z3Calculator):
                 logger.debug(f"influence entry constraint: {z3_src} == {z3_param}")
             solver.add(z3_src == z3_param)
 
-        # also added the return value above already
-
         solver.push()
 
         conv = Z3ConditionChangeCalculator(z3_vars, entity=influence_update._parent, container=influence_update, use_integer_and_real=self.use_integer_and_real)
@@ -127,7 +112,7 @@ class ConditionTimedChangeCalculator(Z3Calculator):
             logger.info(f"Minimum condition change times in '{influence_update._name}' in entity '{influence_update._parent._name}' ({influence_update._parent.__class__.__name__}) is {min_dt}")
         return (min_dt, influence_update)
 
-    def get_transition_time(self, entity, transition):
+    def get_transition_time(self, transition):
         """
         - we need to find a solution for the guard condition (e.g. using a theorem prover)
         - guards are boolean expressions over port values
@@ -142,27 +127,18 @@ class ConditionTimedChangeCalculator(Z3Calculator):
         # build a mapping that shows the propagation of information to the guard (what influences the guard)
         modifier_map = self.get_modifier_map(transition_ports)
 
-        # create the z3 variables
-        z3_vars = {}
-
-        # create the time unit
-        z3_vars['dt'] = get_z3_var(self.timeunit, 'dt')
-        z3_vars['dt'].type = self.timeunit
+        z3var_constraints, z3_vars = self.get_z3_vars(modifier_map)
+        solver.add(z3var_constraints)
         solver.add(z3_vars['dt'] >= 0)
-
-        for port, modifiers in modifier_map.items():
-            if len(modifiers) == 0:  # these are the inputs, not modified by influences/updates
-                z3_vars[port] = {port._name: get_z3_value(port, port._name)}
-            else:
-                z3_vars[port] = {port._name: get_z3_variable(port, port._name)}
-            # perhaps there is some += update or so... therefore we need a _0
-            z3_vars[port][port._name + "_0"] = get_z3_value(port, port._name + "_0")
 
         # create the constraints for updates and influences
         for port, modifiers in modifier_map.items():
             for modifier in modifiers:
                 constraints = self._get_constraints_from_modifier(modifier, z3_vars)
                 solver.add(constraints)
+
+        # for port, modifiers in modifier_map.items():
+            # write pre value
 
         # logger.debug(f"adding constraints for transition guard: {transition._name}")
         conv = Z3Converter(z3_vars, entity=transition._parent, container=transition, use_integer_and_real=self.use_integer_and_real)
@@ -177,16 +153,19 @@ class ConditionTimedChangeCalculator(Z3Calculator):
         check = solver.check()
         # logger.debug("satisfiability: %s", check)
         if solver.check() == z3.sat:
-            logger.info(f"Minimum time to enable transition '{transition._name}' in entity '{transition._parent._name}' ({transition._parent.__class__.__name__}) will be enabled in {objective.value()}")
+            if logger.getEffectiveLevel() <= logging.INFO:
+                logger.info(f"Minimum time to enable transition '{transition._name}' in entity '{transition._parent._name}' ({transition._parent.__class__.__name__}) will be enabled in {to_python(objective.value())}")
             return (objective.value(), transition)
         elif check == z3.unknown:
-            logger.warning(f"The calculation of the minimum transition time for '{transition._name}' in entity '{transition._parent._name}' ({transition._parent.__class__.__name__}) was UNKNOWN... Do we have non-linear constraints?")
+            if logger.getEffectiveLevel() <= logging.WARNING:
+                logger.warning(f"The calculation of the minimum transition time for '{transition._name}' in entity '{transition._parent._name}' ({transition._parent.__class__.__name__}) was UNKNOWN. This usually happening in the presence of non-linear constraints. Do we have any?")
             std_solver = z3.Solver()
             std_solver.add(solver.assertions())
             std_solver_check = std_solver.check()
             if std_solver_check == z3.sat:
                 min_dt = std_solver.model()[z3_vars['dt']]
-                logger.info(f"We did get a solution using the standard solver though: {min_dt} Assuming that this is the smallest solution. CAREFUL THIS MIGHT BE WRONG (especially when the transition is an inequality constraint)!!!")
+                if logger.getEffectiveLevel() <= logging.INFO:
+                    logger.info(f"We did get a solution using the standard solver though: {to_python(min_dt)} Assuming that this is the smallest solution. CAREFUL THIS MIGHT BE WRONG (especially when the transition is an inequality constraint)!!!")
                 return (min_dt, transition)
             elif std_solver_check == z3.unknown:
                 logger.error(f"The standard solver was also not able to decide if there is a solution or not. The constraints are too hard!!!")

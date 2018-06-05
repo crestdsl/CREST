@@ -21,8 +21,8 @@ class TraceStore(object):
 
         # if timestamp not in self.datastore[key]:
         #     self.datastore[key][timestamp] = []
-
-        # add the new value to the list of values with that timestamp. But only if it's different!!
+        #
+        # # add the new value to the list of values with that timestamp. But only if it's different!!
         # if self.datastore[key][timestamp] and self.datastore[key][timestamp][-1] != value:
         #     self.datastore[key][timestamp].append(value)
 

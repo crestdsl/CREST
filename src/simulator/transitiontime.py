@@ -1,8 +1,6 @@
-from src.model import *
-import src.simulator.sourcehelper as SH
 from .conditiontimedchangecalculator import ConditionTimedChangeCalculator
-from .to_z3 import Z3Converter, get_minimum_dt_of_several, get_z3_var, get_z3_value, get_z3_variable
-import z3
+from .to_z3 import get_minimum_dt_of_several
+from src.model import get_transitions
 
 import logging
 logger = logging.getLogger(__name__)
@@ -24,7 +22,8 @@ class TransitionTimeCalculator(ConditionTimedChangeCalculator):
         if len(system_times) > 0:
             min_dt = get_minimum_dt_of_several([t[3] for t in system_times], self.timeunit, self.epsilon)
             # minimum = min(system_times, key=lambda t: t[3])
-            logger.debug("Next transition in: {min_dt}")
+            if logger.getEffectiveLevel() <= logging.DEBUG:
+                logger.debug("Next transition in: {min_dt}")
             return min_dt
         else:
             # this happens if there are no transitions fireable by increasing time only
@@ -42,13 +41,15 @@ class TransitionTimeCalculator(ConditionTimedChangeCalculator):
         dts = []
         for name, trans in get_transitions(entity, as_dict=True).items():
             if entity.current == trans.source:
-                dt = self.get_transition_time(entity, trans)
+                dt = self.get_transition_time(trans)
                 dts.append((entity, trans, name, dt))
 
         if dts:
-            logger.debug("times: ")
-            logger.debug(str([(e._name, f"{t.source._name} -> {t.target._name} ({dt})", dt) for (e, t, name, dt) in dts]))
+            if logger.getEffectiveLevel() <= logging.DEBUG:
+                logger.debug("times: ")
+                logger.debug(str([(e._name, f"{t.source._name} -> {t.target._name} ({dt})", dt) for (e, t, name, dt) in dts]))
         else:
-            logger.debug("times: []")
+            if logger.getEffectiveLevel() <= logging.DEBUG:
+                logger.debug("times: []")
         dts = list(filter(lambda t: t[3] is not None, dts))  # filter values with None as dt
         return dts

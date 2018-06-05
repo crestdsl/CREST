@@ -1,15 +1,20 @@
+from src.config import config
 from src.model import *
 import src.simulator.sourcehelper as SH
 from operator import attrgetter
 
 from methoddispatch import singledispatch, SingleDispatchMeta
 import ast
-import z3
 import types
 import operator
 import logging
 import copy
-from pprint import pprint, pformat
+from pprint import pformat
+
+import z3
+z3.set_option(precision=30)
+
+
 logger = logging.getLogger(__name__)
 
 operator_to_operation = {
@@ -90,7 +95,7 @@ def get_z3_var(vartype, name, datatype_name=None):
         var = z3.Const(name, datatype)
         vartype = datatype
     else:
-        raise ValueError(f"I do not know how to create a z3-variable for type {vartype}")
+        raise ValueError(f"I do not know how to create a z3-variable for type {vartype} (name: {name})")
 
     assert var is not None, f"Var wasn't converted: vartype: {vartype}, name: {name}"
 
@@ -134,7 +139,7 @@ def get_z3_variable(port, name, suffix=None):
 
 class Z3Converter(metaclass=SingleDispatchMeta):
 
-    def __init__(self, z3_vars, entity, container, use_integer_and_real=True):
+    def __init__(self, z3_vars, entity, container, use_integer_and_real=config.use_integer_and_real):
         self.z3_vars = z3_vars
         self.entity = entity
         self.container = container
@@ -161,8 +166,10 @@ class Z3Converter(metaclass=SingleDispatchMeta):
         constraints = []
         for stmt in obj:
             new_constraint = self.to_z3(stmt)
+            if isinstance(new_constraint, str):
+                continue
             if new_constraint is None:
-                continue  # skip if nothing happened (e.g. for print expressions)
+                continue  # skip if nothing happened (e.g. for print expressions or just a comment string)
             # logger.info(f"adding {new_constraint}")
             if type(new_constraint) == list:
                 constraints.extend(new_constraint)
@@ -177,39 +184,32 @@ class Z3Converter(metaclass=SingleDispatchMeta):
         For now let's pretend we only call to_z3 on strings if they're variable names
         or port names in the form self.port.value
         """
-        logger.debug(f"<str>to_z3(obj={obj}, z3_var_name_to_find={z3_var_name_to_find})")
-
+        logger.debug(f"entering with: obj={obj}, z3_var_name_to_find={z3_var_name_to_find}, var_type={str(var_type)})")
         if z3_var_name_to_find is None:
             z3_var_name_to_find = obj
 
-        # TODO: stop this special treatment, create a new dt variable for each update and pass it in... it's more consistent
-        # early out for dt
+        # XXX: stop this special treatment, create a new dt variable for each update and pass it in... it's more consistent
         if z3_var_name_to_find == "dt":
-            return self.z3_vars["dt"]
+            return self.z3_vars["dt"]  # early out for dt
 
-        referenced_port = None
         try:
-            referenced_port = attrgetter(obj)(self.entity)  # get the referenced port from the entity
-            if referenced_port == self.target:
+            removed_pre = obj[:obj.rfind(".")] if obj.endswith(".pre") else obj
+            referenced_port = attrgetter(removed_pre)(self.entity)  # get the referenced port from the entity
+            try:
+                port_mapping = self.z3_vars[referenced_port]
+            except KeyError as exc:
+                logger.error(f"Could't find port {referenced_port._name} in {pformat(self.z3_vars)}")
+                raise exc
+
+            if obj.endswith(".pre"):
+                return port_mapping[obj]
+            elif referenced_port == self.target:
                 # we're updating, so get the current value: portname_0
                 # z3_var_name_to_find contains something that potentially has some parent-if info
                 # therefore take the varname (obj) and add a _0 manually
-                try:
-                    mapping = self.z3_vars[referenced_port]
-                except KeyError as exc:
-                    logger.error(f"Could't find port {referenced_port._name} in {pformat(self.z3_vars)}")
-                    raise exc
-
-                return mapping[obj + "_0"]
-
+                return port_mapping[obj + ".pre"]
             else:
-                # just get the normal port, no _0
-                try:
-                    mapping = self.z3_vars[referenced_port]
-                except KeyError as exc:
-                    logger.error(f"Could't find port {referenced_port._name} in {pformat(self.z3_vars)}")
-                    raise exc
-                return mapping[obj]
+                return port_mapping[obj]
         except AttributeError:
             # we arrive here if it a python variable, not a port
             # a standard python variable, not a port, assume it's Real
@@ -218,7 +218,7 @@ class Z3Converter(metaclass=SingleDispatchMeta):
                 self.z3_vars[key] = {}
 
             if z3_var_name_to_find not in self.z3_vars[key]:
-                logger.debug(f"<str>to_z3:[key={key}] '{z3_var_name_to_find}' not in {pformat(self.z3_vars[key])}, adding a new variable! type = {var_type}")
+                logger.debug(f"[key={key}] '{z3_var_name_to_find}' not in {pformat(self.z3_vars[key])}, adding a new variable! type = {var_type}")
                 new_var = get_z3_var(var_type, f"{z3_var_name_to_find}_{id(self.container)}")
                 self.z3_vars[key][z3_var_name_to_find] = new_var  # z3.Real("{}_{}".format(z3_var_name_to_find, id(self.container)))
 
@@ -274,6 +274,8 @@ class Z3Converter(metaclass=SingleDispatchMeta):
         # ASSUMPTION: the format has a self-prefix and a value-suffix
         # e.g. self.port.value or self.entity.port.value
         attr_name = ".".join(full_attr_string.split(".")[1:-1])
+        if full_attr_string.endswith(".pre"):
+            attr_name += ".pre"
         return self.get_linearized_z3_var(obj, attr_name)
 
     def _get_varname_with_parentif_and_previous_count(self, obj, name):
@@ -866,17 +868,17 @@ class TypeResolver(metaclass=SingleDispatchMeta):
 """ End of Class - Start of helpers """
 
 
-def get_identifier_from_target(target):
-    """Returns the name (variable) or the name.name.name (attribute/port) from a target"""
-
-    if isinstance(target, ast.Name):
-        return target.id
-    elif isinstance(target, ast.Attribute):
-        return "{}.{}".format(get_identifier_from_target(target.value), target.attr)
-    elif type(target) == str:
-        return target
-
-    raise Exception("Don't know how we got here... something's off")
+# def get_identifier_from_target(target):
+#     """Returns the name (variable) or the name.name.name (attribute/port) from a target"""
+#
+#     if isinstance(target, ast.Name):
+#         return target.id
+#     elif isinstance(target, ast.Attribute):
+#         return "{}.{}".format(get_identifier_from_target(target.value), target.attr)
+#     elif type(target) == str:
+#         return target
+#
+#     raise Exception("Don't know how we got here... something's off")
 
 
 def get_self_or_ancester_assign_or_if(obj):
@@ -911,7 +913,7 @@ def count_previous_ifs_with_assignments_with_name_on_left(name, obj):
 def extract_assignments_with_name_on_left(name, siblings):
     assignments = list(filter((lambda x: isinstance(x, (ast.Assign, ast.AugAssign, ast.AnnAssign))), siblings))
     assignments_variable_targets = [t for fa in assignments for t in SH.get_targets_from_assignment(fa) if isinstance(t, (ast.Name, ast.Attribute))]
-    with_matching_name = [var_target for var_target in assignments_variable_targets if get_identifier_from_target(var_target) == name]
+    with_matching_name = [var_target for var_target in assignments_variable_targets if SH.get_attribute_string(var_target) == name]
     return with_matching_name
 
 
@@ -971,16 +973,24 @@ def get_minimum_dt_of_several_anonymous(comparators, timeunit, epsilon):
 
 
 def to_python(some_number):
+    if isinstance(some_number, (int, float, str, bool)):
+        return some_number
+
     some_number = z3.simplify(some_number)
     if z3.is_algebraic_value(some_number):
-        some_number = some_number.approx(100)  # FIXME: this should be in some config or so...
+        some_number = some_number.approx(config.approx)
 
     if z3.is_int_value(some_number):
         return some_number.as_long()
     else:
-        # try:
+        try:
             return float(some_number.numerator_as_long()) / float(some_number.denominator_as_long())
-        # except Exception:
-        #     import pdb; pdb.set_trace()
-        #     a = 1 + 1  # dummy
-        #     pass
+        except Exception:
+            return str(some_number)  # last resort
+
+
+def evaluate_to_bool(some_expression):
+    if isinstance(some_expression, bool):
+        return some_expression
+    else:
+        return bool(z3.simplify(some_expression))

@@ -1,18 +1,93 @@
 <html>
 <head>
+    <!-- CSS Spinning loading dial -->
+    <style>
+        .loader {
+          margin: 16px;
+          border: 16px solid #f3f3f3;
+          border-radius: 50%;
+          border-top: 16px solid blue;
+          border-bottom: 16px solid blue;
+          /* border-right: 32px solid green;
+          border-bottom: 32px solid red;
+          border-left: 32px solid yellow; */
+          width: 64px;
+          height: 64px;
+          -webkit-animation: spin 2s linear infinite;
+          animation: spin 2s linear infinite;
+        }
+
+        @-webkit-keyframes spin {
+          0% { -webkit-transform: rotate(0deg); }
+          100% { -webkit-transform: rotate(360deg); }
+        }
+
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+    </style>
+
+    <style>
+        body,html{
+            margin:0px;
+            padding:0px;
+        }
+
+        #growWindow {
+            position: absolute;
+            bottom: 0px;
+            height: 20px;
+            width: 100%;
+            text-align: center;
+            background-color: lightgray;
+            cursor: pointer;
+        }
+
+        i {
+            border: solid black;
+            border-width: 0 3px 3px 0;
+            display: inline-block;
+            padding: 3px;
+        }
+
+        .down {
+            transform: rotate(45deg);
+            -webkit-transform: rotate(45deg);
+        }
+    </style>
+
+    <script>
+        const iframe = window.parent.document.getElementById('iframe_IFRAME_ID');
+        function growIframe(){
+            height = iframe.offsetHeight;
+            iframe.setAttribute('style', 'height:'+ (height+100) +'px');
+        }
+    </script>
+
+    <script
+  src="https://code.jquery.com/jquery-3.3.1.slim.min.js"
+  integrity="sha256-3edrmyuQ0w65f8gfBsqowzjJe2iM6n0nKciPUp8y+7E="
+  crossorigin="anonymous"></script>
+
+    <!-- code highlight -->
+    <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/vs.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/languages/python.min.js"></script>
+    <!-- <script>hljs.initHighlightingOnLoad();</script> -->
 
     <!-- Sets the basepath for the library if not in same directory -->
-    <script type="text/javascript">mxBasePath = "./mxgraph/javascript/src"</script>
+    <script type='text/javascript'>mxBasePath = './mxgraph/javascript/src'</script>
     <!-- Loads and initializes the library -->
-    <script type="text/javascript" src="./mxgraph/javascript/src/js/mxClient.js"></script>
+    <script type='text/javascript' src='./mxgraph/javascript/src/js/mxClient.js'></script>
 
     <!-- ELK-JS -->
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/elkjs@0.3.0/lib/elk.bundled.js"></script>
+    <script type='text/javascript' src='https://cdn.jsdelivr.net/npm/elkjs@0.3.0/lib/elk.bundled.js'></script>
 
-    <script type="text/javascript">
-        console.log("knownLayoutOptions", new ELK().knownLayoutOptions());
-        console.log("knownLayoutAlgorithms", new ELK().knownLayoutAlgorithms());
-        console.log("knownLayoutCategories", new ELK().knownLayoutCategories());
+    <script type='text/javascript'>
+        console.log('knownLayoutOptions', new ELK().knownLayoutOptions());
+        console.log('knownLayoutAlgorithms', new ELK().knownLayoutAlgorithms());
+        console.log('knownLayoutCategories', new ELK().knownLayoutCategories());
 
         function main(){
             const elk = new ELK({
@@ -61,8 +136,12 @@
 
     function addNode(graph, parent, elknode){
         let style = elknode.cresttype;
-        if(elknode.cresttype == "state" && elknode.currentstate){
-            style = "currentstate";
+        if(elknode.cresttype == "midpoint"){
+            return null;
+        }
+
+        if(elknode.cresttype == 'state' && elknode.currentstate){
+            style = 'currentstate';
         }
         // TODO: we need to be aware that the height of an entity needs to be X pixels higher
         // and that we also need to displace all x coordinates by that much
@@ -75,6 +154,11 @@
         let source = graph.getModel().getCell(elknode.sources[0]);
         let target = graph.getModel().getCell(elknode.targets[0]);
         let edge = graph.insertEdge(parent, elknode.id, elknode.label, source, target, style);
+
+        // for transitions add action attachment point
+        if(style == "transition"){
+            let mid = graph.insertVertex(edge, elknode.id+"_mid", "mid", 0, 0, 0, 0, 'strokeColor=green;rounded=1;', true);
+        }
         var points = edge.geometry.points || []; // read original
 
         // points.push(new mxPoint(step33.geometry.x + step33.geometry.width / 2 + 20,
@@ -101,6 +185,10 @@
         background.style.right = '0px';
         background.style.bottom = '0px';
         background.style.background = 'black';
+        background.style.overflow = 'scroll';
+        // background.style.padding = '25px';
+        // background.style.height = '100%';
+
         mxUtils.setOpacity(background, 50);
         document.body.appendChild(background);
 
@@ -108,10 +196,11 @@
             new mxDivResizer(background);
         }
 
-        var x = Math.max(0, evt.offsetX-width/2); //document.body.scrollWidth/2-width/2);
+        var x = Math.max(100, evt.offsetX-width/2); //document.body.scrollWidth/2-width/2);
         var y = Math.max(10, evt.offsetY); //-height*2/3); //(document.body.scrollHeight ||
             //document.documentElement.scrollHeight)/2-height*2/3);
         var wnd = new mxWindow(title, content, x, y, width, height, false, true);
+        wnd.setScrollable(true);
         wnd.setClosable(true);
 
         // Fades the background out after after the window has been closed
@@ -123,10 +212,24 @@
         graph.setEnabled(false);
         graph.tooltipHandler.hide();
         wnd.setVisible(true);
+
+        $('pre code').each(function(i, block) {
+            hljs.highlightBlock(block);
+          });
+        // hljs.highlightBlock(block);
     };
 
 
     function setStyles(graph){
+
+        // ROOT
+        style = graph.getStylesheet().getDefaultVertexStyle();
+        style = mxUtils.clone(style);
+        style[mxConstants.STYLE_SHAPE] = mxConstants.SHAPE_RECTANGLE;
+        style[mxConstants.STYLE_FILLCOLOR] = '#FFFFFF';
+        // style[mxConstants.DEFAULT_STARTSIZE] = 10;
+        // style[mxConstants.STYLE_LABEL_WIDTH] = 70;
+        graph.getStylesheet().putCellStyle('root', style);
 
         // ENTITY
         style = graph.getStylesheet().getDefaultVertexStyle();
@@ -141,23 +244,28 @@
         style = mxUtils.clone(style);
 
             // inputs
-        style[mxConstants.STYLE_FILLCOLOR] = "#b5fed9";
+        style[mxConstants.STYLE_FILLCOLOR] = '#b5fed9';
         graph.getStylesheet().putCellStyle('input', style);
-            // Local
-        style = mxUtils.clone(style);
-        style[mxConstants.STYLE_FILLCOLOR] = "#d2ceef";
-        graph.getStylesheet().putCellStyle('local', style);
+
             // output
         style = mxUtils.clone(style);
-        style[mxConstants.STYLE_FILLCOLOR] = "#fcc5b3";
+        style[mxConstants.STYLE_FILLCOLOR] = '#fcc5b3';
         graph.getStylesheet().putCellStyle('output', style);
+            // Local
+        style = mxUtils.clone(style);
+        style[mxConstants.STYLE_FILLCOLOR] = '#d2ceef';
+        graph.getStylesheet().putCellStyle('local', style);
+
+        style = mxUtils.clone(style);
+        style[mxConstants.STYLE_RESIZABLE] = 0;
+        graph.getStylesheet().putCellStyle('midpoint', style);
 
 
         // STATE
         style = graph.getStylesheet().getDefaultVertexStyle();
         style = mxUtils.clone(style);
         style[mxConstants.STYLE_SHAPE] = mxConstants.SHAPE_ELLIPSE;
-        style[mxConstants.STYLE_FILLCOLOR] = "#e2cbc1";
+        style[mxConstants.STYLE_FILLCOLOR] = '#e2cbc1';
         graph.getStylesheet().putCellStyle('state', style);
 
             // currentstate
@@ -171,15 +279,29 @@
         style[mxConstants.STYLE_CURVED] = 1;
         style[mxConstants.STYLE_FONTCOLOR] = 'black';
         style[mxConstants.STYLE_STROKECOLOR] = 'black';
+        style[mxConstants.STYLE_STROKEWIDTH] = '1';
+
         style = mxUtils.clone(style);
         style[mxConstants.STYLE_DASHED] = true;
+        style[mxConstants.STYLE_DASH_PATTERN] = "7 3";
         style[mxConstants.STYLE_FIX_DASH] = '1';
 
         graph.getStylesheet().putCellStyle('update', style);
+
+        style = mxUtils.clone(style);
+        // style[mxConstants.STYLE_STROKECOLOR] = 'orange';
+        style[mxConstants.STYLE_DASH_PATTERN] = "2 2";
+        graph.getStylesheet().putCellStyle('action', style);
+
+        // style = mxUtils.clone(style);
+        // style[mxConstants.STYLE_DO] = true;
+
+
     }
 
     function plot(elkgraph){
-        container = document.getElementById("graphContainer");
+        container = document.getElementById('graphContainer');
+
         // Checks if the browser is supported
         if (!mxClient.isBrowserSupported())
         {
@@ -196,6 +318,8 @@
             var graph = new mxGraph(container);
             graph.setTooltips(true);
             graph.setConnectable(false);
+            graph.setCellsDisconnectable(false);  // stop edges from disconnecting
+            graph.setDisconnectOnMove(false)  // stop edges from disconnecting
             graph.setCellsEditable(false);
             graph.setResizeContainer(true);
             graph.setHtmlLabels(true);
@@ -211,7 +335,7 @@
                 if(cell.value.text){
                     return cell.value.text;
                 } else {
-                    return "<h3>"+cell.value.label+"</h3>";
+                    return '<h3>'+cell.value.label+'</h3>';
                 }
             }
 
@@ -226,13 +350,56 @@
                     // if(distance > 3 * 5 * cell.value.label.length && distance >= 100){
                     //     return cell.value.label;
                     // } else {
-                    //     return "";
+                    //     return '';
                     // }
-                    return "";
+                    return '';
                 }
 
                 return cell.value.label;
             }
+
+            var highlightable = ["state", "currentstate", "transition", "local", "input", "output"];
+
+            // highlight the outgoing and incoming edges on node selection
+            graph.getSelectionModel().addListener(mxEvent.CHANGE, function(sender, evt){
+                graph.getModel().beginUpdate();
+                evt.consume();
+                try {
+
+                    var remove = evt.properties.added;
+                    // console.log(changes);
+                    for (var i = 0; i < remove.length; i++) {
+                        var rem = remove[i];
+                        if(highlightable.indexOf(rem.getStyle()) < 0){ continue; }
+                        rem.edges.forEach(function(edge){
+                            graph.setCellStyles(mxConstants.STYLE_STROKECOLOR, 'black', [edge]);
+                            graph.setCellStyles(mxConstants.STYLE_FONTCOLOR, 'black', [edge]);
+                            graph.setCellStyles(mxConstants.STYLE_STROKEWIDTH, '1', [edge]);
+                        });
+                    }
+
+                    var added = evt.properties.removed;
+                    for (var i = 0; i < added.length; i++) {
+                        var add = added[i];
+                        if(highlightable.indexOf(add.getStyle()) < 0){ continue; }
+                        add.edges.forEach(function(edge){
+                            if(edge.source.id == add.id){
+                                graph.setCellStyles(mxConstants.STYLE_STROKECOLOR, 'blue', [edge]);
+                                graph.setCellStyles(mxConstants.STYLE_FONTCOLOR, 'blue', [edge]);
+                                graph.setCellStyles(mxConstants.STYLE_STROKEWIDTH, '2', [edge]);
+
+                            } else if(edge.target.id == add.id){
+                                graph.setCellStyles(mxConstants.STYLE_STROKECOLOR, 'red', [edge]);
+                                graph.setCellStyles(mxConstants.STYLE_FONTCOLOR, 'red', [edge]);
+                                graph.setCellStyles(mxConstants.STYLE_STROKEWIDTH, '2', [edge]);
+                            }
+                        });
+                    }
+                } finally {
+                    graph.getModel().endUpdate();
+                    graph.refresh();
+                }
+            });
 
             graph.dblClick = function(evt, cell) {
                 // Do not fire a DOUBLE_CLICK event here as mxEditor will
@@ -240,14 +407,83 @@
                 if (this.isEnabled() && !mxEvent.isConsumed(evt) && cell != null) {
                     if(cell.isEdge()){
                         var content = document.createElement('div');
-                        content.innerHTML = this.convertValueToString(cell);
-                        showModalWindow(this, evt, 'SourceCode', content, 400, 300);
+                        console.log(cell);
+                        if(cell.value.code){
+                            content.innerHTML = cell.value.code;
+                        } else {
+                            content.innerHTML = this.convertValueToString(cell);
+                        }
+                        showModalWindow(this, evt, 'SourceCode', content, 800, 300);
                     }
                 }
 
                 // Disables any default behaviour for the double click
                 mxEvent.consume(evt);
             };
+
+            // function updateStyle(state, hover) {
+			// 	if (hover) {
+			// 		state.style[mxConstants.STYLE_FILLCOLOR] = '#ff0000';
+			// 	}
+			// };
+            //
+            // graph.addMouseListener( {
+			// 	    currentState: null,
+			// 	    previousStyle: null,
+			// 	    mouseDown: function(sender, me) {
+			// 	        // if (this.currentState != null) {
+			// 	        // 	this.dragLeave(me.getEvent(), this.currentState);
+			// 	        // 	this.currentState = null;
+			// 	        // }
+			// 	    },
+			// 	    mouseMove: function(sender, me) {
+			// 	        if (this.currentState != null && me.getState() == this.currentState) {
+			// 	            return;
+			// 	        }
+			// 	        var tmp = graph.view.getState(me.getCell());
+			// 	        // Ignores everything but vertices
+			// 	        if (graph.isMouseDown || (tmp != null && highlightable.indexOf(tmp.cell.getStyle() >= 0))) {
+			// 	        	tmp = null;
+			// 	        }
+			// 	        if (tmp != this.currentState) {
+			// 	            if (this.currentState != null) {
+			// 	                this.dragLeave(me.getEvent(), this.currentState);
+			// 	            }
+			// 	            this.currentState = tmp;
+			// 	            if (this.currentState != null) {
+			// 	                this.dragEnter(me.getEvent(), this.currentState);
+			// 	            }
+			// 	        }
+			// 	    },
+			// 	    mouseUp: function(sender, me) {},
+			// 	    dragEnter: function(evt, state) {
+			// 	        if (state != null) {
+			// 	        	this.previousStyle = state.style;
+			// 	        	state.style = mxUtils.clone(state.style);
+			// 	        	updateStyle(state, true);
+			// 	        	state.shape.apply(state);
+			// 	        	state.shape.redraw();
+            //
+			// 	        	if (state.text != null) {
+			// 	        		state.text.apply(state);
+			// 	        		state.text.redraw();
+			// 	        	}
+			// 	        }
+			// 	    },
+			// 	    dragLeave: function(evt, state) {
+			// 	        if (state != null) {
+			// 	        	state.style = this.previousStyle;
+			// 	        	updateStyle(state, false);
+			// 	        	state.shape.apply(state);
+			// 	        	state.shape.redraw();
+            //
+			// 	        	if (state.text != null) {
+			// 	        		state.text.apply(state);
+			// 	        		state.text.redraw();
+			// 	        	}
+			// 	        }
+			// 	    }
+			// 	});
 
 
             var parent = graph.getDefaultParent();
@@ -257,21 +493,29 @@
             try
             {
                 addRec(graph, parent, elkgraph);
-                layout.execute(parent);
+                // layout.execute(parent);
             }
             finally
             {
                 // Updates the display
                 graph.getModel().endUpdate();
+
+                // // hide loader
+                // document.getElementById('loader').setAttribute('style', 'display:none;');
+                // set iframe size
+                iframe.setAttribute('style', 'height:'+ (elkgraph['height']+50) +'px');
+
             }
 
         }
     }
   </script>
 </head>
-<body onload="main()">
+<body onload='main()'>
     <!-- Creates a container for the graph with a grid wallpaper -->
-    <div id="graphContainer" style="position:relative;overflow:hidden;width:100%;height:100%;cursor:default;">
+    <div id='graphContainer' style='position:relative;overflow:hidden;width:100%;height:25px;cursor:default;'>
+        <!-- <div id='loader' class='loader'></div> -->
     </div>
+    <div id='growWindow' onclick='growIframe()'> <i class='arrow down'></i> </div>
 </body>
 </html>

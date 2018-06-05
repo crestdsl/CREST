@@ -31,44 +31,44 @@ class TransitionCalculator(object):
             if entity.current == trans.source:
                 dt = self.get_transition_enablers(entity, trans)
 
-    """ - - - - - - -  """
-    def get_modifier_map(self, port_list):
-        logger.debug(f"creating modifier map for ports {[p._name +' (in: '+ p._parent._name+')' for p in port_list]}")
-        modifier_map = {port: list() for port in port_list}
-        map_change = True
-
-        while map_change:
-            map_change = False  # initially we think there are no changes
-            for port, modifiers in modifier_map.copy().items():  # iterate over a copy, so we can modify the original list
-                logger.debug(f"trying to find modifiers for port '{port._name}' of entity '{port._parent._name}'")
-                # we only look at ports that have no influences (it might be because there exist none, but that small overhead is okay for now)
-                if len(modifiers) == 0:
-                    influences = [inf for inf in get_all_influences(self.entity) if port == inf.target]
-                    modifier_map[port].extend(influences)
-                    for inf in influences:
-                        logger.debug(f"'{port._name}' is modified by influence '{inf._name}'")
-                        # this means influences is not empty, hence we change the map (probably)
-                        map_change = True
-                        if inf.source not in modifier_map:
-                            modifier_map[inf.source] = list()  # add an empty list, the next iteration will try to fill it
-
-                    updates = [up for up in get_all_updates(self.entity)
-                               if port == up.target and up.state == up._parent.current]
-
-                    modifier_map[port].extend(updates)
-                    for up in updates:
-                        logger.debug(f"'{port._name}' is modified by update '{up._name}'")
-                        read_ports = SH.get_read_ports_from_update(up.function, up)  # +[up.target]
-                        accessed_ports = SH.get_accessed_ports(up.function, up)
-                        logger.debug(f"'{up._name}' in '{up._parent._name}' reads the following ports: {[(p._name, p._parent._name) for p in read_ports]}")
-                        for read_port in read_ports:
-                            # this means there are updates and we change the map
-                            map_change = True
-                            if read_port not in modifier_map:
-                                logger.debug(f"adding {read_port._name} to modifier_map")
-                                modifier_map[read_port] = list()  # add an empty list, the next iteration will try to fill it
-
-        return modifier_map
+    # """ - - - - - - -  """
+    # def get_modifier_map(self, port_list):
+    #     logger.debug(f"creating modifier map for ports {[p._name +' (in: '+ p._parent._name+')' for p in port_list]}")
+    #     modifier_map = {port: list() for port in port_list}
+    #     map_change = True
+    #
+    #     while map_change:
+    #         map_change = False  # initially we think there are no changes
+    #         for port, modifiers in modifier_map.copy().items():  # iterate over a copy, so we can modify the original list
+    #             logger.debug(f"trying to find modifiers for port '{port._name}' of entity '{port._parent._name}'")
+    #             # we only look at ports that have no influences (it might be because there exist none, but that small overhead is okay for now)
+    #             if len(modifiers) == 0:
+    #                 influences = [inf for inf in get_all_influences(self.entity) if port == inf.target]
+    #                 modifier_map[port].extend(influences)
+    #                 for inf in influences:
+    #                     logger.debug(f"'{port._name}' is modified by influence '{inf._name}'")
+    #                     # this means influences is not empty, hence we change the map (probably)
+    #                     map_change = True
+    #                     if inf.source not in modifier_map:
+    #                         modifier_map[inf.source] = list()  # add an empty list, the next iteration will try to fill it
+    #
+    #                 updates = [up for up in get_all_updates(self.entity)
+    #                            if port == up.target and up.state == up._parent.current]
+    #
+    #                 modifier_map[port].extend(updates)
+    #                 for up in updates:
+    #                     logger.debug(f"'{port._name}' is modified by update '{up._name}'")
+    #                     read_ports = SH.get_read_ports_from_update(up.function, up)  # +[up.target]
+    #                     accessed_ports = SH.get_accessed_ports(up.function, up)
+    #                     logger.debug(f"'{up._name}' in '{up._parent._name}' reads the following ports: {[(p._name, p._parent._name) for p in read_ports]}")
+    #                     for read_port in read_ports:
+    #                         # this means there are updates and we change the map
+    #                         map_change = True
+    #                         if read_port not in modifier_map:
+    #                             logger.debug(f"adding {read_port._name} to modifier_map")
+    #                             modifier_map[read_port] = list()  # add an empty list, the next iteration will try to fill it
+    #
+    #     return modifier_map
 
     def get_transition_enablers(self, entity, transition):
         """
@@ -97,6 +97,7 @@ class TransitionCalculator(object):
         z3_vars['dt'].type = self.timeunit
         solver.add(z3_vars['dt'] == 0)
 
+        # fil
         for port, modifiers in modifier_map.items():
             z3_vars[port] = {port._name: get_z3_variable(port, port._name)}
             z3_vars[port][port._name + "_0"] = get_z3_value(port, port._name + "_0")
@@ -139,7 +140,6 @@ class TransitionCalculator(object):
         #                                 z3.Tactic('skip'))))
         # print(333, split_solve(solver))
         #
-        # import pdb; pdb.set_trace()
 
         x = solver.minimize(z3_vars['dt'])  # find minimal value of dt
         check = solver.check() == z3.sat

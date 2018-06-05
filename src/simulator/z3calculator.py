@@ -1,6 +1,7 @@
-from src.model import Types, get_all_entities, get_all_influences, get_all_updates, Influence
+from src.config import config
+from src.model import Types, get_all_entities, get_all_influences, get_all_updates, Influence, get_path_to_attribute
 import src.simulator.sourcehelper as SH
-from .to_z3 import Z3Converter, get_z3_variable
+from .to_z3 import Z3Converter, get_z3_variable, get_z3_value, get_z3_var
 
 from pprint import pformat
 import logging
@@ -8,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class Z3Calculator(object):
-    def __init__(self, system, timeunit=Types.REAL, use_integer_and_real=True, epsilon=10 ** -10):
+    def __init__(self, system, timeunit=Types.REAL, use_integer_and_real=config.use_integer_and_real, epsilon=config.epsilon):
         self.entity = system
         self.timeunit = timeunit
         self.use_integer_and_real = use_integer_and_real
@@ -41,7 +42,7 @@ class Z3Calculator(object):
 
     def _get_constraints_from_modifier(self, modifier, z3_vars):
         logger.debug(f"Creating constraints for {modifier._name} {modifier}")
-        if hasattr(modifier, "_z3_constraints") and False:  # FIXME: activate later
+        if hasattr(modifier, "_z3_constraints"):  # FIXME: activate later
             logger.debug("serving constraints for {modifier._name} {modifier} from cache")
             return modifier._z3_constraints
 
@@ -52,7 +53,8 @@ class Z3Calculator(object):
 
         if isinstance(modifier, Influence):
             # add the equation for the source parameter
-            z3_src = conv.z3_vars[modifier.source][modifier.source._name]
+            relative_path_to_port = get_path_to_attribute(modifier._parent, modifier.source)
+            z3_src = conv.z3_vars[modifier.source][relative_path_to_port]
             params = SH.get_param_names(modifier.function)
             param_key = params[0] + "_" + str(id(modifier))
             z3_param = get_z3_variable(modifier.source, params[0], str(id(modifier)))
@@ -126,3 +128,38 @@ class Z3Calculator(object):
 
     def prettify_modifier_map(self, modifier_map):
         return {port._name: [m._name for m in modifiers] for port, modifiers in modifier_map.items()}
+
+    def get_z3_vars(self, modifier_map):
+        constraints = []
+        z3_vars = {}
+
+        z3_vars['dt'] = get_z3_var(self.timeunit, 'dt')
+        z3_vars['dt'].type = self.timeunit
+
+        for port, modifiers in modifier_map.items():
+            portname = port._name
+            portname_with_parent = port._parent._name + "." + port._name
+
+            # port variable
+            variable = get_z3_variable(port, port._name)
+            pre_var = get_z3_variable(port, port._name + "_0")
+
+            z3_vars[port] = {
+                portname: variable,
+                portname_with_parent: variable,
+                portname + "_0": pre_var,
+                portname_with_parent + "_0": pre_var,
+                portname + ".pre": pre_var,
+                portname_with_parent + ".pre": pre_var,
+            }
+
+            pre_value = get_z3_value(port, port._name + "_0")
+            # pre_var = z3_vars[port][port._name + "_0"]
+            constraints.append(pre_var == pre_value)  # init condition needs to be set
+
+            if len(modifiers) == 0:
+                # if it is not influenced by anything, add this as a constraint
+                # so Z3 knows it's not allowed to modify the system inputs
+                constraints.append(z3_vars[port][port._name] == z3_vars[port][port._name + "_0"])
+
+        return constraints, z3_vars

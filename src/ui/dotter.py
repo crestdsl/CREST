@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 options = {
     "updates": True,
     "update_labels": False,
+    "actions": True,
+    "action_labels": False,
     "transitions": True,
     "transition_labels": False,
     "show_transition_ports": False,
@@ -21,6 +23,7 @@ options = {
     "logical_interface_only": True,
     "no_behaviour": False,
     "show_update_ports": False,
+    "show_action_ports": False,
     "color_updates": False
 }
 
@@ -137,6 +140,27 @@ def gen_Update(obj, name="", parent=None, **kwargs):
     return returnlist
 
 
+@generate.register(Model.Action)
+def gen_Action(obj, name="", parent=None, **kwargs):
+    returnlist = []
+    return returnlist
+    color = get_color(id(obj)) if kwargs["color_actions"] else "black"
+    label = ""
+    if kwargs["action_labels"]:
+        # print("There's an issue with the display of update-labels. Waiting for astor 0.6 to be available...")
+        # """ deactivate until astor 0.6 is available"""
+        func_ast = SH.get_ast_from_function_definition(obj.function)
+        label = astor.to_source(func_ast)
+    returnlist.append(f"{id(obj.transition)} -> {id(obj.target)} [style=\"dashed\" color=\"{color}\" label=\"{label}\"]")
+
+    accessed = SH.get_accessed_ports(obj.function, obj)
+    for acc in accessed:
+        style = "dashed" if kwargs["show_update_ports"] else "invis"
+        returnlist.append(f"{id(acc)} -> {id(obj.target)} [style=\"{style}\" color=\"{color}\" ]")
+
+    return returnlist
+
+
 @generate.register(Model.MetaEntity)
 def gen_MetaEntity(obj, name="", parent=None, **kwargs):
     return gen_Entity(obj, name, parent, **kwargs)
@@ -192,6 +216,11 @@ def gen_Entity(obj, name="", parent=None, **kwargs):
         if kwargs["updates"]:
             for name_, update in Model.get_updates(obj, as_dict=True).items():
                 body += "\n" + "\n".join(generate(update, name_, obj, **kwargs))
+
+    if not hide_behaviour:
+        if kwargs["actions"]:
+            for name_, action in Model.get_actions(obj, as_dict=True).items():
+                body += "\n" + "\n".join(generate(action, name_, obj, **kwargs))
 
     typename = obj.__class__.__name__ if isinstance(obj, CrestObject) else obj.__name__
     return f"""

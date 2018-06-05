@@ -230,6 +230,9 @@ def get_accessed_ports(function, container):
     portnames = []
 
     for varname in varnames:
+        if varname.endswith(".pre"):  # don't care about pre
+            continue
+
         splits = varname.split(".")
         if len(splits) > 2:
             portnames.append(".".join(splits[1:-1]))
@@ -238,11 +241,21 @@ def get_accessed_ports(function, container):
 
     # print("varnames", varnames)
     # print("portnames", portnames)
-    src = get_sources(container._parent)
+    # source_ports = get_sources(container._parent)
+    # ports = [s_port for s_port in source_ports if s_port._name in portnames]  # XXX just fixed this to be sources
 
-    entity_ports = get_ports(container._parent, as_dict=True)  # FIXME: this needs to be sources
+    entity_ports = get_ports(container._parent, as_dict=True)
+    for subentity in get_entities(container._parent):
+        child_ports = {f"{subentity._name}.{p._name}": p for p in get_ports(subentity)}
+        entity_ports.update(child_ports)
+
+    # print(container._name)
+    # print("portnames", portnames)
+    # print(entity_ports)
+
     # print("entityports", entity_ports)
-    ports = [entity_ports[portname] for portname in portnames if portname in portnames]
+    ports = [entity_ports[portname] for portname in portnames if portname in portnames]  # XXX just fixed this to be sources
+
     # print("ports", [p._name for p in ports])
     return ports
 

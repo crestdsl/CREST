@@ -10,7 +10,6 @@ class Z3ConditionChangeCalculator(Z3Converter):
 
     def __init__(self, z3_vars, entity, container, use_integer_and_real=True, epsilon=10 ** -10):
         super().__init__(z3_vars, entity, container, use_integer_and_real)
-        # import pdb; pdb.set_trace()
         # self.to_z3 = copy.deepcopy(self.__class__.to_z3)
         # self.to_z3.register(list, self.to_z3_list)
         # self.to_z3.register(ast.If, self.to_z3_astIf)
@@ -31,6 +30,8 @@ class Z3ConditionChangeCalculator(Z3Converter):
         """ in a list, convert every one of the parts individually"""
         for stmt in obj:
             new_constraint = self.to_z3(stmt)
+            if isinstance(new_constraint, str):
+                continue
             if new_constraint is not None:
                 if logger.getEffectiveLevel() <= logging.DEBUG:  # only log if the level is appropriate, since z3's string-conversion takes ages
                     logger.debug(f"adding {new_constraint}")
