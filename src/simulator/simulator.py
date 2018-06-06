@@ -1,5 +1,5 @@
 from src.config import config
-from src.model import get_targets, get_sources, \
+from src.model import get_targets, get_inputs, \
     Influence, Update, Entity
 from .to_z3 import to_python, evaluate_to_bool
 from .basesimulator import BaseSimulator
@@ -17,6 +17,10 @@ class Simulator(BaseSimulator):
 
     def advance_and_stabilise_system(self, time):
         logger.info(f"Time: {self.global_time} | Advancing {time} and stabilising system")
+        # when we first launch the simulation, the root inputs do not have any .pre values, so they're set here.
+        for inp in get_inputs(self.entity):
+            inp.pre = inp.value
+
         self.advance_and_stabilise(self.entity, time)
 
     def stablilize(self):

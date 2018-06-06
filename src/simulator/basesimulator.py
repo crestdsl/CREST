@@ -565,7 +565,7 @@ class BaseSimulator(object):
         """ this function is a convenience for debugging, so we don't have to create a TransitionTimeCalculator manually """
         nbct = ConditionTimedChangeCalculator(self.entity, self.timeunit, use_integer_and_real=self.default_to_integer_real).get_next_behaviour_change_time()
         if nbct is not None:
-            logger.info(f"The next behaviour change is in nbct={nbct} time steps")
+            logger.info(f"The next behaviour change is {nbct[1]._name} in {to_python(nbct[0])} time steps")
         else:
             logger.info("There is no behaviour change reachable by time advance.")
         return nbct
