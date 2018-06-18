@@ -34,14 +34,14 @@ RUN jupyter nbextension enable code_prettify/code_prettify
 RUN jupyter nbextension enable toc2/main
 RUN jupyter nbextension enable codefolding/main
 
+# get mxgraph into the docker
+RUN git clone https://github.com/jgraph/mxgraph.git
+
 # copy CREST into the container so we can use it
 COPY src ${HOME}/src/
 
 # copy the notebooks, so we have some inital stuff
 COPY *.ipynb ${HOME}/
-
-# get mxgraph into the docker
-RUN git clone https://github.com/jgraph/mxgraph.git
 
 # some cleanup
 RUN rmdir work
