@@ -3,6 +3,7 @@ import ast
 from src.model import *
 from src.simulator.to_z3 import *
 
+
 class TestResolveType(unittest.TestCase):
 
     def assertInMulti(self, elements, referenceList):
@@ -400,39 +401,41 @@ class TestResolveType(unittest.TestCase):
         assert conv.resolve_type(tree) == expected, f"Resolved type for '{code}' : {conv.resolve_type(tree)}. (expected {expected})"
 
     def test_resolve_two_types(self):
+        tr = TypeResolver(None)
         conv = Z3Converter(None, None, None)
         triples = [
-            (   INT,        INT,        INT         ),
-            (   INTEGER,    INT,        INTEGER     ),
-            (   FLOAT,      INT,        FLOAT       ),
-            (   REAL,       INT,        REAL        ),
-            (   INT,        INT,        BOOL        ),
-            (   INTEGER,    INTEGER,    INT         ),
-            (   INTEGER,    INTEGER,    INTEGER     ),
-            (   FLOAT,      INTEGER,    FLOAT       ),
-            (   REAL,       INTEGER,    REAL        ),
-            (   INTEGER,    INTEGER,    BOOL        ),
-            (   FLOAT,      FLOAT,      INT         ),
-            (   FLOAT,      FLOAT,      INTEGER     ),
-            (   FLOAT,      FLOAT,      FLOAT       ),
-            (   REAL,       FLOAT,      REAL        ),
-            (   FLOAT,      FLOAT,      BOOL        ),
-            (   REAL,       REAL,       INT         ),
-            (   REAL,       REAL,       INTEGER     ),
-            (   REAL,       REAL,       REAL        ),
-            (   REAL,       REAL,       FLOAT       ),
-            (   REAL,       REAL,       BOOL        ),
-            (   INTEGER,    BOOL,       INTEGER     ),
-            (   INT,        BOOL,       INT         ),
-            (   REAL,       BOOL,       REAL        ),
-            (   FLOAT,      BOOL,       FLOAT       ),
-            (   BOOL,       BOOL,       BOOL        ),
-            (   STRING,     STRING,     STRING      )
+            (INT,        INT,        INT         ),
+            (INTEGER,    INT,        INTEGER     ),
+            (FLOAT,      INT,        FLOAT       ),
+            (REAL,       INT,        REAL        ),
+            (INT,        INT,        BOOL        ),
+            (INTEGER,    INTEGER,    INT         ),
+            (INTEGER,    INTEGER,    INTEGER     ),
+            (FLOAT,      INTEGER,    FLOAT       ),
+            (REAL,       INTEGER,    REAL        ),
+            (INTEGER,    INTEGER,    BOOL        ),
+            (FLOAT,      FLOAT,      INT         ),
+            (FLOAT,      FLOAT,      INTEGER     ),
+            (FLOAT,      FLOAT,      FLOAT       ),
+            (REAL,       FLOAT,      REAL        ),
+            (FLOAT,      FLOAT,      BOOL        ),
+            (REAL,       REAL,       INT         ),
+            (REAL,       REAL,       INTEGER     ),
+            (REAL,       REAL,       REAL        ),
+            (REAL,       REAL,       FLOAT       ),
+            (REAL,       REAL,       BOOL        ),
+            (INTEGER,    BOOL,       INTEGER     ),
+            (INT,        BOOL,       INT         ),
+            (REAL,       BOOL,       REAL        ),
+            (FLOAT,      BOOL,       FLOAT       ),
+            (BOOL,       BOOL,       BOOL        ),
+            (STRING,     STRING,     STRING      )
         ]
         for (expected, left, right) in triples:
-            self.assertEqual(expected, conv.resolve_two_types(left, right))
+            self.assertEqual(expected, tr.resolve_two_types(left, right))
 
     def test_assert_resolution_errors(self):
+        tr = TypeResolver(None)
         conv = Z3Converter(None, None, None)
         pairs = [
             (INT, STRING),
@@ -447,7 +450,7 @@ class TestResolveType(unittest.TestCase):
             (STRING, BOOL)
         ]
         for (left, right) in pairs:
-            self.assertRaises(ValueError, conv.resolve_two_types, left, right)
+            self.assertRaises(ValueError, tr.resolve_two_types, left, right)
 
 if __name__ == '__main__':
     unittest.main()

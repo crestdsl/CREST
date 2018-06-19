@@ -699,7 +699,6 @@ class Z3Converter(metaclass=SingleDispatchMeta):
         raise TypeError(f"Don't know how to cast from {is_type} to {to_type}!")
 
     """ THIS IS WHERE TYPE RESOLVING HAPPENS!!! """
-    # TODO Probably should place this in it's own class at some point
 
     def resolve_type(self, *args, **kwargs):
         """
@@ -711,10 +710,14 @@ class Z3Converter(metaclass=SingleDispatchMeta):
         tr = TypeResolver(self, use_integer_and_real=self.use_integer_and_real)
         return tr.resolve_type(*args, **kwargs)
 
+    def resolve_two_types(self, *args, **kwargs):
+        tr = TypeResolver(self, use_integer_and_real=self.use_integer_and_real)
+        return tr.resolve_two_types(*args, **kwargs)
+
 
 class TypeResolver(metaclass=SingleDispatchMeta):
 
-    def __init__(self, z3_converter, use_integer_and_real=True):
+    def __init__(self, z3_converter, use_integer_and_real=config.use_integer_and_real):
         self.z3_converter = z3_converter
         self.use_integer_and_real = use_integer_and_real
 
