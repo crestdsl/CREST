@@ -46,19 +46,6 @@ class TestZ3Conversion(unittest.TestCase):
         z3_vars = {'dt': z3.Int('dt')}
         z3_vars['dt'].type = REAL
 
-        # portname = instance.port._name
-        # portname_with_parent = instance._name + "." + portname
-        # port_var = get_z3_variable(instance.port, portname)
-        # pre_val = get_z3_value(instance.port, portname + "_0")
-        #
-        # z3_vars[instance.port] = {
-        #     portname: port_var,
-        #     portname_with_parent: port_var,
-        #     portname + "_0": pre_val,
-        #     portname_with_parent + "_0": pre_val,
-        #     portname + ".pre": pre_val,
-        #     portname_with_parent + ".pre": pre_val,
-        # }
         for port in get_ports(instance):
             portname = port._name
             portname_with_parent = port._parent._name + "." + port._name
@@ -75,12 +62,6 @@ class TestZ3Conversion(unittest.TestCase):
                 portname + ".pre": pre_var,
                 portname_with_parent + ".pre": pre_var,
             }
-
-        # z3_vars[instance.port] = {instance.port._name: get_z3_variable(instance.port, instance.port._name)}
-        # z3_vars[instance.port][instance.port._name + "_0"] = get_z3_value(instance.port, instance.port._name + "_0")
-
-        # z3_vars[instance.port2] = {instance.port2._name: get_z3_variable(instance.port2, instance.port2._name)}
-        # z3_vars[instance.port2][instance.port2._name + "_0"] = get_z3_value(instance.port2, instance.port2._name + "_0")
 
         return z3_vars
 

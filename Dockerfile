@@ -8,10 +8,10 @@ LABEL maintainer="Stefan Klikovits <stefan@klikovits.net>"
 
 USER root
 
-# install graphviz
+# install graphviz and curl
 RUN mkdir /var/lib/apt/lists/partial && \
     apt-get update && \
-    apt-get install -y  --no-install-recommends graphviz && \
+    apt-get install -y  --no-install-recommends graphviz curl && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 

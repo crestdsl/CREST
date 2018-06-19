@@ -7,7 +7,14 @@ python:
 services:
   - docker
 
+# build the docker
+# install the codecov python tool to upload the things to the correct places
 before_install:
  - docker build -t stklik/crest .
+
 script:
- - docker run stklik/crest /bin/sh -c "cd CREST; python -m unittest -v"
+  # pass travis environment info into the docker container
+  - ci_env=`bash <(curl -s https://codecov.io/env)`
+  # run the tests inside the docker using coverage, also print coverage
+  - docker run $ci_env stklik/crest
+      /bin/bash -c 'pip install coverage;coverage run --source src -m unittest discover -v;coverage report;bash <(curl -s https://codecov.io/bash)'
