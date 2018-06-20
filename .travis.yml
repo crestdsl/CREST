@@ -17,4 +17,4 @@ script:
   - ci_env=`bash <(curl -s https://codecov.io/env)`
   # run the tests inside the docker using coverage, also print coverage
   - docker run $ci_env stklik/crest
-      /bin/bash -c 'pip install coverage;coverage run --source src -m unittest discover -v;coverage report;bash <(curl -s https://codecov.io/bash)'
+      /bin/bash -c 'pip install coverage;coverage run --source src --branch --omit */test_* -m unittest discover -v;coverage report;bash <(curl -s https://codecov.io/bash)'
