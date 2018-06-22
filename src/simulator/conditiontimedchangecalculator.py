@@ -37,17 +37,14 @@ class ConditionTimedChangeCalculator(Z3Calculator):
         all_dts = []
         logger.debug(f"Calculating behaviour change for entity {entity._name} ({entity.__class__.__name__})")
         for influence in get_influences(entity):
-            inf_ast = SH.get_ast_body(influence.function)
-            if SH.ast_contains_node(inf_ast, ast.If):
+            if self.contains_if_condition(influence):
                 inf_dts = self.get_condition_change_enablers(influence)
                 all_dts.append(inf_dts)
-                pass
 
         # updates = [up for up in get_updates(self.entity) if up.state == up._parent.current]
         for update in get_updates(entity):
             if update.state == update._parent.current:  # only the currently active updates
-                update_ast = SH.get_ast_body(update.function)
-                if SH.ast_contains_node(update_ast, ast.If):
+                if self.contains_if_condition(update):
                     up_dts = self.get_condition_change_enablers(update)
                     all_dts.append(up_dts)
 
@@ -57,10 +54,26 @@ class ConditionTimedChangeCalculator(Z3Calculator):
                 trans_dts = self.get_transition_time(trans)
                 all_dts.append(trans_dts)
 
-        min_dt = get_minimum_dt_of_several(all_dts, self.timeunit, self.epsilon)
-        if min_dt is not None:
-            logger.info(f"Minimum behaviour change time for entity {entity._name} ({entity.__class__.__name__}) is {min_dt}")
-        return [min_dt]  # return a list
+        if logger.getEffectiveLevel() <= logging.DEBUG:
+            # XXX the code below makes CREST slow
+            # We should only run it in debug mode, then we might as well return the smallest time
+            min_dt = get_minimum_dt_of_several(all_dts, self.timeunit, self.epsilon)
+            if min_dt is not None:
+                logger.debug(f"Minimum behaviour change time for entity {entity._name} ({entity.__class__.__name__}) is {min_dt}")
+            return [min_dt]  # return a list
+        else:
+            # XXX This is the faster one that we run when we're not debugging !!
+            return all_dts
+
+    def contains_if_condition(self, influence_update):
+        if hasattr(influence_update, "_cached_contains_if"):
+            return influence_update._cached_contains_if
+
+        if not hasattr(influence_update, "_cached_ast"):
+            influence_update._cached_ast = SH.get_ast_body(influence_update.function)
+
+        influence_update._cached_contains_if = SH.ast_contains_node(influence_update._cached_ast, ast.If)
+        return influence_update._cached_contains_if
 
     def get_condition_change_enablers(self, influence_update):
         logger.debug(f"Calculating condition change time in '{influence_update._name}' in entity '{influence_update._parent._name}' ({influence_update._parent.__class__.__name__})")

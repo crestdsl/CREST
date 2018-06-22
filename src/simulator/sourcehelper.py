@@ -224,6 +224,10 @@ def get_all_following_siblings(ast_node):
 
 
 def get_accessed_ports(function, container):
+    # XXX Caching
+    if hasattr(container, "_cached_accessed_ports"):
+        return container._cached_accessed_ports
+
     # print(container._name, "in", container._parent._name)
     ast_body = get_ast_body(function)
     varnames = get_used_variable_names(ast_body)
@@ -257,6 +261,7 @@ def get_accessed_ports(function, container):
     ports = [entity_ports[portname] for portname in portnames if portname in portnames]  # XXX just fixed this to be sources
 
     # print("ports", [p._name for p in ports])
+    container._cached_accessed_ports = ports
     return ports
 
 

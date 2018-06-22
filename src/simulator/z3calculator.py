@@ -42,9 +42,9 @@ class Z3Calculator(object):
 
     def _get_constraints_from_modifier(self, modifier, z3_vars):
         logger.debug(f"Creating constraints for {modifier._name} {modifier}")
-        if hasattr(modifier, "_z3_constraints"):  # FIXME: activate later
+        if hasattr(modifier, "_cached_z3_constraints"):
             logger.debug("serving constraints for {modifier._name} {modifier} from cache")
-            return modifier._z3_constraints
+            return modifier._cached_z3_constraints
 
         conv = Z3Converter(z3_vars, entity=modifier._parent, container=modifier, use_integer_and_real=self.use_integer_and_real)
         conv.target = modifier.target  # the target of the influence/update
@@ -82,7 +82,7 @@ class Z3Calculator(object):
         else:
             constraints.extend(modifierconstraints)  # it's a list here
 
-        modifier._z3_constraints = constraints  # save for later re-use
+        modifier._cached_z3_constraints = constraints  # save for later re-use
         return constraints
 
     def get_modifier_map(self, port_list):
@@ -113,7 +113,7 @@ class Z3Calculator(object):
                     modifier_map[port].extend(updates)
                     for up in updates:
                         # logger.debug(f"'{port._name}' is modified by update '{up._name}'")
-                        read_ports = SH.get_read_ports_from_update(up.function, up)  # +[up.target]
+                        # read_ports = SH.get_read_ports_from_update(up.function, up)  # +[up.target]
                         accessed_ports = SH.get_accessed_ports(up.function, up)
 
                         # logger.debug(f"'{up._name}' in '{up._parent._name}' reads the following ports: {[(p._name, p._parent._name) for p in accessed_ports]}")
@@ -141,8 +141,13 @@ class Z3Calculator(object):
             portname_with_parent = port._parent._name + "." + port._name
 
             # port variable
-            variable = get_z3_variable(port, port._name)
-            pre_var = get_z3_variable(port, port._name + "_0")
+            variable = None
+            pre_var = None
+            if not hasattr(port, "_cached_z3_var"):
+                port._cached_z3_var = get_z3_variable(port, port._name)
+                port._cached_z3_pre_var = get_z3_variable(port, port._name + "_0")
+            variable = port._cached_z3_var
+            pre_var = port._cached_z3_pre_var
 
             z3_vars[port] = {
                 portname: variable,
