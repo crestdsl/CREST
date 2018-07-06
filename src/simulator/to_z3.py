@@ -1,5 +1,6 @@
 from src.config import config
-from src.model import *
+from src.model import Types, INT, FLOAT, STRING, BOOL, REAL, INTEGER, \
+    State, Port, get_path_to_attribute
 import src.simulator.sourcehelper as SH
 from operator import attrgetter
 
@@ -50,19 +51,19 @@ def get_z3_val(valtype, value, name, datatype_name=None):
     val = None
     if isinstance(valtype, z3.z3.DatatypeSortRef):  # discrete values datatype
         val = getattr(valtype, value)
-    elif valtype == Types.INT:
+    elif valtype is Types.INT:
         val = z3.BitVecVal(value, 32)
-    elif valtype == Types.INTEGER:
+    elif valtype is Types.INTEGER:
         val = z3.IntVal(value)
-    elif valtype == Types.FLOAT:
+    elif valtype is Types.FLOAT:
         val = z3.FPVal(value, z3.Float32())
-    elif valtype == Types.REAL:
+    elif valtype is Types.REAL:
         val = z3.RealVal(value)
-    elif valtype == Types.BOOL:
+    elif valtype is Types.BOOL:
         val = z3.BoolVal(value)
-    elif valtype == Types.STRING:
+    elif valtype is Types.STRING:
         val = z3.StringVal(value)
-    elif type(valtype) is list:
+    elif isinstance(valtype, list):
         datatype = _get_datatype_from_list(valtype, datatype_name)
         val = getattr(datatype, value)
         valtype = datatype
@@ -78,19 +79,19 @@ def get_z3_var(vartype, name, datatype_name=None):
     var = None
     if isinstance(vartype, z3.z3.DatatypeSortRef):  # discrete values datatype
         var = z3.Const(name, vartype)
-    elif vartype == Types.INT:
+    elif vartype is Types.INT:
         var = z3.BitVec(name, 32)
-    elif vartype == Types.INTEGER:
+    elif vartype is Types.INTEGER:
         var = z3.Int(name)
-    elif vartype == Types.FLOAT:
+    elif vartype is Types.FLOAT:
         var = z3.FP(name, z3.Float32())
-    elif vartype == Types.REAL:
+    elif vartype is Types.REAL:
         var = z3.Real(name)
-    elif vartype == Types.BOOL:
+    elif vartype is Types.BOOL:
         var = z3.Bool(name)
-    elif vartype == Types.STRING:
+    elif vartype is Types.STRING:
         var = z3.String(name)
-    elif type(vartype) is list:
+    elif isinstance(vartype, list):
         datatype = _get_datatype_from_list(vartype, datatype_name)
         var = z3.Const(name, datatype)
         vartype = datatype
@@ -171,7 +172,7 @@ class Z3Converter(metaclass=SingleDispatchMeta):
             if new_constraint is None:
                 continue  # skip if nothing happened (e.g. for print expressions or just a comment string)
             # logger.info(f"adding {new_constraint}")
-            if type(new_constraint) == list:
+            if isinstance(new_constraint, list):
                 constraints.extend(new_constraint)
             else:
                 constraints.append(new_constraint)
@@ -383,9 +384,9 @@ class Z3Converter(metaclass=SingleDispatchMeta):
         # problem: if we have a z3-Int as target and a python-float (e.g. 4.3333) as value,
         # then the result will be a z3-Int, which is wrong!
         # We have to cast the value to Real/Float to prevent wrong actions
-        if previous_type in [INT, INTEGER] and isinstance(value, float):
-            value = get_z3_val(REAL, value, None) if self.use_integer_and_real else get_z3_val(FLOAT, value, None)
-            value.type = REAL if self.use_integer_and_real else FLOAT
+        if previous_type in [Types.INT, Types.INTEGER] and isinstance(value, float):
+            value = get_z3_val(Types.REAL, value, None) if self.use_integer_and_real else get_z3_val(Types.FLOAT, value, None)
+            value.type = Types.REAL if self.use_integer_and_real else Types.FLOAT
             v_type = value.type
 
         resulting_type = self.resolve_two_types(v_type, previous_type, obj.op)
@@ -436,12 +437,12 @@ class Z3Converter(metaclass=SingleDispatchMeta):
         for value in obj.values:
             val = self.to_z3(value)
             val_type = self.resolve_type(value)
-            cast = self.cast(val, val_type, BOOL)
+            cast = self.cast(val, val_type, Types.BOOL)
             vals.append(cast)
         # vals = [self.to_z3(v) for v in obj.values]
-        if type(obj.op) == ast.And:
+        if isinstance(obj.op, ast.And):
             return z3.And(*vals)
-        elif type(obj.op) == ast.Or:
+        elif isinstance(obj.op, ast.Or):
             return z3.Or(*vals)
         else:
             raise Exception("We shouldn't be here!!!!")
@@ -462,7 +463,7 @@ class Z3Converter(metaclass=SingleDispatchMeta):
         value = self.to_z3(obj.value)
         v_type = self.resolve_type(obj.value)
 
-        if type(self.target) == State:
+        if isinstance(self.target, State):
             return value
         else:
             tgt = self.find_z3_variable(self.target)
@@ -474,7 +475,7 @@ class Z3Converter(metaclass=SingleDispatchMeta):
         """ a if b else c"""
         condition = self.to_z3(obj.test)
         condition_type = self.resolve_type(obj.test)
-        condition_cast = self.cast(condition, condition_type, BOOL)
+        condition_cast = self.cast(condition, condition_type, Types.BOOL)
 
         """ We always cast to one common type! """
         """ The type of an if-expression is always the result of resolving the two alternatives """
@@ -599,54 +600,54 @@ class Z3Converter(metaclass=SingleDispatchMeta):
         raise NotImplementedError("This version of CREST does not yet support function call statements.")
 
     def cast(self, value, is_type, to_type):
-        if is_type == to_type:  # already correct type, just return the value
+        if is_type is to_type:  # already correct type, just return the value
             return value
 
             """ INT <---> INTEGER """
-        elif is_type == INT and to_type == INTEGER:
-            if type(value) in [int, float]:
+        elif is_type is Types.INT and to_type is Types.INTEGER:
+            if isinstance(value, (int, float)):
                 return value   # this happens if it is an int numeral (e.g. 2)
             else:
                 return z3.BV2Int(value)
-        elif is_type == INTEGER and to_type == INT:
-            if type(value) in [int, float]:
+        elif is_type is Types.INTEGER and to_type is Types.INT:
+            if isinstance(value, (int, float)):
                 return value
             else:
                 return z3.Int2BV(value, 32)
 
             """ INT <---> FLOAT """
-        elif is_type == FLOAT and to_type == INT:
-            if type(value) == float:
+        elif is_type is Types.FLOAT and to_type is Types.INT:
+            if isinstance(value, float):
                 return value  # this happens if it is a float numeral (e.g. 3.14)
             else:
                 return z3.fpToSBV(z3.RNE(), value, z3.BitVecSort(32))
-        elif is_type == INT and to_type == FLOAT:
-            if type(value) == int:
+        elif is_type is Types.INT and to_type is Types.FLOAT:
+            if isinstance(value, int):
                 return value
             else:
                 return z3.fpSignedToFP(z3.RNE(), value, z3.Float32())
 
             """ INTEGER <---> FLOAT """
-        elif is_type == FLOAT and to_type == INTEGER:
-            if type(value) == float:
+        elif is_type is Types.FLOAT and to_type is Types.INTEGER:
+            if isinstance(value, float):
                 return value  # this happens if it is a float numeral (e.g. 3.14)
             else:
-                return self.cast(self.cast(value, FLOAT, INT), INT, INTEGER)
-        elif is_type == INTEGER and to_type == FLOAT:
-            if type(value) == int:
+                return self.cast(self.cast(value, Types.FLOAT, Types.INT), Types.INT, Types.INTEGER)
+        elif is_type is Types.INTEGER and to_type is Types.FLOAT:
+            if isinstance(value, int):
                 return value
             else:
-                return self.cast(self.cast(value, INTEGER, INT), INT, FLOAT)
+                return self.cast(self.cast(value, Types.INTEGER, Types.INT), Types.INT, Types.FLOAT)
 
             """ from REAL """
-        elif is_type == REAL and to_type == INTEGER:
-            if type(value) == float:
+        elif is_type is Types.REAL and to_type is Types.INTEGER:
+            if isinstance(value, float):
                 return value
             else:
                 return z3.ToInt(value)
-        elif is_type == REAL and to_type == INT:
-            return self.cast(self.cast(value, REAL, INTEGER), INTEGER, INT)
-        elif is_type == REAL and to_type == FLOAT:
+        elif is_type is Types.REAL and to_type is Types.INT:
+            return self.cast(self.cast(value, Types.REAL, Types.INTEGER), Types.INTEGER, Types.INT)
+        elif is_type is Types.REAL and to_type is Types.FLOAT:
             """
             Rounding modes: probably should make these parameterizable!
             roundNearestTiesToEven ... RNE() = default
@@ -655,45 +656,45 @@ class Z3Converter(metaclass=SingleDispatchMeta):
             roundTowardNegative ...... RTN()
             roundTowardZero .......... RTZ()
             """
-            if type(value) in [int, float]:  # int numeral
+            if isinstance(value, (int, float)):  # int numeral
                 return value
             else:
                 return z3.fpRealToFP(z3.RNE(), value, z3.Float32())
 
             """ to REAL """
-        elif is_type == INT and to_type == REAL:
-            if type(value) in [int, float]:  # int numeral
+        elif is_type is Types.INT and to_type is Types.REAL:
+            if isinstance(value, (int, float)):  # int numeral
                 return value
             else:
-                return z3.ToReal(self.cast(value, INT, INTEGER))
-        elif is_type == INTEGER and to_type == REAL:
-            if type(value) in [int, float]:  # int numeral
+                return z3.ToReal(self.cast(value, Types.INT, Types.INTEGER))
+        elif is_type is Types.INTEGER and to_type is Types.REAL:
+            if isinstance(value, (int, float)):  # int numeral
                 return value
             else:
                 return z3.ToReal(value)
-        elif is_type == FLOAT and to_type == REAL:
-            if type(value) in [int, float]:
+        elif is_type is Types.FLOAT and to_type is Types.REAL:
+            if isinstance(value, (int, float)):
                 return value  # this happens if it is a float numeral (e.g. 3.14)
             else:
                 return z3.fpToReal(value)
 
             """ FROM BOOL conversions """
-        elif is_type == BOOL and to_type == INT:
+        elif is_type is Types.BOOL and to_type is Types.INT:
             return z3.If(value, z3.BitVecVal(1, 32), z3.BitVecVal(0, 32))
-        elif is_type == BOOL and to_type == INTEGER:
+        elif is_type is Types.BOOL and to_type is Types.INTEGER:
             return z3.If(value, 1, 0)
-        elif is_type == BOOL and to_type == REAL:
+        elif is_type is Types.BOOL and to_type is Types.REAL:
             return z3.If(value, 1.0, 0.0)
-        elif is_type == BOOL and to_type == FLOAT:
+        elif is_type is Types.BOOL and to_type is Types.FLOAT:
             return z3.If(value, z3.FPVal(1.0, z3.Float32()), z3.FPVal(0.0, z3.Float32()))
             """ TO BOOL conversions """
-        elif is_type == INT and to_type == BOOL:
+        elif is_type is Types.INT and to_type is Types.BOOL:
             return value == 1
-        elif is_type == INTEGER and to_type == BOOL:
+        elif is_type is Types.INTEGER and to_type is Types.BOOL:
             return value == 1
-        elif is_type == REAL and to_type == BOOL:
+        elif is_type is Types.REAL and to_type is Types.BOOL:
             return value == 1
-        elif is_type == FLOAT and to_type == BOOL:
+        elif is_type is Types.FLOAT and to_type is Types.BOOL:
             return value == 1
 
         raise TypeError(f"Don't know how to cast from {is_type} to {to_type}!")
@@ -734,7 +735,7 @@ class TypeResolver(metaclass=SingleDispatchMeta):
         if obj.value is None:
             return None
         else:
-            return BOOL  # this is in case of True or False
+            return Types.BOOL  # this is in case of True or False
 
     @resolve_type.register(ast.Attribute)
     def resolve_astAttribute(self, obj):
@@ -748,10 +749,10 @@ class TypeResolver(metaclass=SingleDispatchMeta):
     def resolve_astNum(self, obj):
         # adds the option to compute in the integer and real domain by default
         if self.use_integer_and_real:
-            if type(obj.n) == int:
-                return INTEGER
+            if isinstance(obj.n, int):
+                return Types.INTEGER
             else:
-                return REAL
+                return Types.REAL
         else:
             return Types(type(obj.n))
 
@@ -771,53 +772,53 @@ class TypeResolver(metaclass=SingleDispatchMeta):
         """
         types = [left, right]
         if op == ast.Mod:
-            if left is not INTEGER or right is not INTEGER:
+            if left is not Types.INTEGER or right is not Types.INTEGER:
                 logger.warn("Beware, Z3 can only do Integer Modulo operations, we we will cast both of the operands to Integer!")
-            return INTEGER
+            return Types.INTEGER
 
-        if left == right:
+        if left is right:
             # (computer) ints become (computer) ints or floats
-            if left is INT and op is ast.FloorDiv:
-                return INT
-            elif left is INT and op is ast.Div:
-                return FLOAT
+            if left is Types.INT and op is ast.FloorDiv:
+                return Types.INT
+            elif left is Types.INT and op is ast.Div:
+                return Types.FLOAT
             # (mathematical) integers become (mathematical) integers or reals
-            elif left is INTEGER and op is ast.FloorDiv:
-                return INTEGER
-            elif left is INTEGER and op is ast.Div:
-                return REAL
+            elif left is Types.INTEGER and op is ast.FloorDiv:
+                return Types.INTEGER
+            elif left is Types.INTEGER and op is ast.Div:
+                return Types.REAL
             # if they're equal, the type remains the same
             # (unless it's one of the above cases)
             else:
                 return left
 
         # if bool and number -> return number
-        if left is BOOL and right in [INT, INTEGER, FLOAT, REAL]:
+        if left is Types.BOOL and right in [Types.INT, Types.INTEGER, Types.FLOAT, Types.REAL]:
             return right
-        elif right is BOOL and left in [INT, INTEGER, FLOAT, REAL]:
+        elif right is Types.BOOL and left in [Types.INT, Types.INTEGER, Types.FLOAT, Types.REAL]:
             return left
 
-        if INT in types and INTEGER in types:
-            return INTEGER
-        elif INT in types and FLOAT in types:
-            return FLOAT
-        elif INT in types and REAL in types:
-            return REAL
-        elif INTEGER in types and BOOL in types:
-            return INTEGER
-        elif INTEGER in types and FLOAT in types:
-            return FLOAT
-        elif INTEGER in types and REAL in types:
-            return REAL
-        elif FLOAT in types and REAL in types:
-            return REAL
-        elif FLOAT in types and INT in types:
-            return FLOAT
-        # elif FLOAT in types and REAL in types:
+        if Types.INT in types and Types.INTEGER in types:
+            return Types.INTEGER
+        elif Types.INT in types and Types.FLOAT in types:
+            return Types.FLOAT
+        elif Types.INT in types and Types.REAL in types:
+            return Types.REAL
+        elif Types.INTEGER in types and Types.BOOL in types:
+            return Types.INTEGER
+        elif Types.INTEGER in types and Types.FLOAT in types:
+            return Types.FLOAT
+        elif Types.INTEGER in types and Types.REAL in types:
+            return Types.REAL
+        elif Types.FLOAT in types and Types.REAL in types:
+            return Types.REAL
+        elif Types.FLOAT in types and Types.INT in types:
+            return Types.FLOAT
+        # elif Types.FLOAT  in types and REAL in types:
         #     return REAL
 
         """ unsupported conversions """
-        if STRING in types:  # string and something that's not a string
+        if Types.STRING in types:  # string and something that's not a string
             raise ValueError(f"it is not allowed to mix {left} and {right} in an expression")
 
         raise NotImplementedError(f"I do not know how to compute the resulting type of: {left} and {right} (operator: {op if op else 'None'})")
