@@ -1,13 +1,26 @@
 import networkx as nx
-import itertools
 import src.simulator.sourcehelper as SH
 from src.model import get_inputs, get_outputs, get_sources, get_targets, \
     get_influences, get_entities, get_updates
 
-NO_PORT_DEPENDENCY = -1  # this is the ID of a virtual port we need it to add an edge without a source
-
 
 def entity_modifier_graph(entity):
+    """
+    Creates a bipartite, directed graph using [networkx](https://networkx.github.io/).
+    Nodes:
+        - ports
+        - modifiers
+            * influences
+            * updates
+            * subentities
+    Edges:
+        -  influence.source --> influence
+        -  influence        --> influence.target
+        -  accessd ports    --> update
+        -  update           --> update.target
+        -  subentity.input  --> subentity
+        -  subentity        --> subentity.output
+    """
     # create a bipartite graph
     DG = nx.DiGraph()
     portlist = set(get_sources(entity) + get_targets(entity))
@@ -21,7 +34,7 @@ def entity_modifier_graph(entity):
         DG.add_edge(id(influence), id(influence.target))
 
     for update in get_updates(entity):
-        if update.state == entity.current:
+        if update.state is entity.current:
             DG.add_node(id(update), modifier=update)
             DG.add_edge(id(update), id(update.target))
             accessed_ports = SH.get_accessed_ports(update.function, update)
@@ -42,7 +55,13 @@ def entity_modifier_graph(entity):
 
 
 def get_entity_modifiers_in_dependency_order(entity):
-    """ non-deterministic """
+    """
+    Uses [networkx](https://networkx.github.io/) functionality to find a linear order.
+    The algorithm is networkx' [topoligical_sort](https://networkx.github.io/documentation/networkx-1.9/reference/generated/networkx.algorithms.dag.topological_sort.html)
+    function.
+    Note, that this function is right now non-deterministic, it would be better if we replace the algorithm with a deterministic one.
+    """
+    # TODO: make deterministic? https://pypi.org/project/toposort/
     DG = entity_modifier_graph(entity)
 
     # nodelist = get_sources(entity) + get_targets(entity) + get_updates(entity) + get_entities(entity) + get_influences(entity)

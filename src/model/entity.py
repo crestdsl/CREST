@@ -13,8 +13,18 @@ logger = logging.getLogger(__name__)
 
 
 class MetaEntity(type):
-    """ Black magic! """
+    """
+    HC SVNT DRACONES - Here be dragons.
+
+    This is a black magic meta-class. Beware of what you do here!
+    """
     def __new__(cls, clsname, superclasses, attributedict):
+        """
+        Intercept object construction and do some black magic:
+        - Flatten any attribute-lists (e.g. multiple transitions stored in the same attribute)
+        - We set the parent and name of each crest-object (ports, states, transitions, updates, ...)
+        - Finally return the new object
+        """
         cls._name = clsname
 
         # flatten the attributedict, so we don't have lists of crestobjects anymore
@@ -36,7 +46,14 @@ class MetaEntity(type):
         return new_entity
 
     def __call__(cls, *args, **kwargs):
-        """Called when you call MyNewClass() """
+        """
+        Intercept the creation of an object, i.e. when we call MyNewClass().
+        This is necessary so we can execute an object's __post__-constructor.
+        __post__ is called on Entities if they are subentities, i.e. it is possible for these objects to modify their parents, add objects to parents.
+
+        WARNING: This allows powerful modelling BUT can lead to naming clashes and invalid systems!
+        Make sure you know what you do when you use __post__ in an entity. Use unique names when adding objects to the parent.
+        """
         obj = type.__call__(cls, *args, **kwargs)
 
         # after init call all __post__ of all subentities
@@ -75,8 +92,16 @@ class Entity(CrestObject, metaclass=MetaEntity):
 
         super().__setattr__(name, value)
 
+    # TODO: add an equals that lets us compare entities
+
 
 def make_crest_copy(original_obj, newobj):
+    """
+    This function is responsible of making a deepcopy of a CrestObject.
+    It takes the original object and the new object, iterates over the attributes and
+    creates deepcopies of all states, transitions, updates, influences, ...
+    (The code's not pretty, but it works!)
+    """
     logger.debug(f"make_crest_copy. original_obj: {original_obj}, newobj: {newobj}")
     copymap = dict()  # dict of pairs {name: (new_object, old_object)}
 

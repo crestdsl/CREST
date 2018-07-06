@@ -33,7 +33,7 @@ class EnabledCalculator(Z3Calculator):
     def calculate_entity_hook(self, entity):
         enabled_transitions = []
         for name, trans in get_transitions(entity, as_dict=True).items():
-            if entity.current == trans.source:
+            if entity.current is trans.source:
                 if self.get_transition_enabled(entity, trans):
                     enabled_transitions.append(trans)
 

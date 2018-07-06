@@ -43,14 +43,14 @@ class ConditionTimedChangeCalculator(Z3Calculator):
 
         # updates = [up for up in get_updates(self.entity) if up.state == up._parent.current]
         for update in get_updates(entity):
-            if update.state == update._parent.current:  # only the currently active updates
+            if update.state is update._parent.current:  # only the currently active updates
                 if self.contains_if_condition(update):
                     up_dts = self.get_condition_change_enablers(update)
                     all_dts.append(up_dts)
 
         # TODO: check for transitions whether they can be done by time only
         for name, trans in get_transitions(entity, as_dict=True).items():
-            if entity.current == trans.source:
+            if entity.current is trans.source:
                 trans_dts = self.get_transition_time(trans)
                 all_dts.append(trans_dts)
 

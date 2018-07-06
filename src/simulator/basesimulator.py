@@ -15,19 +15,27 @@ logger = logging.getLogger(__name__)
 
 class BaseSimulator(object):
 
-    def __init__(self, entity, timeunit=REAL, plotter=config.default_plotter, default_to_integer_real=config.use_integer_and_real, record_traces=config.record_traces):
-        self.entity = entity
+    def __init__(self, entity, time=0, timeunit=REAL, plotter=config.default_plotter, default_to_integer_real=config.use_integer_and_real, record_traces=config.record_traces):
+        self.system = entity
         self.timeunit = timeunit
         self.plotter = plotter
-        self.global_time = 0
+        self._global_time = time
         self.default_to_integer_real = default_to_integer_real
         self.traces = TraceStore()
         self.record_traces = record_traces
 
         # go ahead and save the values right away
-        # FIXME: disabled for now, if we do this, then we should also do after stabilise
-        # if self.record_traces:
-        #     self.trace_store.save_entity(self.entity)
+        if self.record_traces:
+            self.traces.save_entity(self.system)
+
+    @property
+    def global_time(self):
+        return self._global_time
+
+    @global_time.setter
+    def global_time(self, value):
+        print("setting time to", value)
+        self._global_time = value
 
     def plot(self, entity=None, **kwargs):
         """
@@ -43,20 +51,25 @@ class BaseSimulator(object):
             color_updates : False
         """
         if not entity:
-            entity = self.entity
+            entity = self.system
         if self.plotter:
             title = "(t = %s)" % self.global_time
             return self.plotter.plot(entity, name=title, **kwargs)
         else:
             logger.error("No plotter defined!!!")
 
+    def plot_traces(self, *args, **kwargs):
+        if not self.record_traces:
+            logger.error("Tracing was not activated for this simulator")
+            return
+        self.traces.plot(*args, **kwargs)
+
     """ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - """
     """ set values """
 
     def set_values(self, port_value_map):
-        print("xxx")
         self._value_change(port_value_map)
-        self._stabilise_fp(self.entity)
+        self._stabilise_fp(self.system)
 
     def _value_change(self, port_value_map):
         for port, value in port_value_map.items():
@@ -70,7 +83,7 @@ class BaseSimulator(object):
 
     def _stabilise_fp(self, entity=None):
         if entity is None:
-            entity = self.entity
+            entity = self.system
 
         logger.debug(f"stabilise FP for entity {entity._name} ({entity.__class__.__name__})")
         stabilise_changes = self._stabilise(entity)
@@ -132,9 +145,11 @@ class BaseSimulator(object):
     def _get_influence_function_value(self, influence):
         return influence.get_function_value()
 
+    """ Transitions """
+
     def transition(self, entity):
         logger.debug("transitions in entity %s (%s)", entity._name, entity.__class__.__name__)
-        transitions_from_current_state = [t for t in get_transitions(entity) if t.source == entity.current]
+        transitions_from_current_state = [t for t in get_transitions(entity) if t.source is entity.current]
         enabled_transitions = [t for t in transitions_from_current_state if self._get_transition_guard_value(t)]
 
         transition = None
@@ -143,8 +158,8 @@ class BaseSimulator(object):
             entity.current = transition.target
             logger.info(f"Time: {self.global_time} | Firing transition <<{transition._name}>> in {entity._name} ({entity.__class__.__name__}) : {transition.source._name} -> {transition.target._name}  | current global time: {self.global_time}")
 
-            transition_updates = [up for up in get_updates(transition._parent) if up.state == transition]  # FIXME: until we completely switched to only allowing actions...
-            actions = [a for a in get_actions(transition._parent) if a.transition == transition]
+            transition_updates = [up for up in get_updates(transition._parent) if up.state is transition]  # FIXME: until we completely switched to only allowing actions...
+            actions = [a for a in get_actions(transition._parent) if a.transition is transition]
             for act in actions + transition_updates:
                 logger.debug(f"Triggering action {act._name} in entity {entity._name} ({entity.__class__.__name__})")
                 newval = self._get_action_function_value(act)
@@ -202,7 +217,7 @@ class BaseSimulator(object):
             port.pre = original_port_values[port]
 
         current_port_values = {t: t.value for t in get_all_ports(entity)}
-        updates_from_current_state = [up for up in get_updates(entity) if up.state == entity.current]
+        updates_from_current_state = [up for up in get_updates(entity) if up.state is entity.current]
 
         """ apply updates """
         values_to_update = {}
@@ -443,7 +458,7 @@ class BaseSimulator(object):
     def advance_rec(self, t, consider_behaviour_changes=config.consider_behaviour_changes):
         # save traces
         if self.record_traces:
-            self.traces.save_entity(self.entity, self.global_time)
+            self.traces.save_entity(self.system, self.global_time)
 
         logger.info(f"Received instructions to advance {t} time steps. (Current global time: {self.global_time})")
         logger.debug("starting advance of %s time units. (global time now: %s)", t, self.global_time)
@@ -460,15 +475,15 @@ class BaseSimulator(object):
             logger.info(f"No next transition, just advance {t}")
             self.global_time += t
             # execute all updates in all entities
-            self.update(self.entity, t)
+            self.update(self.system, t)
             logger.debug("Finished updates after advance")
 
             # stabilise the system
-            self._stabilise_fp(self.entity)
+            self._stabilise_fp(self.system)
 
             # record those traces
             if self.record_traces:
-                self.traces.save_entity(self.entity, self.global_time)
+                self.traces.save_entity(self.system, self.global_time)
             return
 
         # ntt = next_trans[0]
@@ -477,11 +492,11 @@ class BaseSimulator(object):
             logger.info(f"Advancing {t}")
             self.global_time += t
             # execute all updates in all entities
-            self.update(self.entity, t)
+            self.update(self.system, t)
             logger.debug("Finished updates after advance")
 
             # stabilise the system
-            self._stabilise_fp(self.entity)
+            self._stabilise_fp(self.system)
             logger.info(f"Finished Advancing {t}")
         else:
             logger.info(f"The next transition is in {ntt} time units. Advancing that first, then the rest of the {t}.")
@@ -492,7 +507,7 @@ class BaseSimulator(object):
 
         # record those traces
         if self.record_traces:
-            self.traces.save_entity(self.entity, self.global_time)
+            self.traces.save_entity(self.system, self.global_time)
 
     """ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - """
 
@@ -509,14 +524,14 @@ class BaseSimulator(object):
     def next_transition_time(self):
         """ this function is a convenience for debugging, so we don't have to create a TransitionTimeCalculator manually """
         logger.info(self.timeunit)
-        return TransitionTimeCalculator(self.entity, self.timeunit, use_integer_and_real=self.default_to_integer_real).get_next_transition_time()
+        return TransitionTimeCalculator(self.system, self.timeunit, use_integer_and_real=self.default_to_integer_real).get_next_transition_time()
 
     """ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - """
 
     # def advance_behaviour_change(self, t):
     #     # save traces
     #     if self.record_traces:
-    #         self.traces.save_entity(self.entity, self.global_time)
+    #         self.traces.save_entity(self.system, self.global_time)
     #
     #     logger.info(f"Received instructions to advance {t} time steps. (Current global time: {self.global_time})")
     #     logger.debug("starting advance of %s time units. (global time now: %s)", t, self.global_time)
@@ -528,27 +543,27 @@ class BaseSimulator(object):
     #     if next_trans is None:
     #         logger.info(f"No next behaviour change, just advance {t}")
     #         # execute all updates in all entities
-    #         self.update(self.entity, t)
-    #         # for e in get_all_entities(self.entity):
+    #         self.update(self.system, t)
+    #         # for e in get_all_entities(self.system):
     #         #     self.update(e, t)
     #
     #         # stabilise the system
-    #         self._stabilise_fp(self.entity)
+    #         self._stabilise_fp(self.system)
     #         self.global_time += t
     #
     #         # record those traces
     #         if self.record_traces:
-    #             self.traces.save_entity(self.entity, self.global_time)
+    #             self.traces.save_entity(self.system, self.global_time)
     #         return
     #
     #     ntt = to_python(next_trans[0])
     #     if ntt >= t:
     #         logger.info("Advancing %s", t)
     #         # execute all updates in all entities
-    #         self.update(self.entity, t)
+    #         self.update(self.system, t)
     #
     #         # stabilise the system
-    #         self._stabilise_fp(self.entity)
+    #         self._stabilise_fp(self.system)
     #         self.global_time += t
     #     else:
     #         logger.info(f"The next behaviour change is in {ntt} time units. Advancing that first, then the rest of the {t}.")
@@ -559,11 +574,11 @@ class BaseSimulator(object):
     #
     #     # record those traces
     #     if self.record_traces:
-    #         self.traces.save_entity(self.entity, self.global_time)
+    #         self.traces.save_entity(self.system, self.global_time)
 
     def next_behaviour_change_time(self):
         """ this function is a convenience for debugging, so we don't have to create a TransitionTimeCalculator manually """
-        nbct = ConditionTimedChangeCalculator(self.entity, self.timeunit, use_integer_and_real=self.default_to_integer_real).get_next_behaviour_change_time()
+        nbct = ConditionTimedChangeCalculator(self.system, self.timeunit, use_integer_and_real=self.default_to_integer_real).get_next_behaviour_change_time()
         if nbct is not None:
             logger.info(f"The next behaviour change is {nbct[1]._name} in {to_python(nbct[0])} time steps")
         else:
