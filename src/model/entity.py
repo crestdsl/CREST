@@ -61,6 +61,8 @@ class Entity(CrestObject, metaclass=MetaEntity):
     def __deepcopy__(self, memo):
         logger.debug(f"Creating a deepcopy of entity {self}")
         newobj = super().__new__(self.__class__)
+        if not hasattr(newobj, "_name"):
+            newobj._name = ""  # set default name and parent
         newobj = make_crest_copy(self, newobj)
         return newobj
 
