@@ -2,7 +2,7 @@ import ast
 import types
 import inspect
 import astor
-from copy import deepcopy
+import copy
 from operator import attrgetter
 from functools import lru_cache
 from src.model.entity import *
@@ -44,9 +44,9 @@ class RewriteIfElse(astor.TreeWalk):
         if not siblings_after:
             return False
         if type(self.cur_node.body[-1]) != ast.Return:
-            self.cur_node.body.extend(deepcopy(siblings_after))
+            self.cur_node.body.extend(copy.deepcopy(siblings_after))
         if type(self.cur_node.orelse[-1]) != ast.Return:
-            self.cur_node.orelse.extend(deepcopy(siblings_after))
+            self.cur_node.orelse.extend(copy.deepcopy(siblings_after))
 
         # remove items afterwards:
         self.parent[idx_in_parent + 1:] = []

@@ -1,6 +1,7 @@
-from copy import deepcopy, copy
 from operator import attrgetter
 from functools import lru_cache
+import copy
+
 
 from .model import Transition, Update, Action, Influence, State
 from .meta import PARENT_IDENTIFIER, CURRENT_IDENTIFIER, CrestObject, crestlist
@@ -79,7 +80,7 @@ def make_crest_copy(original_obj, newobj):
 
     def getcopy(attrname, original_object, deep_copy=False):
         if attrname not in copymap:
-            new_object = deepcopy(original_object) if deep_copy else copy(original_object)
+            new_object = copy.deepcopy(original_object) if deep_copy else copy.copy(original_object)
             copymap[attrname] = new_object
             copymap[original_object] = new_object
         return copymap[attrname]  # return the new one
@@ -114,7 +115,7 @@ def make_crest_copy(original_obj, newobj):
         logger.debug(name)
         # assert getattr(original_obj, name) == getattr(newobj, name), f"There is a port that is different in original and new: {name}"
         # newport = getcopy(name, port, deep_copy=False)
-        newport = copy(port)
+        newport = copy.copy(port)
         newport._parent = newobj
         newport._name = name
         setattr(newobj, name, newport)
@@ -126,7 +127,7 @@ def make_crest_copy(original_obj, newobj):
         # assert getattr(original_obj, name) == getattr(newobj, name), f"There is a state that is different in original and new: {name}"
         if name != CURRENT_IDENTIFIER:  # skip current state for now
             # newstate = getcopy(name, state, deep_copy=True)
-            newstate = copy(state)
+            newstate = copy.copy(state)
             newstate._parent = newobj
             newstate._name = name
             setattr(newobj, name, newstate)
@@ -142,7 +143,7 @@ def make_crest_copy(original_obj, newobj):
         # assert getattr(original_obj, name) == getattr(newobj, name), f"There is a subentity that is different in original and new: {name}"
         if name != PARENT_IDENTIFIER:
             # newentity = getcopy(name, entity, deep_copy=True)
-            newentity = deepcopy(entity)
+            newentity = copy.deepcopy(entity)
             setattr(newobj, name, newentity)
 
     """ get transitions and adapt them """
