@@ -240,7 +240,7 @@ def get_accessed_ports(function, container):
         splits = varname.split(".")
         if len(splits) > 2:
             portnames.append(".".join(splits[1:-1]))
-        elif splits == 2:
+        elif len(splits) == 2:
             portnames.append(splits[1])
 
     # print("varnames", varnames)
@@ -274,7 +274,7 @@ def get_written_ports_from_update(function, container):
         splits = varname.split(".")
         if len(splits) > 2:
             portnames.append(".".join(splits[1:-1]))
-        elif splits == 2:
+        elif len(splits) == 2:
             portnames.append(splits[1])
 
     ports = [attrgetter(portname)(container._parent) for portname in portnames]
@@ -291,7 +291,7 @@ def get_read_ports_from_update(function, container):
         splits = varname.split(".")
         if len(splits) > 2:
             portnames.append(".".join(splits[1:-1]))
-        elif splits == 2:
+        elif len(splits) == 2:
             portnames.append(splits[1])
 
     ports = [attrgetter(portname)(container._parent) for portname in portnames]
