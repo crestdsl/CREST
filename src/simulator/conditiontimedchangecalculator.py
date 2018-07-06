@@ -155,7 +155,13 @@ class ConditionTimedChangeCalculator(Z3Calculator):
 
         # logger.debug(f"adding constraints for transition guard: {transition._name}")
         conv = Z3Converter(z3_vars, entity=transition._parent, container=transition, use_integer_and_real=self.use_integer_and_real)
-        solver.add(conv.to_z3(transition.guard))
+        guard_constraint = conv.to_z3(transition.guard)
+
+        # this is because we cannot add booleans directly to a z3.Optimize (it works for Solver)
+        # the issue is here:  https://github.com/Z3Prover/z3/issues/1736
+        if isinstance(guard_constraint, bool):
+            guard_constraint = z3.And(guard_constraint)
+        solver.add(guard_constraint)
 
         # import pprint;pprint.pprint(z3_vars)
 
