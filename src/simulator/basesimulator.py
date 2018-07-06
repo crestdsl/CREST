@@ -26,7 +26,7 @@ class BaseSimulator(object):
 
         # go ahead and save the values right away
         if self.record_traces:
-            self.traces.save_entity(self.system)
+            self.traces.save_entity(self.system, self.global_time)
 
     @property
     def global_time(self):
@@ -34,7 +34,6 @@ class BaseSimulator(object):
 
     @global_time.setter
     def global_time(self, value):
-        print("setting time to", value)
         self._global_time = value
 
     def plot(self, entity=None, **kwargs):
