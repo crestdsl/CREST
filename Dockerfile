@@ -40,6 +40,9 @@ RUN git clone https://github.com/jgraph/mxgraph.git
 # copy CREST into the container so we can use it
 COPY src ${HOME}/src/
 
+# COPY the files folder as well, as it contains example data
+COPY files ${HOME}/files/
+
 # copy the notebooks, so we have some inital stuff
 COPY *.ipynb ${HOME}/
 
