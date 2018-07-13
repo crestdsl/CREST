@@ -6,7 +6,7 @@ Travis-CI (build docker image, run tests)
 [![codecov](https://codecov.io/gh/stklik/CREST/branch/master/graph/badge.svg)](https://codecov.io/gh/stklik/CREST)
 Code Coverage
 
-[![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/stklik/CREST/master)
+[![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/stklik/CREST/MDE4IOT)
 Launch this repository as a JupyterNotebook in your browser and play with it.
 
 
