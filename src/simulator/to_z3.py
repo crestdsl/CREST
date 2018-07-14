@@ -4,7 +4,7 @@ from src.model import Types, INT, FLOAT, STRING, BOOL, REAL, INTEGER, \
 import src.simulator.sourcehelper as SH
 from operator import attrgetter
 
-from methoddispatch import singledispatch, SingleDispatchMeta
+from methoddispatch import singledispatch, SingleDispatch
 import ast
 import types
 import operator
@@ -138,7 +138,14 @@ def get_z3_variable(port, name, suffix=None):
     return get_z3_var(port.resource.domain, varname, port.resource.unit)
 
 
-class Z3Converter(metaclass=SingleDispatchMeta):
+class Z3Converter(SingleDispatch):
+    """
+    Z3Converter is a class that uses a dispatch to convert a Python AST to a
+    set of Z3 constraints.
+
+    Most functions work on AST objects, however there are a few functions
+    to convert other objects too (e.g. function/lambda objects, lists of AST nodes, strings, booleans).
+    """
 
     def __init__(self, z3_vars, entity, container, use_integer_and_real=config.use_integer_and_real):
         self.z3_vars = z3_vars
@@ -716,7 +723,7 @@ class Z3Converter(metaclass=SingleDispatchMeta):
         return tr.resolve_two_types(*args, **kwargs)
 
 
-class TypeResolver(metaclass=SingleDispatchMeta):
+class TypeResolver(SingleDispatch):
 
     def __init__(self, z3_converter, use_integer_and_real=config.use_integer_and_real):
         self.z3_converter = z3_converter
