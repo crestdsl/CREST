@@ -46,6 +46,9 @@ COPY files ${HOME}/files/
 # copy the notebooks, so we have some inital stuff
 COPY *.ipynb ${HOME}/
 
+# copy utils for regression and image recognition, etc.
+COPY utils.py ${HOME}/
+
 # some cleanup
 RUN rmdir work
 
