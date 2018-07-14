@@ -1,11 +1,11 @@
-from operator import attrgetter
-from functools import lru_cache
+import operator
+import functools
 import copy
 
 
-from .model import Transition, Update, Action, Influence, State
+from . import model  # import Transition, Update, Action, Influence, State
 from .meta import PARENT_IDENTIFIER, CURRENT_IDENTIFIER, CrestObject, crestlist
-from .ports import Port, Input, Local, Output
+from . import ports  # import Port, Input, Local, Output
 import pprint
 
 import logging
@@ -125,7 +125,7 @@ def make_crest_copy(original_obj, newobj):
                 # search for it in (it's probably in a subentity)
                 logger.error("Couldn't find path to %s (%s)", identifier._name, identifier)
                 identifier = get_path_to_attribute(original_obj, identifier)
-        return attrgetter(identifier)(newobj)
+        return operator.attrgetter(identifier)(newobj)
 
     def _create_crestobject_path_map(root):
         object_path_map = {v: k for k, v in get_crest_objects(root, as_dict=True).items() if k != CURRENT_IDENTIFIER}  # remove current from the map, otherwise we run into issues
@@ -178,7 +178,7 @@ def make_crest_copy(original_obj, newobj):
     for name, trans in get_transitions(original_obj, as_dict=True).items():
         source = get_local_attribute(trans.source)
         target = get_local_attribute(trans.target)
-        newtransition = Transition(source=source, target=target, guard=trans.guard)
+        newtransition = model.Transition(source=source, target=target, guard=trans.guard)
         newtransition._parent = newobj
         newtransition._name = name
         setattr(newobj, name, newtransition)
@@ -188,7 +188,7 @@ def make_crest_copy(original_obj, newobj):
     for name, update in get_updates(original_obj, as_dict=True).items():
         state = get_local_attribute(update.state)
         target = get_local_attribute(update.target)
-        newupdate = Update(state=state, function=update.function, target=target)
+        newupdate = model.Update(state=state, function=update.function, target=target)
         newupdate._parent = newobj
         newupdate._name = name
         setattr(newobj, name, newupdate)
@@ -197,7 +197,7 @@ def make_crest_copy(original_obj, newobj):
     for name, action in get_actions(original_obj, as_dict=True).items():
         transition = get_local_attribute(action.transition)
         target = get_local_attribute(action.target)
-        newaction = Action(transition=transition, function=action.function, target=target)
+        newaction = model.Action(transition=transition, function=action.function, target=target)
         newaction._parent = newobj
         newaction._name = name
         setattr(newobj, name, newaction)
@@ -208,7 +208,7 @@ def make_crest_copy(original_obj, newobj):
     for name, influence in get_influences(original_obj, as_dict=True).items():
         source = get_local_attribute(influence.source)
         target = get_local_attribute(influence.target)
-        newinfluence = Influence(source=source, target=target, function=influence.function)
+        newinfluence = model.Influence(source=source, target=target, function=influence.function)
         newinfluence._parent = newobj
         newinfluence._name = name
         setattr(newobj, name, newinfluence)
@@ -242,18 +242,25 @@ def add(entity, name, obj):
             attrstring = attrstring[5:]
         return attrstring
 
-    if isinstance(obj, (Influence, Transition)) and isinstance(obj.source, str):
-            obj.source = attrgetter(slice_self(obj.source))(entity)
-    if isinstance(obj, (Influence, Update, Action, Transition)) and isinstance(obj.target, str):
-            obj.target = attrgetter(slice_self(obj.target))(entity)
-    if isinstance(obj, (Update, Action)) and isinstance(obj.state, str):
-            obj.state = attrgetter(slice_self(obj.state))(entity)
+    if isinstance(obj, (model.Influence, model.Transition)) and isinstance(obj.source, str):
+            obj.source = operator.attrgetter(slice_self(obj.source))(entity)
+    if isinstance(obj, (model.Influence, model.Update, model.Action, model.Transition)) and isinstance(obj.target, str):
+            obj.target = operator.attrgetter(slice_self(obj.target))(entity)
+    if isinstance(obj, (model.Update, model.Action)) and isinstance(obj.state, str):
+            obj.state = operator.attrgetter(slice_self(obj.state))(entity)
 
     setattr(entity, name, obj)
 
 
 def get_parent(entity):
-    return entity._parent
+    return getattr(entity, PARENT_IDENTIFIER, None)
+
+
+def get_root(entity):
+    parent = get_parent(entity)
+    if parent:
+        return get_root(parent)
+    return entity
 
 
 def get_name(entity):
@@ -281,6 +288,13 @@ def get_path_to_attribute(root, object_to_find):
         object_to_find = getattr(object_to_find, PARENT_IDENTIFIER)
     path = path[::-1]
     return ".".join(path)
+
+
+def get_equivalent_in_system(original, object_to_find, newsystem):
+    path = get_path_to_attribute(original, object_to_find)
+    if path == "":  # path is empty, must be the new system then, right?
+        return newsystem
+    return operator.attrgetter(path)(newsystem)
 
 
 """ helper functions """
@@ -317,39 +331,39 @@ def get_all_transitions(entity):
 
 
 def get_states(entity, as_dict=False):
-    return get_by_klass(entity, State, as_dict)
+    return get_by_klass(entity, model.State, as_dict)
 
 
 def get_inputs(entity, as_dict=False):
-    return get_by_klass(entity, Input, as_dict)
+    return get_by_klass(entity, ports.Input, as_dict)
 
 
 def get_outputs(entity, as_dict=False):
-    return get_by_klass(entity, Output, as_dict)
+    return get_by_klass(entity, ports.Output, as_dict)
 
 
 def get_locals(entity, as_dict=False):
-    return get_by_klass(entity, Local, as_dict)
+    return get_by_klass(entity, ports.Local, as_dict)
 
 
 def get_ports(entity, as_dict=False):
-    return get_by_klass(entity, Port, as_dict)
+    return get_by_klass(entity, ports.Port, as_dict)
 
 
 def get_actions(entity, as_dict=False):
-    return get_by_klass(entity, Action, as_dict)
+    return get_by_klass(entity, model.Action, as_dict)
 
 
 def get_updates(entity, as_dict=False):
-    return get_by_klass(entity, Update, as_dict)
+    return get_by_klass(entity, model.Update, as_dict)
 
 
 def get_transitions(entity, as_dict=False):
-    return get_by_klass(entity, Transition, as_dict)
+    return get_by_klass(entity, model.Transition, as_dict)
 
 
 def get_influences(entity, as_dict=False):
-    return get_by_klass(entity, Influence, as_dict)
+    return get_by_klass(entity, model.Influence, as_dict)
 
 
 def get_entities(entity, as_dict=False):
@@ -364,7 +378,7 @@ def get_crest_objects(entity, as_dict=False):
     return get_by_klass(entity, CrestObject, as_dict)
 
 
-@lru_cache(maxsize=4096)
+@functools.lru_cache(maxsize=4096)
 def get_by_klass(class_or_entity, klass, as_dict=False):
     isclass = type(class_or_entity) == type
     attrs = dir(class_or_entity)  # if isclass else class_or_entity.__dict__.keys()
