@@ -1,10 +1,15 @@
 
 
 from src.model import Port, Entity, get_all_ports, get_all_entities, get_states
+
+import plotly
+import plotly.graph_objs as go
 import matplotlib.pyplot as plt
 
 import logging
 logger = logging.getLogger(__name__)
+
+plotly.offline.init_notebook_mode(connected=True)  # don't talk to the plotly server, plot locally within a jupyter notebook
 
 
 class TraceStore(object):
@@ -13,11 +18,12 @@ class TraceStore(object):
         self.datastore = dict()
 
     def save(self, key, timestamp, value):
-        logger.debug(f"storing {value} at time {timestamp} for key {key}")
+        if logger.getEffectiveLevel() <= logging.DEBUG:
+            logger.debug(f"storing {value} at time {timestamp} for key {key}")
         if key not in self.datastore:
-            self.datastore[key] = dict()
+            self.datastore[key] = list()
 
-        self.datastore[key][timestamp] = value
+        self.datastore[key].append((timestamp, value))
 
         # if timestamp not in self.datastore[key]:
         #     self.datastore[key][timestamp] = []
@@ -36,6 +42,32 @@ class TraceStore(object):
             self.save(port, timestamp, port.value)
 
     def plot(self, *args, **kwargs):
+        lines = []
+
+        lists = [arg for arg in args if isinstance(arg, list)]
+        entities = [arg for arg in args if isinstance(arg, Entity)]
+        ports = [arg for arg in args if isinstance(arg, Port)]
+
+        for port in ports:
+            time_value_map
+            name = port._name
+            if port._parent._name:
+                name = f"{port._parent._name}.{name}"
+            # add a new line
+            lines.append(
+                go.Scatter(x=list(time_value_map.keys()), y=list(time_value_map.values()),
+                           name=f"{name} ({port_or_entity.resource.unit})", # append the unit to the name in the legend
+                           mode="markers+lines", marker={'symbol': 'x', 'size': "7"}, line={'width': 0.5}
+                          )
+            )
+
+        fig = go.Figure(
+            data=lines,
+            layout=go.Layout(showlegend=True, xaxis=dict(title='global time'))
+        )
+        plotly.offline.iplot(fig)
+
+    def plt_plot(self, *args, **kwargs):
 
         fig = plt.figure()
 

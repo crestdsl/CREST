@@ -448,10 +448,12 @@ class BaseSimulator(object):
         for handler in logging.root.handlers:
             handler.addFilter(filter)
 
-        self.advance_rec(t, consider_behaviour_changes)
+        retval = self.advance_rec(t, consider_behaviour_changes)
 
         for handler in logging.root.handlers:
             handler.removeFilter(filter)
+
+        return retval
 
     """ advance """
     def advance_rec(self, t, consider_behaviour_changes=config.consider_behaviour_changes):
