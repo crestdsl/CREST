@@ -18,6 +18,7 @@ RUN mkdir /var/lib/apt/lists/partial && \
 # install astor and gaphviz
 RUN pip install --no-cache-dir --upgrade pip
 RUN pip install --no-cache-dir plotly
+RUN pip install --no-cache-dir pwlf
 RUN pip install --no-cache-dir --upgrade pip matplotlib
 RUN pip install --no-cache-dir astor graphviz methoddispatch
 
