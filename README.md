@@ -54,7 +54,7 @@ or use [`repo2docker`](https://github.com/jupyter/repo2docker).
 <details>
 <summary>
 Stefan Klikovits, Alban Linard, and Didier Buchs: 
-**CREST Formalization**. 
+    <b>CREST Formalization</b>. 
 Technical Report. Software Modeling and Verification Group, University of Geneva. 2018
 </summary>
 <pre>
@@ -72,7 +72,7 @@ Technical Report. Software Modeling and Verification Group, University of Geneva
 <details>
 <summary>
     Stefan Klikovits, Alban Linard, Didier Buchs:
-    **CREST - A Continuous, REactive SysTems DSL**. 
+    <b>CREST - A Continuous, REactive SysTems DSL</b>. 
     MODELS (Satellite Events) 2017: 286-291
 </summary>
 <pre>
@@ -101,6 +101,4 @@ Technical Report. Software Modeling and Verification Group, University of Geneva
 ---
 
 ### Thanks
- * to the Binder team for hosting their amazing service
- * 
-
+ * to the [Jupyterhub](https://github.com/orgs/jupyterhub/people) and [Binder](https://mybinder.org) teams for providing their amazing service
