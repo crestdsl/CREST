@@ -223,25 +223,33 @@ def get_all_following_siblings(ast_node):
     return without_node
 
 
-def get_accessed_ports(function, container):
+def get_accessed_ports(function, container, exclude_pre=True):
     # XXX Caching
     if hasattr(container, "_cached_accessed_ports"):
-        return container._cached_accessed_ports
-
+        if exclude_pre:
+            return container._cached_accessed_ports
+        else:
+            return container._cached_accessed_ports + container._cached_accessed_pre_ports
     # print(container._name, "in", container._parent._name)
     ast_body = get_ast_body(function)
     varnames = get_used_variable_names(ast_body)
-    portnames = []
+    portnames = set()
+    preportnames = set()
 
     for varname in varnames:
-        if varname.endswith(".pre"):  # don't care about pre
-            continue
+        pn = None
 
         splits = varname.split(".")
         if len(splits) > 2:
-            portnames.append(".".join(splits[1:-1]))
+            pn = ".".join(splits[1:-1])
         elif len(splits) == 2:
-            portnames.append(splits[1])
+            pn = (splits[1])
+
+        if pn is not None:
+            if varname.endswith(".pre"):  # don't care about pre
+                preportnames.add(pn)
+            else:
+                portnames.add(pn)
 
     # print("varnames", varnames)
     # print("portnames", portnames)
@@ -258,24 +266,31 @@ def get_accessed_ports(function, container):
     # print(entity_ports)
 
     # print("entityports", entity_ports)
-    ports = [entity_ports[portname] for portname in portnames if portname in portnames]  # XXX just fixed this to be sources
+    ports = [entity_ports[portname] for portname in list(portnames) if portname in portnames]  # XXX just fixed this to be sources
+    preports = [entity_ports[portname] for portname in list(preportnames) if portname in preportnames]  # XXX just fixed this to be sources
 
+    # print(f"Container {container._name} reads the following ports: {[port._name for port in ports]}")
     # print("ports", [p._name for p in ports])
     container._cached_accessed_ports = ports
-    return ports
+    container._cached_accessed_pre_ports = preports
+
+    if exclude_pre:
+        return container._cached_accessed_ports
+    else:
+        return container._cached_accessed_ports + container._cached_accessed_pre_ports
 
 
 def get_written_ports_from_update(function, container):
     ast_body = get_ast_body(function)
     varnames = get_assignment_target_names(ast_body)
-    portnames = []
+    portnames = set()
 
     for varname in varnames:
         splits = varname.split(".")
         if len(splits) > 2:
-            portnames.append(".".join(splits[1:-1]))
+            portnames.add(".".join(splits[1:-1]))
         elif len(splits) == 2:
-            portnames.append(splits[1])
+            portnames.add(splits[1])
 
     ports = [attrgetter(portname)(container._parent) for portname in portnames]
     return ports
@@ -285,14 +300,14 @@ def get_written_ports_from_update(function, container):
 def get_read_ports_from_update(function, container):
     ast_body = get_ast_body(function)
     varnames = get_read_variables(ast_body)
-    portnames = []
+    portnames = set()
 
     for varname in varnames:
         splits = varname.split(".")
         if len(splits) > 2:
-            portnames.append(".".join(splits[1:-1]))
+            portnames.add(".".join(splits[1:-1]))
         elif len(splits) == 2:
-            portnames.append(splits[1])
+            portnames.add(splits[1])
 
     ports = [attrgetter(portname)(container._parent) for portname in portnames]
     return ports
