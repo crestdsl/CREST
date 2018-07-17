@@ -114,7 +114,7 @@ class Z3Calculator(object):
                     for up in updates:
                         # logger.debug(f"'{port._name}' is modified by update '{up._name}'")
                         # read_ports = SH.get_read_ports_from_update(up.function, up)  # +[up.target]
-                        accessed_ports = SH.get_accessed_ports(up.function, up)
+                        accessed_ports = SH.get_accessed_ports(up.function, up, exclude_pre=False)
 
                         # logger.debug(f"'{up._name}' in '{up._parent._name}' reads the following ports: {[(p._name, p._parent._name) for p in accessed_ports]}")
                         for read_port in accessed_ports:
