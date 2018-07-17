@@ -1,13 +1,104 @@
-# CREST
+
+<div style="text-align:center">
+<img src="/docs/crestlogo.svg" />
+</div>
+
+# **CREST** - A Continuous REactive SysTems DSL
 
 [![Build Status](https://travis-ci.org/stklik/CREST.svg?branch=master)](https://travis-ci.org/stklik/CREST)
-Travis-CI (build docker image, run tests)
-
 [![codecov](https://codecov.io/gh/stklik/CREST/branch/master/graph/badge.svg)](https://codecov.io/gh/stklik/CREST)
-Code Coverage
+(I know, I know, I'm really busy though...)
 
 [![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/stklik/CREST/master)
-Launch this repository as a JupyterNotebook in your browser and play with it.
+<-- Launch this repository and play with CREST directly in your browser!
+
+---
+
+## Introduction
+
+CREST is a novel modelling language for the definition of Continuous-time, REactive SysTems.
+It is a domain-specific language (DSL) targets small cyber-physical systems (CPS) such as home automation systems.
+Specifically, it focusses on the flow and transfer of resources within a CPS.
+While CREST is a graphical language and its systems can be visualised as CREST diagrams, 
+the main form of use is as internal DSL for the Python general purpose programming language.
 
 
-Continuous REactive SysTems DSL
+## Try me !
+
+CREST uses [Docker](https://www.docker.com/), [Jupyter](https://jupyter.org) notebooks and [Binder](https://mybinder.readthedocs.io/en/latest/) to create, edit and simulate interactive models online.
+
+You can try CREST yourself by clicking on [this link](https://mybinder.org/v2/gh/stklik/CREST/master) (or on the "launch binder" badge above).
+
+You will find several notebooks that will introduce CREST's
+[Syntax & Semantics](https://mybinder.org/v2/gh/stklik/CREST/master?filepath=Syntax-Semantics.ipynb) and [Simulation](https://mybinder.org/v2/gh/stklik/CREST/master?filepath=Simulation.ipynb).
+You can also just launch the docker container on binder (click the badge) and create a new notebook. 
+You can then create and simulate your own models.
+
+
+## Installation
+
+**Recommended:** Currently the only way to install is to download/clone this repository and use the sources.
+The easiest way to run the latest version is to either launch it on Binder (see above),
+or use [`repo2docker`](https://github.com/jupyter/repo2docker).
+
+**Local install:** You can also use CREST locally and install the dependencies manually. See the [Dockerfile](./Dockerfile) for information about the tools and libraries that are used. CREST also requires Microsoft's [Z3Prover](https://github.com/Z3Prover) to be installed (including the Python API).
+
+
+**Soon:** A pip-install is in the pipelines but has been delayed due to publication season :-)
+
+
+---
+
+## Publications
+
+<details>
+<summary>
+Stefan Klikovits, Alban Linard, and Didier Buchs: 
+    <b>CREST Formalization</b>. 
+Technical Report. Software Modeling and Verification Group, University of Geneva. 2018
+</summary>
+<pre>
+@techreport{Klikovits:CRESTFormalization:2018,
+    author = {Stefan Klikovits and Alban Linard and Didier Buchs},
+    title = {{CREST} Formalization},
+    institution = {Software Modeling and Verification Group, University of Geneva},
+    doi = {10.5281/zenodo.1284561},
+    year = {2018}
+}
+</pre>
+</details>
+
+
+<details>
+<summary>
+    Stefan Klikovits, Alban Linard, Didier Buchs:
+    <b>CREST - A Continuous, REactive SysTems DSL</b>. 
+    MODELS (Satellite Events) 2017: 286-291
+</summary>
+<pre>
+@inproceedings{Klikovits:CREST:Gemoc:2017,
+  author    = {Stefan Klikovits and
+               Alban Linard and
+               Didier Buchs},
+  title     = {{CREST} - {A} Continuous, REactive SysTems {DSL}},
+  booktitle = {Proceedings of {MODELS} 2017 Satellite Event: Workshops (ModComp,
+               ME, EXE, COMMitMDE, MRT, MULTI, GEMOC, MoDeVVa, MDETools, FlexMDE,
+               MDEbug), Posters, Doctoral Symposium, Educator Symposium, {ACM} Student
+               Research Competition, and Tools and Demonstrations co-located with
+               {ACM/IEEE} 20th International Conference on Model Driven Engineering
+               Languages and Systems {(MODELS} 2017), Austin, TX, USA, September,
+               17, 2017.},
+  pages     = {286--291},
+  year      = {2017},
+  url       = {http://ceur-ws.org/Vol-2019/gemoc\_2.pdf},
+  timestamp = {Tue, 19 Dec 2017 19:54:07 +0100},
+  biburl    = {https://dblp.org/rec/bib/conf/models/KlikovitsLB17},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
+}
+</pre>
+</details>
+
+---
+
+### Thanks
+ * to the [Jupyterhub](https://github.com/orgs/jupyterhub/people) and [Binder](https://mybinder.org) teams for providing their amazing service
