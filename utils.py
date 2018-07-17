@@ -1,6 +1,8 @@
 import os
 import numpy as np
+import pwlf
 from scipy import misc
+from sklearn.linear_model import LinearRegression 
 
 
 def load_data(csv_file):
@@ -80,20 +82,94 @@ def get_ball_height(image, threshold, start, end):
     return height - y
 
 
-def show_height(image, pos, width, height):
+def get_inflow(train_data):
     """
-    Show the detected position of an object on an image.
+    Learn the incoming water flow of a tank from a volume/time trace.
 
     Args:
-        image: The image in which the object was detected.
-        pos: The position of the center of the object.
-        width: The width of the object (in pixels).
-        height: The height of the object (in pixels).
+        train_data: The path to a .csv file containing the volume/time trace
+            that must be used to compute the flow.
+
+    Returns:
+        A list of tuples where the two first elements indicate an interval
+        of volumes, and the third one the corresponding incoming flow rate.
     """
-    import matplotlib.pyplot as plt
-    plt.figure()
-    plt.imshow(image)
-    rect = plt.Rectangle((pos[0]-width/2, pos[1]-height/2), width, height,
-                         edgecolor='r', facecolor='none')
-    plt.gca().add_patch(rect)
-    plt.show()
+    # The data from the volume/time trace is loaded.
+    data = []
+    with open(train_data, 'r') as data_input:
+        for line in data_input:
+            line = line.split(', ')
+            data.append((float(line[0]), float(line[1])))
+
+    # It is sorted in ascending order of time.
+    data = sorted(data)
+    (x, y) = zip(*data)
+    x = np.array(x).reshape(-1, 1)
+    y = np.array(y).reshape(-1, 1)
+
+    # The point where the volume stops increasing is computed.
+    max_index = np.argmax(y)
+
+    # The inflow is computed only on the points where the volume
+    # increases over time.
+    x = x[:max_index+1]
+    y = y[:max_index+1]
+
+    # A regression is applied to estimate the inflow.
+    inflow = LinearRegression()
+    inflow.fit(x, y)
+
+    return (0, None, inflow.coef_[0][0])
+
+
+def get_outflow(train_data, n_intervals=3):
+    """
+    Learn the outgoing water flow of a tank from a volume/time trace.
+
+    Args:
+        train_data: The path to a .csv file containing the volume/time trace
+            that must be used to compute the flow.
+        n_intervals: The number of intervals to use for the piecewise linear
+            regression on the outflow.
+
+    Returns:
+        A list of tuples where the two first elements indicate an interval
+        of volumes, and the third one the corresponding incoming flow rate.
+    """
+    # The data from the volume/time trace is loaded.
+    data = []
+    with open(train_data, 'r') as data_input:
+        for line in data_input:
+            line = line.split(', ')
+            data.append((float(line[0]), float(line[1])))
+
+    # It is sorted in ascending order of time.
+    data = sorted(data)
+    (x, y) = zip(*data)
+
+    # The point where the volume starts decreasing is computed.
+    max_index = np.argmax(y)
+
+    # The outflow is computed only on the points where the volume
+    # decreases over time.
+    x = x[max_index+1:]
+    y = y[max_index+1:]
+
+    # A piecewise linear regression is applied to estimate the outflow.
+    outflow = pwlf.PiecewiseLinFit(x, y)
+    intervals = outflow.fit(n_intervals)
+
+    # The outflows for the different volume intervals are returned.
+    flows = []
+    flows.append((None,
+                  outflow.predict([intervals[1]])[0],
+                  outflow.slopes[0]))
+    for i in range(1, n_intervals-1):
+        flows.append((outflow.predict([intervals[i]])[0],
+                      outflow.predict([intervals[i+1]])[0],
+                      outflow.slopes[i]))
+    flows.append((outflow.predict([intervals[n_intervals-1]])[0],
+                  0,
+                  outflow.slopes[n_intervals-1]))
+
+    return flows
