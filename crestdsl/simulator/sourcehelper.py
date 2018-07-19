@@ -5,7 +5,7 @@ import astor
 import copy
 from operator import attrgetter
 from functools import lru_cache
-from src.model.entity import *
+from crestdsl.model.entity import *
 
 
 @lru_cache(maxsize=1024)

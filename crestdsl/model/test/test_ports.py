@@ -1,5 +1,5 @@
 import unittest
-import src.model as CREST
+import crestdsl.model as CREST
 
 real_res = CREST.Resource("RealRes", CREST.REAL)
 list_res = CREST.Resource("ListRes", [1, 2, "five"])

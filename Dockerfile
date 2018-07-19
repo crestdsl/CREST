@@ -38,7 +38,7 @@ RUN jupyter nbextension enable codefolding/main
 RUN git clone https://github.com/jgraph/mxgraph.git
 
 # copy CREST into the container so we can use it
-COPY src ${HOME}/src/
+COPY crestdsl ${HOME}/crestdsl/
 
 # copy the notebooks, so we have some inital stuff
 COPY *.ipynb ${HOME}/

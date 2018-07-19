@@ -1,5 +1,5 @@
 import unittest
-import src.model as CREST
+import crestdsl.model as CREST
 import pprint
 
 res = CREST.Resource("Resource", CREST.REAL)

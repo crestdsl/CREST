@@ -1,6 +1,6 @@
 from .conditiontimedchangecalculator import ConditionTimedChangeCalculator
 from .to_z3 import get_minimum_dt_of_several
-from src.model import get_transitions
+from crestdsl.model import get_transitions
 
 import logging
 logger = logging.getLogger(__name__)

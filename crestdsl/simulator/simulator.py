@@ -1,9 +1,9 @@
-from src.config import config
-from src.model import get_targets, get_inputs, \
+from crestdsl.config import config
+from crestdsl.model import get_targets, get_inputs, \
     Influence, Update, Entity
 from .to_z3 import to_python, evaluate_to_bool
 from .basesimulator import BaseSimulator
-import src.simulator.dependencyOrder as DO
+import crestdsl.simulator.dependencyOrder as DO
 
 import logging
 logger = logging.getLogger(__name__)

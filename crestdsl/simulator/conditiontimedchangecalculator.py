@@ -1,5 +1,5 @@
-from src.model import Influence, get_updates, get_influences, get_transitions, get_path_to_attribute
-import src.simulator.sourcehelper as SH
+from crestdsl.model import Influence, get_updates, get_influences, get_transitions, get_path_to_attribute
+import crestdsl.simulator.sourcehelper as SH
 import ast
 from .to_z3 import Z3Converter, get_z3_var, get_z3_value, get_z3_variable, get_minimum_dt_of_several, to_python
 from .z3conditionchangecalculator import Z3ConditionChangeCalculator

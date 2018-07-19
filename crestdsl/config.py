@@ -1,4 +1,4 @@
-from src.ui import dotter, elk
+from .ui import elk
 
 
 class ConfigObject(object):

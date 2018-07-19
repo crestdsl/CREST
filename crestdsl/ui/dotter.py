@@ -1,8 +1,10 @@
 from graphviz import Source
-from src.model.meta import PARENT_IDENTIFIER, CURRENT_IDENTIFIER, CrestObject
-import src.model as Model
+from crestdsl.model.meta import PARENT_IDENTIFIER, CURRENT_IDENTIFIER, CrestObject
+import crestdsl.model as Model
+from crestdsl.model.entity import MetaEntity as MetaEntity
+
 import astor
-import src.simulator.sourcehelper as SH
+import crestdsl.simulator.sourcehelper as SH
 from functools import singledispatch
 import random
 
@@ -161,7 +163,7 @@ def gen_Action(obj, name="", parent=None, **kwargs):
     return returnlist
 
 
-@generate.register(Model.MetaEntity)
+@generate.register(MetaEntity)
 def gen_MetaEntity(obj, name="", parent=None, **kwargs):
     return gen_Entity(obj, name, parent, **kwargs)
 

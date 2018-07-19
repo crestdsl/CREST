@@ -1,7 +1,7 @@
-from src.config import config
-from src.model import Types, INT, FLOAT, STRING, BOOL, REAL, INTEGER, \
+from crestdsl.config import config
+from crestdsl.model import Types, INT, FLOAT, STRING, BOOL, REAL, INTEGER, \
     State, Port, get_path_to_attribute
-import src.simulator.sourcehelper as SH
+import crestdsl.simulator.sourcehelper as SH
 from operator import attrgetter
 
 from methoddispatch import singledispatch, SingleDispatch

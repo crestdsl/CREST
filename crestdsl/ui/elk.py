@@ -1,8 +1,10 @@
 from IPython.display import display, HTML
 from functools import singledispatch
-import src.model as Model
-import src.simulator.sourcehelper as SH
-from src.model.meta import PARENT_IDENTIFIER, CURRENT_IDENTIFIER, CrestObject
+import crestdsl.model as Model
+from crestdsl.model.entity import MetaEntity as MetaEntity
+
+import crestdsl.simulator.sourcehelper as SH
+from crestdsl.model.meta import PARENT_IDENTIFIER, CURRENT_IDENTIFIER, CrestObject
 import uuid
 """
 Produces JSON that can be interpreted by the Eclipse Layout Kernel (ELK).
@@ -13,7 +15,7 @@ I tried to use OpenKieler's elkjs.
 def plot(object_to_plot, name='', **kwargs):
     elkgraph = generate_root(object_to_plot, name)
     elkgraph = str(elkgraph)
-    with open("src/ui/index.html", 'r') as htmlfile:
+    with open("crestdsl/ui/index.html", 'r') as htmlfile:
         htmlcontent = htmlfile.read()
         full = htmlcontent.replace('ELKGRAPH', str(elkgraph))
         full = full.replace("\"", "&quot;")
@@ -47,7 +49,7 @@ def generate(object, name, parent):
     return None
 
 
-@generate.register(Model.MetaEntity)
+@generate.register(MetaEntity)
 def gen_MetaEntity(obj, name="", parent=None, **kwargs):
     return gen_Entity(obj, name, parent, **kwargs)
 

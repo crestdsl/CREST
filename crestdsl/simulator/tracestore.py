@@ -1,6 +1,6 @@
 
 
-from src.model import Port, Entity, get_all_ports, get_all_entities, get_states
+from crestdsl.model import Port, Entity, get_all_ports, get_all_entities, get_states
 
 import plotly
 import plotly.graph_objs as go

@@ -1,6 +1,6 @@
-from src.config import config
+from crestdsl.config import config
 from .tracestore import TraceStore
-from src.model import get_all_entities, get_all_ports, REAL, \
+from crestdsl.model import get_all_entities, get_all_ports, REAL, \
     get_influences, get_transitions, get_entities, get_updates, get_actions, \
     get_inputs, get_outputs, get_sources, get_locals
 from .transitiontime import TransitionTimeCalculator

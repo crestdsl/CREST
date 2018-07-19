@@ -1,6 +1,6 @@
 import networkx as nx
-import src.simulator.sourcehelper as SH
-from src.model import get_inputs, get_outputs, get_sources, get_targets, \
+import crestdsl.simulator.sourcehelper as SH
+from crestdsl.model import get_inputs, get_outputs, get_sources, get_targets, \
     get_influences, get_entities, get_updates
 
 

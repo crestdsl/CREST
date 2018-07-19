@@ -1,7 +1,7 @@
 import unittest
 # import ast
 import astor
-import src.simulator.sourcehelper as SH
+import crestdsl.simulator.sourcehelper as SH
 # from pprint import pprint
 
 import logging

@@ -1,5 +1,5 @@
-from src.model import Types, Influence, get_all_entities, get_transitions
-import src.simulator.sourcehelper as SH
+from crestdsl.model import Types, Influence, get_all_entities, get_transitions
+import crestdsl.simulator.sourcehelper as SH
 from .to_z3 import Z3Converter, get_z3_variable, get_z3_var
 from .z3calculator import Z3Calculator
 import z3

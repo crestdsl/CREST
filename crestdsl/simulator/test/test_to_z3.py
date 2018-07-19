@@ -1,20 +1,20 @@
 import unittest
-from src.model import *
+from crestdsl.model import *
 
 import re
 import z3
-from src.simulator.to_z3 import Z3Converter, get_z3_value, get_z3_variable
+from crestdsl.simulator.to_z3 import Z3Converter, get_z3_value, get_z3_variable
 from pprint import pprint
 
 import logging
 logging.basicConfig(level=logging.INFO)  # basic logging level
-entityLog = logging.getLogger(name="src.model.entity")  # specific logging level
+entityLog = logging.getLogger(name="crestdsl.model.entity")  # specific logging level
 entityLog.setLevel(logging.INFO)
-simLog = logging.getLogger(name="src.simulator.simulator")  # specific logging level
+simLog = logging.getLogger(name="crestdsl.simulator.simulator")  # specific logging level
 simLog.setLevel(logging.INFO)
-ttLog = logging.getLogger(name="src.simulator.transitiontime")  # specific logging level
+ttLog = logging.getLogger(name="crestdsl.simulator.transitiontime")  # specific logging level
 ttLog.setLevel(logging.INFO)
-toZ3Log = logging.getLogger(name="src.simulator.to_z3")  # specific logging level
+toZ3Log = logging.getLogger(name="crestdsl.simulator.to_z3")  # specific logging level
 toZ3Log.setLevel(logging.INFO)
 
 

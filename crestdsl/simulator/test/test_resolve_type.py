@@ -1,7 +1,7 @@
 import unittest
 import ast
-from src.model import *
-from src.simulator.to_z3 import *
+from crestdsl.model import *
+from crestdsl.simulator.to_z3 import *
 
 
 class TestResolveType(unittest.TestCase):

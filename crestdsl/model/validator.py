@@ -1,7 +1,7 @@
 import inspect
 import types
 
-import src.simulator.sourcehelper as SH
+import crestdsl.simulator.sourcehelper as SH
 from .entity import *
 import logging
 logger = logging.getLogger(__name__)
