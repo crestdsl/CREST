@@ -35,7 +35,7 @@ RUN jupyter nbextension enable toc2/main
 RUN jupyter nbextension enable codefolding/main
 
 # get mxgraph into the docker
-RUN git clone https://github.com/jgraph/mxgraph.git
+# RUN git clone https://github.com/jgraph/mxgraph.git
 
 # copy CREST into the container so we can use it
 COPY crestdsl ${HOME}/crestdsl/
