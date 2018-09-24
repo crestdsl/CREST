@@ -9,10 +9,10 @@ class CrestObject(object):
         setattr(self, PARENT_IDENTIFIER, parent)
 
 
-class crestlist(list):
+class CrestList(list):
     """ a special class that's produced when using an annotation with several states (transitions, updates)"""
     @staticmethod
     def fromlist(listt):
-        new = crestlist()
+        new = CrestList()
         new.extend(listt)
         return new

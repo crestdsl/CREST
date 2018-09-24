@@ -114,6 +114,8 @@ def add_parent_info(ast_root):
 
 
 def getsource(function):
+    if hasattr(function, "source"):
+        return function.source
     sl = inspect.getsourcelines(function)
     sourcelines = sl[0]
     indentdepth = len(sourcelines[0]) - len(sourcelines[0].lstrip())

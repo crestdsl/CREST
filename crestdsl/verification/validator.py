@@ -2,7 +2,7 @@ import inspect
 import types
 
 import crestdsl.simulator.sourcehelper as SH
-from .entity import *
+from crestdsl.model.entity import *
 import logging
 logger = logging.getLogger(__name__)
 

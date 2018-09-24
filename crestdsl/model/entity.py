@@ -4,7 +4,7 @@ import copy
 
 
 from . import model  # import Transition, Update, Action, Influence, State
-from .meta import PARENT_IDENTIFIER, CURRENT_IDENTIFIER, CrestObject, crestlist
+from .meta import PARENT_IDENTIFIER, NAME_IDENTIFIER, CURRENT_IDENTIFIER, CrestObject, CrestList
 from . import ports  # import Port, Input, Local, Output
 import pprint
 
@@ -29,7 +29,7 @@ class MetaEntity(type):
 
         # flatten the attributedict, so we don't have lists of crestobjects anymore
         for key, value in attributedict.copy().items():
-            if isinstance(value, crestlist):  # this happens when we do updates or transitions for multiple states
+            if isinstance(value, CrestList):  # this happens when we do updates or transitions for multiple states
                 # flatten it already here...
                 for idx, item in enumerate(value):
                     newattname = f"{key}___{idx}"
@@ -389,7 +389,7 @@ def get_by_klass(class_or_entity, klass, as_dict=False):
         for name, attr in attrs.items():
             if isinstance(attr, klass):
                 retval[name] = attr
-            elif isinstance(attr, crestlist):
+            elif isinstance(attr, CrestList):
                 raise AttributeError(f"Class or Entity {class_or_entity} has an attribute {name} which is a crestlist. This is forbidden!!")
         return retval
     else:
@@ -399,7 +399,7 @@ def get_by_klass(class_or_entity, klass, as_dict=False):
             attr = getattr(class_or_entity, attrname)
             if isinstance(attr, klass):
                 retval.append(attr)
-            elif isinstance(attr, crestlist):
+            elif isinstance(attr, CrestList):
                 raise AttributeError(f"Class or Entity {class_or_entity} has an attribute {attrname} which is a crestlist. This is forbidden!!")
         return list(set(retval))
 
