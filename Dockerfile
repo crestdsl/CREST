@@ -37,6 +37,9 @@ RUN jupyter nbextension enable codefolding/main
 # get mxgraph into the docker
 # RUN git clone https://github.com/jgraph/mxgraph.git
 
+# Add Live slideshows with RISE
+RUN conda install -c damianavila82 rise
+
 # copy CREST into the container so we can use it
 COPY crestdsl ${HOME}/crestdsl/
 
