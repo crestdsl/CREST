@@ -235,23 +235,6 @@ class LogicalEntity(Entity):
     pass
 
 
-def add(entity, name, obj):
-    """ similar to setattr, but does some string resolving beforehand """
-    def slice_self(attrstring):
-        if attrstring.startswith("self."):
-            attrstring = attrstring[5:]
-        return attrstring
-
-    if isinstance(obj, (model.Influence, model.Transition)) and isinstance(obj.source, str):
-            obj.source = operator.attrgetter(slice_self(obj.source))(entity)
-    if isinstance(obj, (model.Influence, model.Update, model.Action, model.Transition)) and isinstance(obj.target, str):
-            obj.target = operator.attrgetter(slice_self(obj.target))(entity)
-    if isinstance(obj, (model.Update, model.Action)) and isinstance(obj.state, str):
-            obj.state = operator.attrgetter(slice_self(obj.state))(entity)
-
-    setattr(entity, name, obj)
-
-
 def get_parent(entity):
     return getattr(entity, PARENT_IDENTIFIER, None)
 
