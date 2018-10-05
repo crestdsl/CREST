@@ -1,7 +1,7 @@
 
-<div style="text-align:center">
+<p align="center">
 <img src="/docs/crestlogo.svg" />
-</div>
+</p>
 
 # **CREST** - A Continuous REactive SysTems DSL
 
