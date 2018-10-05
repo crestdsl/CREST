@@ -58,7 +58,7 @@ or use [`repo2docker`](https://github.com/jupyter/repo2docker).
         2nd International Workshop on Model Driven Engineering for the Internet-of-Things (MDE4IOT), Copenhagen, 2018
     </summary>
     <pre>
-@InProceedings{Klikovits:SAM18:CREST,
+@InProceedings{Klikovits:MDE4IOT:ML4CREST,
     title = {{ML4CREST}: Machine Learning for CPS Models},
     author = {Stefan Klikovits and Aur\'{e}lien Coet and Didier Buchs},
     booktitle = {2nd International Workshop on Model Driven Engineering for the Internet-of-Things (MDE4IOT), Copenhagen, Denmark, October 15, 2018. Proceedings},
