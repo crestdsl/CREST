@@ -52,6 +52,40 @@ or use [`repo2docker`](https://github.com/jupyter/repo2docker).
 ## Publications
 
 <details>
+    <summary>
+ Stefan Klikovits, Auélien Coet and Didier Buchs:
+        <b>ML4CREST: Machine Learning for CPS Models </b>.
+        2nd International Workshop on Model Driven Engineering for the Internet-of-Things (MDE4IOT), Copenhagen, 2018
+    </summary>
+    <pre>
+@InProceedings{Klikovits:SAM18:CREST,
+    title = {{ML4CREST}: Machine Learning for CPS Models},
+    author = {Stefan Klikovits and Aur\'{e}lien Coet and Didier Buchs},
+    booktitle = {2nd International Workshop on Model Driven Engineering for the Internet-of-Things (MDE4IOT), Copenhagen, Denmark, October 15, 2018. Proceedings},
+    year = {2018},
+}
+    </pre>
+</details>
+
+<details>
+    <summary>
+ Stefan Klikovits, Alban Linard and Didier Buchs:
+        <b>CREST - A DSL for Reactive Cyber-Physical Systems</b>.
+        10th System Analysis and Modeling Conference (SAM) 2018
+    </summary>
+    <pre>
+@InProceedings{Klikovits:SAM18:CREST,
+    title = {{CREST} - A {DSL} for Reactive Cyber-Physical Systems},
+    author = {Stefan Klikovits and Alban Linard and Didier Buchs},
+    booktitle = {10th International System Analysis and Modeling Conference (SAM 2018), Copenhagen, Denmark, October 15-16, 2018. Proceedings},
+    year = {2018},
+    pages = {29-45},
+    isbn = {978-3-030-01041-6}
+}
+    </pre>
+</details>
+
+<details>
 <summary>
 Stefan Klikovits, Alban Linard, and Didier Buchs: 
     <b>CREST Formalization</b>. 
@@ -90,10 +124,7 @@ Technical Report. Software Modeling and Verification Group, University of Geneva
                17, 2017.},
   pages     = {286--291},
   year      = {2017},
-  url       = {http://ceur-ws.org/Vol-2019/gemoc\_2.pdf},
-  timestamp = {Tue, 19 Dec 2017 19:54:07 +0100},
-  biburl    = {https://dblp.org/rec/bib/conf/models/KlikovitsLB17},
-  bibsource = {dblp computer science bibliography, https://dblp.org}
+  url       = {http://ceur-ws.org/Vol-2019/gemoc\_2.pdf}
 }
 </pre>
 </details>
