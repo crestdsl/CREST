@@ -116,7 +116,7 @@ class Z3ConditionChangeCalculator(Z3Converter):
         """ test if it's currently (dt == 0) solvable or not """
         solver.push()
         test = self.to_z3(obj.test)
-        solver.add(test)
+        solver.add(z3.And(test))
         solver.add(dt == 0)
         check = solver.check() == z3.sat
         logger.debug(f"The if-test {astor.to_source(obj.test).strip()} at line {obj.test.lineno} is currently {check}")
@@ -130,7 +130,7 @@ class Z3ConditionChangeCalculator(Z3Converter):
         if check:
             solver.add(z3.Not(test))  # currently sat, check if time can make it unsat
         else:  # currently not sat
-            solver.add(test)  # check if time can make it sat
+            solver.add(z3.And(test))  # check if time can make it sat
 
         objective = solver.minimize(dt)  # get the minimum
         if solver.check() == z3.sat:

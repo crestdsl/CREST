@@ -70,7 +70,7 @@ class ConditionTimedChangeCalculator(Z3Calculator):
             return influence_update._cached_contains_if
 
         if not hasattr(influence_update, "_cached_ast"):
-            influence_update._cached_ast = SH.get_ast_body(influence_update.function)
+            influence_update._cached_ast = SH.get_ast_body(influence_update.function, rewrite_if_else=True)
 
         influence_update._cached_contains_if = SH.ast_contains_node(influence_update._cached_ast, ast.If)
         return influence_update._cached_contains_if
