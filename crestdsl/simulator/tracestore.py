@@ -5,17 +5,38 @@ from crestdsl.model import Port, Entity, get_all_ports, get_all_entities, get_st
 import plotly
 import plotly.graph_objs as go
 import matplotlib.pyplot as plt
+import pandas as pd
+import cufflinks as cf
+cf.set_config_file(offline=True, theme='white')
 
 import logging
 logger = logging.getLogger(__name__)
 
 plotly.offline.init_notebook_mode(connected=True)  # don't talk to the plotly server, plot locally within a jupyter notebook
 
+# TODO: rewrite to use Pandas !!!
 
 class TraceStore(object):
 
     def __init__(self):
         self.datastore = dict()
+        self._data = []
+
+    @property
+    def data(self):
+        newData = pd.concat(self._data, ignore_index=True)
+        self._data = [newData]  # make sure we dont' have to cancat this again
+        return newData
+
+    def add_data(self, data):
+        self._data.append(data)
+
+    def save_multiple(self, timestamp, data):
+        for key, val in data.items():
+            self.save(key, timestamp, val)
+
+        data.update({"timestamp": timestamp})
+        self._data.append(pd.DataFrame(data, index=[0]))
 
     def save(self, key, timestamp, value):
         if logger.getEffectiveLevel() <= logging.DEBUG:
@@ -25,13 +46,6 @@ class TraceStore(object):
 
         self.datastore[key].append((timestamp, value))
 
-        # if timestamp not in self.datastore[key]:
-        #     self.datastore[key][timestamp] = []
-        #
-        # # add the new value to the list of values with that timestamp. But only if it's different!!
-        # if self.datastore[key][timestamp] and self.datastore[key][timestamp][-1] != value:
-        #     self.datastore[key][timestamp].append(value)
-
     def save_entity(self, root_entity, timestamp):
         for entity in get_all_entities(root_entity):
             if get_states(entity):
@@ -40,6 +54,14 @@ class TraceStore(object):
 
         for port in get_all_ports(root_entity):
             self.save(port, timestamp, port.value)
+
+        data = {"timestamp": timestamp}
+        data.update({entity: entity.current._name for entity in get_all_entities(root_entity)})
+        data.update({port: port.value for port in get_all_ports(root_entity)})
+        # print(self.data.shape)
+        self._data.append(pd.DataFrame(data, index=[0]))
+        # print(self.data.shape)
+
 
     def plot(self, *args, **kwargs):
         lines = []
