@@ -17,9 +17,10 @@ RUN mkdir /var/lib/apt/lists/partial && \
 
 # install astor and gaphviz
 RUN pip install --no-cache-dir --upgrade pip
-RUN pip install --no-cache-dir plotly
+RUN pip install --no-cache-dir plotly --upgrade
+RUN pip install --no-cache-dir cufflinks --upgrade
 RUN pip install --no-cache-dir --upgrade pip matplotlib
-RUN pip install --no-cache-dir astor graphviz methoddispatch
+RUN pip install --no-cache-dir  --upgrade astor graphviz methoddispatch
 
 # install jupyter extensions
 RUN pip install --no-cache-dir jupyter_contrib_nbextensions
