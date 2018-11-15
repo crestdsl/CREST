@@ -11,16 +11,18 @@ USER root
 # install graphviz and curl
 RUN mkdir /var/lib/apt/lists/partial && \
     apt-get update && \
-    apt-get install -y  --no-install-recommends graphviz curl dvipng && \
+    apt-get install -y  --no-install-recommends graphviz libgraphviz-dev curl dvipng && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 # install astor and gaphviz
 RUN pip install --no-cache-dir --upgrade pip
-RUN pip install --no-cache-dir plotly --upgrade
-RUN pip install --no-cache-dir cufflinks --upgrade
-RUN pip install --no-cache-dir --upgrade pip matplotlib
-RUN pip install --no-cache-dir  --upgrade astor graphviz methoddispatch
+RUN pip install --no-cache-dir --upgrade methoddispatch
+RUN pip install --no-cache-dir --upgrade plotly
+RUN pip install --no-cache-dir --upgrade cufflinks
+RUN pip install --no-cache-dir --upgrade matplotlib
+RUN pip install --no-cache-dir --upgrade astor
+RUN pip install --no-cache-dir --upgrade graphviz pygraphviz
 
 # install jupyter extensions
 RUN pip install --no-cache-dir jupyter_contrib_nbextensions
