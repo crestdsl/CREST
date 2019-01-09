@@ -1,20 +1,21 @@
-from .model import Transition, Influence, Update, Action
+from . import model
+from . import meta
 
 def transition(source="", target=""):
     def decorator(guard):
-        return Transition(source=source, target=target, guard=guard)
+        return model.Transition(source=source, target=target, guard=guard)
     return decorator
 
 
 def influence(source="", target=""):
     def decorator(function=None):
-        return Influence(source=source, target=target, function=function)
+        return model.Influence(source=source, target=target, function=function)
     return decorator
 
 
 def update(*args, **kwargs):
     def _update(func):
-        return Update(func, state=state, target=target)
+        return model.Update(func, state=state, target=target)
     if len(args) == 2 and callable(args[0]):
         # No arguments, this is the decorator
         # Set default values for the arguments
@@ -30,7 +31,7 @@ def update(*args, **kwargs):
 
 def action(*args, **kwargs):
     def _action(func):
-        return Action(func, transition=transition, target=target)
+        return model.Action(func, transition=transition, target=target)
     if len(args) == 2 and callable(args[0]):
         # No arguments, this is the decorator
         # Set default values for the arguments
@@ -42,3 +43,23 @@ def action(*args, **kwargs):
         transition = kwargs["transition"]
         target = kwargs["target"]
         return _action
+
+
+class dependency(object):
+    """
+    This is a class-decorator to state which outputs depend on which inputs,
+    so we can resolve circular dependencies.
+    """
+
+    def __init__(self, source, target):
+        self.source = source
+        self.target = target
+
+    def __call__(self, cls):
+        new_dependency = model.Dependency(self.source, self.target)
+        if hasattr(cls, meta.DEPENDENCY_IDENTIFIER):
+            getattr(cls, meta.DEPENDENCY_IDENTIFIER).append(new_dependency)
+        else:
+            setattr(cls, meta.DEPENDENCY_IDENTIFIER, [new_dependency])
+
+        return cls

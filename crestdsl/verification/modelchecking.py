@@ -1,0 +1,628 @@
+import methoddispatch
+import math
+import copy
+
+from crestdsl.caching import Cache
+
+import crestdsl.model as crest
+from . import checklib
+from . import tctl
+from .reachabilitycalculator import ReachabilityCalculator
+from crestdsl.simulator.simulator import Simulator
+from crestdsl.verification.statespace import StateSpace, SystemState
+
+import logging
+logger = logging.getLogger(__name__)
+
+import operator  # for ordering operators
+order = { operator.eq : 0, operator.ne : 0, operator.le : 1, operator.ge : 1, operator.lt : 2, operator.gt : 2}
+
+
+class SetBasedModelChecker(methoddispatch.SingleDispatch):
+    """
+    This is the one that operates on sets of nodes, rather than on forward-path exploration.
+    Use this one, if you're dealing with infinite intervals on operators,
+    crestKripke structures with loops and large intervals (compared to loop-length),
+    or EG / AG operators.
+
+    This class modifies the CREST Kripke structure to have "representative states" first,
+    then evaluates the formula.
+
+    WARNING: This can be slow for large state spaces!
+    """
+
+    def __init__(self, statespace=None):
+        self.statespace = statespace.copy()  # operate on a copy of the state space
+        self.crestKripke = statespace.copy()  # operate on a copy of the state space
+
+    def make_CREST_kripke(self, formula):
+        with Cache() as c:
+            props = formula.get_propositions()
+            filtered_props = [prop for prop in props if not isinstance(prop, checklib.StateCheck)]  # remove statechecks, they're fine already
+            sorted_props = sorted(props, key=lambda x:order.get(x.operator, 100))
+
+            logger.debug(f"Adapting the CREST Kripke structure for properties in formula:\n {formula}")
+            for prop in sorted_props:
+                logger.debug(f"Expanding for {prop}")
+                stack_of_nodes = list(self.crestKripke.nodes)
+                while len(stack_of_nodes) > 0:
+                    node = stack_of_nodes.pop(0)
+                    logger.debug(f"Analysing node {id(node)}")
+
+                    node.apply()
+
+                    # test if check is satisfiable
+                    current_prop_value = prop.check()
+                    logger.debug(f"Prop value for node {id(node)} is {current_prop_value}")
+
+                    # annotate node with current state
+                    if "crest_props" not in self.crestKripke.nodes[node]:
+                        self.crestKripke.nodes[node]["crest_props"] = dict()
+                    self.crestKripke.nodes[node]["crest_props"][prop] = current_prop_value
+
+                    node_successors = list(self.crestKripke.neighbors(node))
+                    if len(node_successors) <= 0:  # skip because we didn't find any successors
+                        logger.debug(f"Node {id(node)} has no successors. Stop.")
+                        continue
+
+                    max_dt = self.crestKripke[node][node_successors[0]]['weight']
+                    logger.debug(f"Node {id(node)} has ({len(node_successors)}) successors. Their distance is {max_dt}")
+
+                    # find if prop can change
+                    rc = ReachabilityCalculator(self.crestKripke.system)
+                    interval = tctl.Interval()
+                    interval < max_dt
+
+                    if current_prop_value == False:
+                        reachable = rc.isreachable(prop, interval)
+                    else:
+                        reachable = rc.isreachable(checklib.NotCheck(prop), interval)
+
+                    logger.debug(f"Poperty changes value after {reachable} time units.")
+
+                    # prop can change
+                    if reachable is not False:  # it can change
+                        # create a new node, calculate its port values
+                        sim = Simulator(node.system, record_traces=False)
+                        node.apply()
+                        sim.stabilise()
+                        sim.advance(reachable)
+
+                        newnode = SystemState(node.system).save()
+
+                        for succ in node_successors:
+                            self.crestKripke.remove_edge(node, succ)  # remove old edge
+                            self.crestKripke.add_edge(newnode, succ, weight=max_dt-reachable)  # add new edge
+
+                        # connect new node
+                        self.crestKripke.add_edge(node, newnode, weight=reachable)
+
+                        # put new node up for exploration
+                        stack_of_nodes.append(newnode)
+
+        return self.crestKripke
+
+
+    def check(self, formula, systemstate=None):
+        if systemstate is None:
+            systemstate = self.crestKripke.root
+
+        crestKripke = self.make_CREST_kripke(formula)
+
+        sat_set = self.is_satisfiable(crestKripke, formula)
+        return systemstate in sat_set
+
+    """ - - - - - - - - - - - - - - """
+    """ S A T I S F I A B I L I T Y """
+    """ - - - - - - - - - - - - - - """
+
+    @methoddispatch.singledispatch
+    def is_satisfiable(self, crestKripke, formula):
+        msg = f"Don't know how to check satisfiability of objects of type {type(check)}"
+        logger.error(msg)
+        raise ValueError(msg)
+
+    @is_satisfiable.register(bool)
+    def issatisfiable_boolean(self, crestKripke, formula):
+        if formula:
+            return crestKripke.nodes
+        else:
+            return set()
+
+    @is_satisfiable.register(tctl.Not)
+    def issatisfiable_tctlNot(self, crestKripke, formula):
+        return self.is_satisfiable(crestKripke, True) - self.is_satisfiable(crestKripke, formula.phi)
+
+    @is_satisfiable.register(tctl.And)
+    def issatisfiable_tctlAnd(self, crestKripke, formula):
+        subexpressions = []
+        for op in formula.operands:
+            subexpressions.append(self.is_satisfiable(crestKripke, op))
+        return intersection(*subexpressions)
+
+    @is_satisfiable.register(tctl.Or)
+    def issatisfiable_tctlOr(self, crestKripke, formula):
+        subexpressions = []
+        for op in formula.operands:
+            subexpressions.append(self.is_satisfiable(crestKripke, op))
+        return union(*subexpressions)
+
+    @is_satisfiable.register(tctl.AtomicProposition)
+    def issatisfiable_check_atomic(self, crestKripke, formula):
+        """ This one is a check on one particular state, I guess it's not gonna be used often"""
+        logger.debug("is_satisfiable {str(formula)}")
+        systemstate.apply()
+        return formula.check()
+
+    # procedure 3
+    def Sat_EU(self, crestKripke, formula):
+        Q1 = self.is_satisfiable(crestKripke, formula.phi)
+        Q = self.is_satisfiable(crestKripke, formula.psi)
+        Q_pre = union(*[set(crestKripke.predecessors(n)) for n in Q1 - Q])
+
+        while len(Q_pre) > 0:
+            Q = union(Q, Q_pre)
+            Q_pre = union(*[set(crestKripke.predecessors(n)) for n in Q1 - Q])
+
+        return Q
+
+    # procedure 4
+    def Sat_EG(self, crestKripke, formula):
+        Q1 = self.is_satisfiable(crestKripke, formula.phi)
+        Q1_view = nx.subgraph_view(crestKripke, filter_node=(lambda x, Q1=Q1: x in Q1))
+        component_generator = nx.strongly_connected_components(Q1_view)
+        Q = union(*[set(comp) for comp in component_generator])
+
+        Q_pre = union(*[set(crestKripke.predecessors(n)) for n in Q1 - Q])
+
+        while len(Q_pre) > 0:
+            Q = union(Q, Q_pre)
+            Q_pre = union(*[set(crestKripke.predecessors(n)) for n in Q1 - Q])
+
+        return Q
+
+    # procedure 5
+    def Sat_EUb(self, crestKripke, formula):
+        Q1 = self.is_satisfiable(crestKripke, formula.phi)
+        Q2 = self.is_satisfiable(crestKripke, formula.psi)
+        Qu = self.Sat_EU(crestKripke, formula)  # shortcut here
+        T = [ (s, 0) for s in Q2 ]  # create couples
+        TR = [ e for e in crestKripke.edges() ]
+
+        Q = set()
+        while len(T) > 0:
+
+
+
+"""
+When evaluating TCTL formulas on a state of a timed Kripke structure,
+there are several different possibilities:
+        "{" and "}" are placeholders for interval indicators: [ , ] , ( , )
+        maxdt is the time the next state kicks in (i.e. transition)
+
+1) interval is after the next state change
+                  {a,b}
+    ----0-------o--...--o--...
+
+2) interval starts at or after now (>= 0) and ends before maxdt:
+          {a,b}
+    ----0-------o--...--o--...
+3) interval started before now (a < 0 ) and ends before maxdt:
+     {a  ,  b}
+    ----0-------o--...--o--...
+4) interval starts now or a little after, but finishes after this interval (a >= 0, b > maxdt)
+          {a   ,     b}
+    ----0-------o--...--o--...
+5) interval started before now, but finishes after this interval (a < 0, b > maxdt)
+     {a     ,        b}
+    ----0-------o--...--o--...
+"""
+
+class ModelChecker(methoddispatch.SingleDispatch):
+
+    def __init__(self, statespace=None, system=None):
+        assert any([system, statespace]), "The model checker needs to be called with either a system or a crestKripke"
+        self.statespace = statespace.copy()  # operate on a copy of the state space
+        self.crestKripke = statespace.copy()  # operate on a copy of the state space
+
+    """ - - - - - - - - - - - - - - """
+    """ S A T I S F I A B I L I T Y """
+    """ - - - - - - - - - - - - - - """
+
+    @methoddispatch.singledispatch
+    def is_satisfiable(self, check, systemstate=None):
+        msg = "Don't know how to check satisfiability of objects of type {type(check)}"
+        logger.error(msg)
+        raise ValueError(msg)
+
+    @is_satisfiable.register(bool)
+    def issatisfiable_boolean(self, formula, systemstate=None):
+        if systemstate is None:
+            systemstate = self.crestKripke.root
+        return systemstate  # True is always true, False is always false, thus return the state
+
+    @is_satisfiable.register(tctl.Not)
+    def issatisfiable_tctlNot(self, formula, systemstate=None):
+        return not self.is_satisfiable(formula.phi, systemstate)
+
+    @is_satisfiable.register(tctl.And)
+    def issatisfiable_tctlAnd(self, formula, systemstate=None):
+        for op in formula.operands:
+            if not self.is_satisfiable(op):  # early exit
+                return False
+        return True
+
+    @is_satisfiable.register(tctl.Or)
+    def issatisfiable_tctlOr(self, formula, systemstate=None):
+        for op in formula.operands:
+            if self.is_satisfiable(op):  # early exit
+                return True
+        return False
+
+    @is_satisfiable.register(tctl.AtomicProposition)
+    def issatisfiable_check_atomic(self, formula, systemstate=None):
+        """ This one is a check on one particular state, I guess it's not gonna be used often"""
+        logger.debug("is_satisfiable {str(formula)}")
+        systemstate.apply()
+        return formula.check()
+
+    @is_satisfiable.register(tctl.EU)
+    def issatisfiable_checkEU(self, formula, systemstate=None):
+        logger.debug("check {str(formula)}")
+        assert formula.interval.end >= 0, "Cannot check a formula with interval that ends before reaching this state"
+        systemstate = systemstate or self.crestKripke.root  # assert that if not giving a state, the root is taken
+        maxdt = systemstate.max_dt
+
+        # If the formula starts after this period,
+        # then make sure phi is valid for this period,
+        # and check for successors
+        if formula.interval.start >= maxdt:
+            phi_copy = copy.copy(formula.phi)
+            phi_copy_interval = copy.copy(formula.interval)
+            phi_copy_interval <= maxdt
+            if not self.is_valid(phi_copy, systemstate, phi_copy_interval):
+                return False  # 1) phi doesn't hold for this period
+
+            for successor in self.crestKripke.successors(systemstate):
+                successor_formula = copy.copy(formula)
+                successor_formula.interval -= maxdt
+                sat_trace = self.check(successor_formula, successor)
+                if sat_trace is not False:
+                    return [maxdt] + sat_trace  # 2) # the formula holds for a successor state
+            return False  # 3) this means that none of the successors cound satisfy the formula
+
+        """ formula interval starts in this period (or even before) """
+
+        # check if the second formula is reachable within the interval
+        # (or before end of this period if interval is longer than now)
+        reach_psi_here = tctl.EU(True, copy.copy(formula.psi))
+        reach_psi_here.interval = copy.copy(formula.interval)
+        if reach_psi_here.interval.start < 0:  # check only from now onwards
+            reach_psi_here.interval >= 0
+        if reach_psi_here.interval.end >= maxdt:  # only check until the end of this interval (for now)
+            reach_psi_here.interval < maxdt
+
+        psi_sat_here_trace = self.is_satisfiable(reach_psi_here, systemstate)
+
+        if psi_sat_here_trace is False:
+            """
+            psi cannot be satisfied within this period,
+            check if there's more time left,
+            return False if there is none left
+            """
+            if formula.interval.end < maxdt:  # no more time left, we checked everything
+                return False  # 4) this means psi is not satisfiable, thus we return an error
+
+            # if the operator interval continues and formula is not satisfiable here,
+            # assert that phi is valid until next period, try to satisfy in next period
+            phi_copy = copy.copy(formula.phi)
+            phi_copy_interval = copy.copy(formula.interval)
+            phi_copy_interval <= maxdt
+            if not self.is_valid(phi_copy, systemstate, phi_copy_interval):
+                return False  # 5) phi doesn't hold for this period
+
+            # adapt the formula interval (-= maxdt), check on successors
+            for successor in self.crestKripke.successors(systemstate):
+                formula_copy = copy.copy(formula)
+                formula_copy.interval -= maxdt
+                sat_trace = self.check(formula_copy, successor)
+                if sat_trace is not False:
+                    return [maxdt] + sat_trace  # 6)
+            return False  # 7) this means that none of the successors cound satisfy the formula
+
+        """ psi is satisfiable within the interval / this period """
+        phi_valid_interval = tctl.Interval()
+        phi_valid_interval < psi_sat_trace[0]  # assert that the formula is valid before psi becomes valid
+        # phi_valid_formula = tctl.tctl(formula.phi, phi_valid_interval)
+        phi_valid_result = self.is_valid(formula.phi, systemstate, phi_valid_interval)  # is_valid returns True if it's valid, psiwise returns a counter-trace
+
+        # return
+        if True == phi_valid_result:
+            return psi_sat_here_trace  # 8) return the time it takes to advance to the point the formula becomes true
+        else:  # it's not valid until that point, return False
+            return False  # 9)
+
+    @is_satisfiable.register(tctl.AtomicProposition)
+    def issatisfiable_check_atomic(self, formula, systemstate=None, interval=None):
+        logger.debug("is_satisfiable {str(formula)}")
+        assert formula.interval.end >= 0, "Cannot check a formula that ends before reaching this state"
+        if systemstate is None:
+            systemstate = self.crestKripke.root
+        systemstate.apply()
+
+        maxdt = systemstate.max_dt
+        this_ssnode = self.crestKripke.nodes[systemstate]
+
+        """
+        find interval to check for:
+            if start < 0: start >= 0  // cases 3, 5
+            if end > maxdt: end <= maxdt // cases 4, 5
+        """
+        formula_copy = copy.copy(formula)
+        if formula.interval.start < 0:
+            formula_copy.interval >= 0
+        if formula.interval.end >= maxdt:
+            formula_copy.interval < maxdt
+        """
+        if not satisfiable and end > maxdt: recurse and check there
+        else return dt when it's possible
+        """
+        rc = ReachabilityCalculator(self.crestKripke.system)
+        reachable = rc.isreachable(formula_copy) # either it's False or the dt until we reach something
+
+        if reachable is not False: # there is a solution, return it !!
+            return [reachable]
+
+        if formula.interval.ends_before(maxdt):  # no solution, and interval
+            return False
+
+        """ There are successors """
+        recursion_formula = copy.copy(formula)
+        recursion_formula.interval >= 0
+        recursion_formula.interval.end = recursion_formula.interval.end - maxdt
+
+        successor_reachs = []
+        for successor in self.crestKripke.successors(systemstate):
+            recursion_reach = self.is_satisfiable(recursion_formula, successor)
+            if recursion_reach is not False:
+                ret = [maxdt]
+                ret.extend(recursion_reach)
+                return ret
+
+        # at this point we want to return False
+        # because we didn't find any
+        return False
+
+
+    """ - - - - - - - - - - - - """
+    """     V A L I D I T Y     """
+    """ - - - - - - - - - - - - """
+
+    @methoddispatch.singledispatch
+    def is_valid(self, formula, systemstate=None):
+        """
+        is_valid checks a formula and returns True
+        if it's always satisfied within the interval.
+        Otherwise, it returns an example of when it's not satisfied.
+        """
+        msg = "Don't know how to check validity of objects of type {type(check)}"
+        logger.error(msg)
+        raise ValueError(msg)
+        # logger.debug("is_valid {str(formula)}")
+        # if isinstance(formula, check.Check):  # directly invert to a check
+        #     inverted = check.NotCheck(formula)
+        # else:
+        #     inverted = tctl.Not(check_copy)
+        # inverted.interval = copy.copy(formula.interval)
+        #
+        # # returns either the Example example, so we'll return it as counter exmaple
+        # sat = self.is_satisfiable(inverted, systemstate)
+        # if sat is False:
+        #     return True
+        # else:
+        #     return sat
+
+    @is_valid.register(bool)
+    def isvalid_boolean(self, formula, systemstate=None):
+        return formula
+
+    @is_valid.register(tctl.Not)
+    def isvalid_tctlNot(self, formula, systemstate=None):
+        return not self.is_valid(formula.phi, systemstate)
+
+    @is_valid.register(tctl.And)
+    def isvalid_tctlAnd(self, formula, systemstate=None):
+        for op in formula.operands:
+            if not self.is_valid(op):  # early exit
+                return False
+        return True
+
+    @is_valid.register(tctl.And)
+    def isvalid_tctlOr(self, formula, systemstate=None):
+        for op in formula.operands:
+            if self.is_valid(op):  # early exit
+                return True
+        return False
+
+    @methoddispatch.singledispatch
+    def check(self, tctl_formula, systemstate=None):
+        logger.error("Don't know how to model check objects of type {type(check)}")
+
+
+    @check.register(tctl.EU)
+    def check_EU(self, formula, systemstate=None):
+        logger.debug("check {str(formula)}")
+        assert formula.interval.end >= 0, "Cannot check a formula with interval that ends before reaching this state"
+        systemstate = systemstate or self.crestKripke.root  # assert that if not giving a state, the root is taken
+        maxdt = systemstate.max_dt
+
+        """formula interval starts after this period"""
+        if formula.interval.start >= maxdt:
+            # assert that
+            phi_copy = copy.copy(formula.phi)
+            phi_copy.interval <= maxdt
+            if not self.is_valid(phi_copy, systemstate):
+                return False  # 1)
+
+            for successor in self.crestKripke.successors(systemstate):
+                formula_copy = copy.copy(formula)
+                formula_copy.interval -= maxdt
+                sat_trace = self.check(formula_copy, successor)
+                if sat_trace is not False:
+                    return [maxdt] + sat_trace  # 2)
+            return False  # 3) this means that none of the successors cound satisfy the formula
+
+        """ formula interval starts in this period (or even before) """
+
+        # check if the second formula is reachable within the interval
+        # (or before end of this period if interval is longer than now)
+        reach_psi_formula = copy.copy(formula.psi)
+        reach_psi_formula.interval = copy.copy(formula.interval)
+        if reach_psi_formula.interval.start < 0:  # check only from now onwards
+            reach_psi_formula.interval >= 0
+        if reach_psi_formula.interval.end >= maxdt:  # only check until the end of this interval (for now)
+            reach_psi_formula.interval < maxdt
+
+        psi_sat_trace = self.is_satisfiable(reach_psi_formula, systemstate)
+
+        if psi_sat_trace is False:
+            """
+            psi cannot be satisfied within this period,
+            check if there's more time left,
+            return False if there is none left
+            """
+            if formula.interval.end < maxdt:  # no more time left, we checked everything
+                return False  # 4)
+
+            # if the operator interval continues and formula is not satisfiable here,
+            # assert that phi is valid until next period, try to satisfy in next period
+            phi_copy = copy.copy(formula.phi)
+            phi_copy.interval <= maxdt
+            if not self.is_valid(phi_copy, systemstate):
+                return False  # 5)
+
+            # adapt the formula interval (-= maxdt), check on successors
+            for successor in self.crestKripke.successors(systemstate):
+                formula_copy = copy.copy(formula)
+                formula_copy.interval -= maxdt
+                sat_trace = self.check(formula_copy, successor)
+                if sat_trace is not False:
+                    return [maxdt] + sat_trace  # 6)
+            return False  # 7) this means that none of the successors cound satisfy the formula
+
+        """ psi is satisfiable within the interval / this period """
+        phi_valid_interval = tctl.Interval()
+        phi_valid_interval < psi_sat_trace[0]  # assert that the formula is valid
+        phi_valid_formula = tctl.tctl(formula.phi, phi_valid_interval)
+        phi_valid_result = self.is_valid(phi_valid_formula, systemstate)  # is_valid returns True if it's valid, psiwise returns a counter-trace
+
+        # return
+        if True == phi_valid_result:
+            return psi_sat_trace  # 8) return the time it takes to advance to the point the formula becomes true
+        else:  # it's not valid until that point, return False
+            return False  # 9)
+
+
+
+
+
+
+
+
+
+    #
+    # def check_EU(self, formula, systemstate=None):
+    #     if systemstate is None:
+    #         systemstate = self.crestKripke.root
+    #     """
+    #     a EU b means that a is valid now and at least until b becomes valid.
+    #     The interval defines the point in which b should become valid.
+    #
+    #     The following are the possible examples
+    #     phi EU{a,b} psi, where phi and psi are formulas (can be evaluated),
+    #     and "{" and "}" are placeholders for interval delimiters
+    #     (either "[" and "]" or "(" and ")", or a mixture thereof)
+    #     maxdt is the time until the next crestKripke state (i.e. the time where the trasition is continuous)
+    #     """
+    #
+    #     maxdt = systemstate.max_dt
+    #     this_ssnode = self.crestKripke.nodes[systemstate]
+    #     successors = self.crestKripke.successors(systemstate)
+    #
+    #     """
+    #     1) interval starts after this transition's maxdt:
+    #                           {a,b}
+    #             ----0-------o--...--o--...
+    #        - check if phi will hold until maxdt
+    #        - call EU{ a-maxdt, b-maxdt} ; we subtract maxdt from the interval and recurse on the next states
+    #     """
+    #     if formula.starts_at_or_after(maxdt):
+    #         neg_formula = tctl.Not(formula.phi)
+    #         neg_formula < maxdt  # set interval
+    #         if self.is_satisfiable(neg_formula) is not None:  # there is a model available
+    #             return None  # this means that
+    #
+    #         timeshifted_formula = copy.copy(formula)
+    #         timeshifted_formula.start = formula.start - maxdt
+    #         timeshifted_formula.end = formula.end - maxdt
+    #
+    #         # check_EU performs on only one state
+    #         return self.is_satisfiable(timeshifted_formula, successors)
+    #
+    #     """
+    #     2) interval start is >= 0 and ends before maxdt:
+    #                   {a,b}
+    #             ----0-------o--...--o--...
+    #        - assert that there is a value t within the interval, at which psi becomes valid
+    #        - assert that there is no value t' before t where psi becomes valid
+    #     """
+    #     if formula.starts_before(maxdt) and \
+    #         not formula.starts_before(0) and \
+    #         formula.ends_before(maxdt):
+    #
+    #         satisfied_dt = self.is_satisfiable(formula.psi, formula)
+    #         if satisfied_dt:  # returns a minimum dt for when it is reachable
+    #             logger.debug(f"The earliest time psi is valid is at {satisfied_dt}")
+    #             neg_formula = tctl.Not(formula.phi)
+    #             neg_formula < satisfied_dt
+    #             neg_formula_sat_dt = self.is_satisfiable(neg_formula)
+    #             if not neg_formula_sat_dt:
+    #                 return True
+    #             else:
+    #                 logger.debug(f"However, at point dt = {neg_formula_sat_dt} phi is not satisied")
+    #                 return None
+    #         else:
+    #             return None
+    #
+    #
+    #     """
+    #     3) interval started before now (a < 0 ) and ends before maxdt:
+    #               {a,b}
+    #             ----0-------o--...--o--...
+    #        - assert that there is a value t within the interval [0, b}, at which psi becomes valid and phi becomes invalid
+    #        - assert that there is no value t' before t where psi becomes valid
+    #     """
+    #
+    #
+    #     """
+    #     4) interval starts before end, but finishes after (a >= 0, b > maxdt)
+    #                 {a     ,    b}
+    #             ----0-------o--...--o--...
+    #        - check if there's a within the interval {a, maxdt), at which psi becomes valid and phi becomes invalid
+    #        - if such a t exists:
+    #             - assert that there is no value t' before t where psi becomes valid
+    #        - psiwise:
+    #             - assert that there is no t' before maxdt where phi becomes invalid
+    #             - recheck for next state with EU[a, b-maxdt}
+    #     """
+    #
+    #
+    #     systemstate.apply()
+    #     is_valid_now = formula.phi.check()
+    #     if not is_valid_now:  # a EU b
+    #         return False
+    #
+    #
+    #
+    #     systemstate.endstate.apply()
+    #     # is_valid_at_end =

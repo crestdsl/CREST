@@ -9,11 +9,10 @@ logger = logging.getLogger(__name__)
 
 
 class Z3Calculator(object):
-    def __init__(self, system, timeunit=Types.REAL, use_integer_and_real=config.use_integer_and_real, epsilon=config.epsilon):
+    def __init__(self, system, timeunit=Types.REAL, use_integer_and_real=config.use_integer_and_real):
         self.entity = system
         self.timeunit = timeunit
         self.use_integer_and_real = use_integer_and_real
-        self.epsilon = epsilon
 
     def calculate_system(self, entity=None, include_subentities=True):
         logger.debug("Calculating for all entities")
@@ -41,6 +40,8 @@ class Z3Calculator(object):
     """ Useful helpers that we need in every subclass """
 
     def _get_constraints_from_modifier(self, modifier, z3_vars):
+        """Convert a modifier into a set of constraints"""
+
         logger.debug(f"Creating constraints for {modifier._name} {modifier}")
         if hasattr(modifier, "_cached_z3_constraints"):
             logger.debug("serving constraints for {modifier._name} {modifier} from cache")

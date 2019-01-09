@@ -1,10 +1,11 @@
 from crestdsl.model import Influence, get_updates, get_influences, get_transitions, get_path_to_attribute
 import crestdsl.simulator.sourcehelper as SH
 import ast
-from .to_z3 import Z3Converter, get_z3_var, get_z3_value, get_z3_variable, get_minimum_dt_of_several, to_python
-from .z3conditionchangecalculator import Z3ConditionChangeCalculator
+from .to_z3 import Z3Converter, get_z3_var, get_z3_value, get_z3_variable, get_minimum_dt_of_several
+from .z3conditionchangecalculator import Z3ConditionChangeCalculator, get_behaviour_change_dt_from_constraintset
 from .z3calculator import Z3Calculator
 import z3
+from crestdsl.config import to_python, Epsilon
 
 import logging
 import pprint
@@ -25,10 +26,13 @@ class ConditionTimedChangeCalculator(Z3Calculator):
         # logger.debug(str([(e._name, f"{t.source._name} -> {t.target._name} ({name})", dt) for (e, t, name, dt) in system_times]))
 
         if len(system_times) > 0:
-            min_dt = get_minimum_dt_of_several(system_times, self.timeunit, self.epsilon)
+            min_dt_eps = min(system_times, key=(lambda x: x[0]))
+            # min_dt = get_minimum_dt_of_several(system_times, self.timeunit)
             # minimum = min(system_times, key=lambda t: t[3])
-            logger.debug(f"Next behaviour change in: {min_dt}")
-            return min_dt
+            # print(min_dt_eps[2])
+            # print(f"Next behaviour change in: {min_dt}, {min_dt_eps}")
+            logger.debug(f"Next behaviour change in: {min_dt_eps}")
+            return min_dt_eps
         else:
             # this happens if there are no transitions fireable by increasing time only
             return None
@@ -39,25 +43,28 @@ class ConditionTimedChangeCalculator(Z3Calculator):
         for influence in get_influences(entity):
             if self.contains_if_condition(influence):
                 inf_dts = self.get_condition_change_enablers(influence)
-                all_dts.append(inf_dts)
+                if inf_dts is not None:
+                    all_dts.append(inf_dts)
 
         # updates = [up for up in get_updates(self.entity) if up.state == up._parent.current]
         for update in get_updates(entity):
             if update.state is update._parent.current:  # only the currently active updates
                 if self.contains_if_condition(update):
                     up_dts = self.get_condition_change_enablers(update)
-                    all_dts.append(up_dts)
+                    if up_dts is not None:
+                        all_dts.append(up_dts)
 
         # TODO: check for transitions whether they can be done by time only
         for name, trans in get_transitions(entity, as_dict=True).items():
             if entity.current is trans.source:
                 trans_dts = self.get_transition_time(trans)
-                all_dts.append(trans_dts)
+                if trans_dts is not None:
+                    all_dts.append(trans_dts)
 
         if logger.getEffectiveLevel() <= logging.DEBUG:
             # XXX the code below makes CREST slow
             # We should only run it in debug mode, then we might as well return the smallest time
-            min_dt = get_minimum_dt_of_several(all_dts, self.timeunit, self.epsilon)
+            min_dt = get_minimum_dt_of_several(all_dts, self.timeunit)
             if min_dt is not None:
                 logger.debug(f"Minimum behaviour change time for entity {entity._name} ({entity.__class__.__name__}) is {min_dt}")
             return [min_dt]  # return a list
@@ -118,12 +125,17 @@ class ConditionTimedChangeCalculator(Z3Calculator):
 
         solver.push()
 
-        conv = Z3ConditionChangeCalculator(z3_vars, entity=influence_update._parent, container=influence_update, use_integer_and_real=self.use_integer_and_real)
-        conv.set_solver(solver)
-        min_dt = conv.get_min_behaviour_change_dt(influence_update.function)
+        if not hasattr(influence_update, "_cached_z3_behaviour_change_constraints"):
+            conv = Z3ConditionChangeCalculator(z3_vars, entity=influence_update._parent, container=influence_update, use_integer_and_real=self.use_integer_and_real)
+            influence_update._cached_z3_behaviour_change_constraints = conv.calculate_constraints(influence_update.function)
+
+        constraints = influence_update._cached_z3_behaviour_change_constraints
+        min_dt = get_behaviour_change_dt_from_constraintset(solver, constraints, z3_vars['dt'])
         if min_dt is not None:
             logger.info(f"Minimum condition change times in '{influence_update._name}' in entity '{influence_update._parent._name}' ({influence_update._parent.__class__.__name__}) is {min_dt}")
-        return (min_dt, influence_update)
+            return (to_python(min_dt), influence_update)
+        else:
+            return None
 
     def get_transition_time(self, transition):
         """
@@ -174,7 +186,9 @@ class ConditionTimedChangeCalculator(Z3Calculator):
         if solver.check() == z3.sat:
             if logger.getEffectiveLevel() <= logging.INFO:
                 logger.info(f"Minimum time to enable transition '{transition._name}' in entity '{transition._parent._name}' ({transition._parent.__class__.__name__}) will be enabled in {to_python(objective.value())}")
-            return (objective.value(), transition)
+            # return (objective.value(), transition, as_epsilon_expr)
+            inf_coeff, numeric_coeff, eps_coeff = objective.lower_values()
+            return (Epsilon(numeric_coeff, eps_coeff), transition)
         elif check == z3.unknown:
             if logger.getEffectiveLevel() <= logging.WARNING:
                 logger.warning(f"The calculation of the minimum transition time for '{transition._name}' in entity '{transition._parent._name}' ({transition._parent.__class__.__name__}) was UNKNOWN. This usually happening in the presence of non-linear constraints. Do we have any?")
@@ -185,7 +199,7 @@ class ConditionTimedChangeCalculator(Z3Calculator):
                 min_dt = std_solver.model()[z3_vars['dt']]
                 if logger.getEffectiveLevel() <= logging.INFO:
                     logger.info(f"We did get a solution using the standard solver though: {to_python(min_dt)} Assuming that this is the smallest solution. CAREFUL THIS MIGHT BE WRONG (especially when the transition is an inequality constraint)!!!")
-                return (min_dt, transition)
+                return (to_python(min_dt), transition)
             elif std_solver_check == z3.unknown:
                 logger.error(f"The standard solver was also not able to decide if there is a solution or not. The constraints are too hard!!!")
                 return None

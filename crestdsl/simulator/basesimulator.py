@@ -5,7 +5,9 @@ from crestdsl.model import get_all_entities, get_all_ports, REAL, \
     get_inputs, get_outputs, get_sources, get_locals
 from .transitiontime import TransitionTimeCalculator
 from .conditiontimedchangecalculator import ConditionTimedChangeCalculator
-from .to_z3 import to_python, evaluate_to_bool
+from .to_z3 import evaluate_to_bool
+from crestdsl.config import to_python, Epsilon
+
 import random
 
 
@@ -15,8 +17,8 @@ logger = logging.getLogger(__name__)
 
 class BaseSimulator(object):
 
-    def __init__(self, entity, time=0, timeunit=REAL, plotter=config.default_plotter, default_to_integer_real=config.use_integer_and_real, record_traces=config.record_traces):
-        self.system = entity
+    def __init__(self, system, time=0, timeunit=REAL, plotter=config.default_plotter, default_to_integer_real=config.use_integer_and_real, record_traces=config.record_traces):
+        self.system = system
         self.timeunit = timeunit
         self.plotter = plotter
         self._global_time = time
@@ -25,8 +27,12 @@ class BaseSimulator(object):
         self.record_traces = record_traces
 
         # go ahead and save the values right away
+        self.save_trace()
+
+    def save_trace(self):
         if self.record_traces:
             self.traces.save_entity(self.system, self.global_time)
+
 
     @property
     def global_time(self):
@@ -56,12 +62,6 @@ class BaseSimulator(object):
             return self.plotter.plot(entity, name=title, **kwargs)
         else:
             logger.error("No plotter defined!!!")
-
-    def plot_traces(self, *args, **kwargs):
-        if not self.record_traces:
-            logger.error("Tracing was not activated for this simulator")
-            return
-        self.traces.plot(*args, **kwargs)
 
     """ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - """
     """ set values """
@@ -146,14 +146,17 @@ class BaseSimulator(object):
 
     """ Transitions """
 
-    def transition(self, entity):
+    def transition(self, entity, transition=None):
         logger.debug("transitions in entity %s (%s)", entity._name, entity.__class__.__name__)
         transitions_from_current_state = [t for t in get_transitions(entity) if t.source is entity.current]
         enabled_transitions = [t for t in transitions_from_current_state if self._get_transition_guard_value(t)]
 
-        transition = None
         if len(enabled_transitions) >= 1:
-            transition = random.choice(enabled_transitions)
+            if transition is None:  # if we didn't specify one, choose one randomly
+                transition = random.choice(enabled_transitions)
+            else:
+                assert transition in enabled_transitions, "The transition that was chosen to be fired is not enabled."
+
             entity.current = transition.target
             logger.info(f"Time: {self.global_time} | Firing transition <<{transition._name}>> in {entity._name} ({entity.__class__.__name__}) : {transition.source._name} -> {transition.target._name}  | current global time: {self.global_time}")
 
@@ -414,6 +417,8 @@ class BaseSimulator(object):
     #     # return (len(changes) > 0)
 
     def _get_update_function_value(self, update, time):
+        if isinstance(time, Epsilon):
+            time = time.to_number()
         return update.function(update._parent, time)
 
     def _get_action_function_value(self, action):
@@ -457,9 +462,7 @@ class BaseSimulator(object):
 
     """ advance """
     def advance_rec(self, t, consider_behaviour_changes=config.consider_behaviour_changes):
-        # save traces
-        if self.record_traces:
-            self.traces.save_entity(self.system, self.global_time)
+        self.save_trace()
 
         logger.info(f"Received instructions to advance {t} time steps. (Current global time: {self.global_time})")
         logger.debug("starting advance of %s time units. (global time now: %s)", t, self.global_time)
@@ -482,9 +485,7 @@ class BaseSimulator(object):
             # stabilise the system
             self._stabilise_fp(self.system)
 
-            # record those traces
-            if self.record_traces:
-                self.traces.save_entity(self.system, self.global_time)
+            self.save_trace()
             return
 
         # ntt = next_trans[0]
@@ -506,9 +507,7 @@ class BaseSimulator(object):
             self.advance_rec(t - ntt, consider_behaviour_changes)
             logger.debug(f"finished total advance of {t} (time is now {self.global_time})")
 
-        # record those traces
-        if self.record_traces:
-            self.traces.save_entity(self.system, self.global_time)
+        self.save_trace()
 
     """ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - """
 
@@ -531,8 +530,7 @@ class BaseSimulator(object):
 
     # def advance_behaviour_change(self, t):
     #     # save traces
-    #     if self.record_traces:
-    #         self.traces.save_entity(self.system, self.global_time)
+    #     self.save_trace()
     #
     #     logger.info(f"Received instructions to advance {t} time steps. (Current global time: {self.global_time})")
     #     logger.debug("starting advance of %s time units. (global time now: %s)", t, self.global_time)
@@ -553,8 +551,7 @@ class BaseSimulator(object):
     #         self.global_time += t
     #
     #         # record those traces
-    #         if self.record_traces:
-    #             self.traces.save_entity(self.system, self.global_time)
+    #         self.save_trace()
     #         return
     #
     #     ntt = to_python(next_trans[0])
@@ -574,8 +571,7 @@ class BaseSimulator(object):
     #         logger.debug(f"finished total advance of {t} (time is now {self.global_time})")
     #
     #     # record those traces
-    #     if self.record_traces:
-    #         self.traces.save_entity(self.system, self.global_time)
+    #     self.save_trace()
 
     def next_behaviour_change_time(self):
         """ this function is a convenience for debugging, so we don't have to create a TransitionTimeCalculator manually """
@@ -585,3 +581,18 @@ class BaseSimulator(object):
         else:
             logger.info("There is no behaviour change reachable by time advance.")
         return nbct
+
+    def advance_to_behaviour_change(self, consider_behaviour_changes=config.consider_behaviour_changes):
+        if consider_behaviour_changes:
+            nbct = self.next_behaviour_change_time()
+        else:
+            nbct = self.next_transition_time()
+
+        if nbct is None:  # no behaviour change and no next transition through time advance
+            return
+
+        dt = to_python(nbct[0])
+        if dt > 0:
+            return self.advance(dt)
+        else:
+            return self.stabilise()

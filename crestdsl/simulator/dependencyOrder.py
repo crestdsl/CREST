@@ -1,7 +1,7 @@
 import networkx as nx
 import crestdsl.simulator.sourcehelper as SH
 from crestdsl.model import get_inputs, get_outputs, get_sources, get_targets, \
-    get_influences, get_entities, get_updates
+    get_influences, get_entities, get_updates, get_dependencies
 
 
 def entity_modifier_graph(entity):
@@ -44,12 +44,18 @@ def entity_modifier_graph(entity):
                     DG.add_edge(id(accessed), id(update))
 
     for subentity in get_entities(entity):
+        dependencies = get_dependencies(subentity)
         DG.add_node(id(subentity), modifier=subentity)
 
-        for _in in get_inputs(subentity):
-            DG.add_edge(id(_in), id(subentity))
-        for _out in get_outputs(subentity):
-            DG.add_edge(id(subentity), id(_out))
+        if dependencies is not None:
+            for dep in dependencies:
+                DG.add_edge(id(dep.source), id(subentity))
+                DG.add_edge(id(subentity), id(dep.target))
+        else:
+            for _in in get_inputs(subentity):
+                DG.add_edge(id(_in), id(subentity))
+            for _out in get_outputs(subentity):
+                DG.add_edge(id(subentity), id(_out))
 
     return DG
 
@@ -68,7 +74,12 @@ def get_entity_modifiers_in_dependency_order(entity):
     # relabeled = nx.relabel_nodes(DG, {id(node): f"{node._parent._name}.{node._name}" for node in nodelist})
     # nx.draw(relabeled, with_labels=True, font_weight='bold')
 
-    assert nx.is_directed_acyclic_graph(DG), "The dependency graph is not acyclic!"
+    if not nx.is_directed_acyclic_graph(DG):
+        for cycle in nx.simple_cycles(DG):
+            nodes = [[f"{k}: {v._name} ({v._parent._name})" for (k, v) in DG.nodes[n].items()] for n in cycle]
+            flat_list = [item for sublist in nodes for item in sublist]
+            print(flat_list)
+        assert False, "The dependency graph is not acyclic!"
 
     topo_list = list(nx.topological_sort(DG))
     # topo_port_list = [DG.node[node]['port'] for node in topo_list]

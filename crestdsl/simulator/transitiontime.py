@@ -20,7 +20,7 @@ class TransitionTimeCalculator(ConditionTimedChangeCalculator):
         logger.debug(str([(e._name, f"{t.source._name} -> {t.target._name} ({name})", dt) for (e, t, name, dt) in system_times]))
 
         if len(system_times) > 0:
-            min_dt = get_minimum_dt_of_several([t[3] for t in system_times], self.timeunit, self.epsilon)
+            min_dt = get_minimum_dt_of_several([t[3] for t in system_times], self.timeunit)
             # minimum = min(system_times, key=lambda t: t[3])
             if logger.getEffectiveLevel() <= logging.DEBUG:
                 logger.debug("Next transition in: {min_dt}")

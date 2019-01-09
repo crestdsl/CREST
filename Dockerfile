@@ -22,6 +22,7 @@ RUN pip install --no-cache-dir --upgrade plotly
 RUN pip install --no-cache-dir --upgrade cufflinks
 RUN pip install --no-cache-dir --upgrade matplotlib
 RUN pip install --no-cache-dir --upgrade astor
+RUN pip install --no-cache-dir --upgrade pwlf
 RUN pip install --no-cache-dir --upgrade graphviz pygraphviz
 
 # install jupyter extensions

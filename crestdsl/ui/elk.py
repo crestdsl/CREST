@@ -20,7 +20,7 @@ def plot(object_to_plot, name='', **kwargs):
         full = htmlcontent.replace('ELKGRAPH', str(elkgraph))
         full = full.replace("\"", "&quot;")
         inIframe = """
-    <iframe id="iframe_IFRAME_ID" width="100%" height="25px" id="map" srcdoc="
+    <iframe id="iframe_IFRAME_ID" style="border:none;padding:0px;" width="100%" height="25px" id="map" srcdoc="
     PAGE
     " />
     """.replace("PAGE", full).replace("IFRAME_ID", str(uuid.uuid4()))
@@ -126,57 +126,42 @@ def gen_State(obj, name="", parent=None, **kwargs):
     return node
 
 
-@generate.register(Model.Local)
-def gen_Local(obj, name='', parent=None, **kwargs):
+@generate.register(Model.Port)
+def gen_Port(obj, name='', parent=None, **kwargs):
+    value = obj.value if obj.value is not None else "???"
+    unit = obj.resource.unit if obj.resource is not None else "???"
+
     node = {'id': str(id(obj)),
-            'label': {'label': f"{name}<br />{obj.value} ({obj.resource.unit})",
-                      'text': f'<h3>{name}</h3><p>{obj.value} ({obj.resource.unit})</p>'
+            'label': {'label': f"{name}" +
+                      (f"<br />{value} ({unit})" if obj.value is not None and obj.resource is not None else ""),
+                      'text': f'<h3>{name}</h3>' +
+                      (f'<p>{value} ({unit})</p>' if (obj.value is not None and obj.resource is not None) else ""),
                       },
             'width': 75, 'height': 30,
-            'cresttype': 'local'
+            'cresttype': obj.__class__.__name__.lower()
             }
-    return node
 
-
-@generate.register(Model.Input)
-def gen_Input(obj, name='', parent=None, **kwargs):
-    node = {'id': str(id(obj)),
-            'label': {'label': f"{name}<br />{obj.value} ({obj.resource.unit})",
-                      'text': f'<h3>{name}</h3><p>{obj.value} ({obj.resource.unit})</p>'
-                      },
-            'width': 75, 'height': 30,
-            'cresttype': 'input'
-            }
-    return node
-
-
-@generate.register(Model.Output)
-def gen_Output(obj, name='', parent=None, **kwargs):
-    node = {'id': str(id(obj)),
-            'label': {'label': f"{name}<br />{obj.value} ({obj.resource.unit})",
-                      'text': f'<h3>{name}</h3><p>{obj.value} ({obj.resource.unit})</p>'
-                      },
-            'width': 75, 'height': 30,
-            'cresttype': 'output'
-            }
     return node
 
 
 @generate.register(Model.Transition)
 def gen_Transition(obj, name='', parent=None, **kwargs):
-    sourcecode = SH.getsource(obj.guard).replace('"', '\"')
-    edge = {
-        'id': str(id(obj)),
-        'label': {'label': name,
-                  'text': f'<h3>{name}</h3><h4>from state {obj.source._name} --> to state {obj.target._name}</h4>',
-                  'code': f'<pre style="font-size:1.2em;"><code class=\"python\">{sourcecode}</code></pre>'
-                  },
-        'sources': [str(id(obj.source))],
-        'targets': [str(id(obj.target))],
-        'cresttype': 'transition'
-    }
-
-    return [edge]  # [edge_start, edge_end]  # edge
+    try:
+        sourcecode = SH.getsource(obj.guard).replace('"', '\"')
+        edge = {
+            'id': str(id(obj)),
+            'label': {'label': name,
+                      'text': f'<h3>{name}</h3><h4>from state {obj.source._name} --> to state {obj.target._name}</h4>',
+                      'code': f'<pre style="font-size:1.2em;"><code class=\"python\">{sourcecode}</code></pre>'
+                      },
+            'sources': [str(id(obj.source))],
+            'targets': [str(id(obj.target))],
+            'cresttype': 'transition'
+        }
+        return [edge]  # [edge_start, edge_end]  # edge
+    except:
+        import pdb; pdb.set_trace()
+        pass
 
 
 @generate.register(Model.Influence)
@@ -206,17 +191,22 @@ def gen_Update(obj, name='', parent=None, **kwargs):
     #     }
     #     return edge
     #     edges.append(edge)
-    sourcecode = SH.getsource(obj.function).replace('"', '\"')
-    return [{
-        'id': str(id(obj)),
-        'label': {'label': name,
-                  'text': f'<h3>{name}</h3><h4>state {obj.state._name} --> writes port {obj.target._parent._name}.{obj.target._name}</h4>',
-                  'code': f'<pre style="font-size:1.2em;"><code class=\"python\">{sourcecode}</code></pre>'
-                  },
-        'sources': [str(id(obj.state))],
-        'targets': [str(id(obj.target))],
-        'cresttype': 'update'
-    }]
+    try:
+        sourcecode = SH.getsource(obj.function).replace('"', '\"')
+        return [{
+            'id': str(id(obj)),
+            'label': {'label': name,
+                      'text': f'<h3>{name}</h3><h4>state {obj.state._name} --> writes port {obj.target._parent._name}.{obj.target._name}</h4>',
+                      'code': f'<pre style="font-size:1.2em;"><code class=\"python\">{sourcecode}</code></pre>'
+                      },
+            'sources': [str(id(obj.state))],
+            'targets': [str(id(obj.target))],
+            'cresttype': 'update'
+        }]
+    except Exception as e:
+        print(e.message, e.args)
+        import pdb; pdb.set_trace()
+        pass
 
 
 @generate.register(Model.Action)

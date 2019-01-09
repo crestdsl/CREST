@@ -12,8 +12,6 @@ cf.set_config_file(offline=True, theme='white')
 import logging
 logger = logging.getLogger(__name__)
 
-plotly.offline.init_notebook_mode(connected=True)  # don't talk to the plotly server, plot locally within a jupyter notebook
-
 # TODO: rewrite to use Pandas !!!
 
 class TraceStore(object):
@@ -56,7 +54,7 @@ class TraceStore(object):
             self.save(port, timestamp, port.value)
 
         data = {"timestamp": timestamp}
-        data.update({entity: entity.current._name for entity in get_all_entities(root_entity)})
+        data.update({entity: entity.current for entity in get_all_entities(root_entity)})
         data.update({port: port.value for port in get_all_ports(root_entity)})
         # print(self.data.shape)
         self._data.append(pd.DataFrame(data, index=[0]))
@@ -64,6 +62,7 @@ class TraceStore(object):
 
 
     def plot(self, *args, **kwargs):
+        plotly.offline.init_notebook_mode(connected=True)  # don't talk to the plotly server, plot locally within a jupyter notebook
         lines = []
 
         lists = [arg for arg in args if isinstance(arg, list)]

@@ -1,7 +1,7 @@
-from crestdsl.config import config
-from crestdsl.model import get_targets, get_inputs, \
-    Influence, Update, Entity
-from .to_z3 import to_python, evaluate_to_bool
+from crestdsl.config import config, to_python
+from crestdsl.model import get_targets, get_sources, get_inputs, \
+    Influence, Update, Entity, Transition
+from .to_z3 import evaluate_to_bool
 from .basesimulator import BaseSimulator
 import crestdsl.simulator.dependencyOrder as DO
 
@@ -14,6 +14,18 @@ class Simulator(BaseSimulator):
     def set_values(self, port_value_map):
         self._value_change(port_value_map)
         self.stabilise()
+
+    def fire(self, transition, entity=None):
+        """Manually selects a transition to be fired."""
+        assert isinstance(transition, Transition), "transition is not a Transition object"
+        assert self._get_transition_guard_value(transition)
+        if not entity:
+            entity = self.system
+
+        self.transition(entity, transition)
+
+    def is_enabled(self, transition):
+        return self._get_transition_guard_value(transition)
 
     def stablilize(self):
         """ allow US spelling """
@@ -32,10 +44,14 @@ class Simulator(BaseSimulator):
 
     def advance_and_stabilise(self, entity, time):
         logger.debug(f"Time: {self.global_time} | Advancing {time} and stabilising entity {entity._name} ({entity.__class__.__name__})")
+        # save targets
+        target_values = {p: p.value for p in get_targets(entity)}
         for port in get_targets(entity):  # + get_targets(entity):
             port.pre = port.value
 
-        for mod in DO.get_entity_modifiers_in_dependency_order(entity):
+        ordered_modifiers = DO.get_entity_modifiers_in_dependency_order(entity)
+        logger.debug(f"Execution order of dependencies in {entity._name}: {[mod._name for mod in ordered_modifiers]}")
+        for mod in ordered_modifiers:
             if isinstance(mod, Influence):
                 logger.debug(f"Time: {self.global_time} | Triggering influence {mod._name} in entity {entity._name} ({entity.__class__.__name__})")
                 newval = self._get_influence_function_value(mod)
@@ -53,9 +69,9 @@ class Simulator(BaseSimulator):
 
         # save traces before transitioning (so we know where we've been)
         if self.record_traces:
-            for port in get_targets(entity):
-                self.traces.save(port, self.global_time, port.value)
-            self.traces.save(entity, self.global_time, entity.current)
+            data = {port: port.value for port in get_targets(entity)}
+            data.update({entity: entity.current})
+            self.traces.save_multiple(self.global_time, data)
 
         # set pre again, for the actions that are triggered after the transitions
         for port in get_targets(entity):  # + get_targets(entity):
@@ -64,14 +80,25 @@ class Simulator(BaseSimulator):
         if self.transition(entity):
             self.advance_and_stabilise(entity, 0)  # we already advanced time-wise, but now make sure that we're stable (only if we fired a transition...)
 
+        # if change in any value of the targets (subentity inputs, etc.) then recurse
+        value_changed = False
+        for p in get_targets(entity):
+            if p.value != target_values[p]:  # I hope the get_targets here is correct
+                value_changed = True
+                logger.debug(f"The target value of port '{p._name}' in entity '{p._parent._name}' changed from {target_values[p]} to {p.value}")
+
+        # TODO: This is a performance loss if we do it for EVERY changed value, we should do some form of smart analysis!
+        if value_changed:
+            logger.debug(f"Stabilise '{entity._name}' ({entity.__class__.__name__}) again. Some values changed and we might have an indirect feedback loop.")
+            self.advance_and_stabilise(entity, 0)
+
         logger.debug(f"Finished advancing {time} and stabilising entity {entity._name} ({entity.__class__.__name__})")
         return True
 
     """ advance """
+
     def advance_rec(self, t, consider_behaviour_changes=config.consider_behaviour_changes):
-        # save traces
-        if self.record_traces:
-            self.traces.save_entity(self.system, self.global_time)
+        self.save_trace()
 
         logger.info(f"Time: {self.global_time} | Received instructions to advance {t} time steps. (Current global time: {self.global_time})")
         logger.debug(f"Time: {self.global_time} | starting advance of {t} time units.")
@@ -93,11 +120,11 @@ class Simulator(BaseSimulator):
         ntt = to_python(next_trans[0])
         if evaluate_to_bool(ntt >= t):
             if logger.getEffectiveLevel() <= logging.INFO:
-                logger.info(f"Time: {self.global_time} | Next transition in {ntt}. That's ntt >= t, hence just advancing.)")
+                logger.info(f"Time: {self.global_time} | Next behaviour change in {ntt}. That's ntt >= t, hence just advancing.)")
             return self._actually_advance(t, logging.INFO)
         else:
             if logger.getEffectiveLevel() <= logging.INFO:
-                logger.info(f"Time: {self.global_time} | The next transition is in {ntt} time units. Advancing that first, then the rest of the {t}.")
+                logger.info(f"Time: {self.global_time} | The next behaviour change is in {ntt} time units. Advancing that first, then the rest of the {t}.")
 
             if not self._actually_advance(ntt, logging.INFO):  # no recursion, but inlined for higher performance (avoids re-calculating ntt one level down)
                 return False  # this means that we had an eror, just drop out here
@@ -125,8 +152,5 @@ class Simulator(BaseSimulator):
         if logger.getEffectiveLevel() <= loglevel:
             logger.log(loglevel, f"Time: {self.global_time} | Finished advance and update of system")
 
-        # record those traces
-        if self.record_traces:
-            self.traces.save_entity(self.system, self.global_time)
-
+        self.save_trace()
         return return_value

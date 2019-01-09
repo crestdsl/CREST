@@ -1,0 +1,297 @@
+<html>
+<head>
+
+    <!-- Sets the basepath for the library if not in same directory -->
+    <script type="text/javascript">mxBasePath = "./mxgraph/javascript/src"</script>
+    <!-- Loads and initializes the library -->
+    <script type="text/javascript" src="./mxgraph/javascript/src/js/mxClient.js"></script>
+
+    <!-- ELK-JS -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/elkjs@0.3.0/lib/elk.bundled.js"></script>
+
+    <script type="text/javascript">
+        console.log("knownLayoutOptions", new ELK().knownLayoutOptions());
+        console.log("knownLayoutAlgorithms", new ELK().knownLayoutAlgorithms());
+        console.log("knownLayoutCategories", new ELK().knownLayoutCategories());
+
+        function main(){
+            const elk = new ELK({
+                defaultLayoutOptions: {
+                    'elk.algorithm': 'layered',
+                    'elk.direction': 'RIGHT',
+                    'elk.padding': '[top=50,left=50,bottom=50,right=50]',
+                    // 'elk.spacing.componentComponent': 25,
+                    'elk.layered.spacing.nodeNodeBetweenLayers': 50,
+                    // 'elk.edgeLabels.inline': true,
+                    'elk.edgeRouting': 'POLYLINE',
+                    'elk.layered.unnecessaryBendpoints': true
+                    }
+                });
+
+            elkgraph = {
+               'id': 'root',
+               'children': [{
+                  'id':'n72',
+                  'children':[
+                     { 'id':'n96', 'width':50, 'height':80 },
+                     { 'id':'n64', 'width':50, 'height':50 }
+                  ],
+                  'ports':[
+                     { 'id':'p84', 'width':50, 'height':20 },
+                  ],
+                  'edges':[
+                     { 'id':'e08', 'sources':[ 'n96' ], 'targets':[ 'n64' ] },
+                     { 'id':'e12', 'sources':[ 'e08' ], 'targets':[ 'p84' ] }
+                  ]
+               }]
+            }
+            console.log(elkgraph)
+
+            elk.layout(elkgraph)
+                .then(function(g){
+                    console.log(g);
+                    plot(g);
+                });
+        }
+
+    function addRec(graph, parent, elknode){
+        let root = addNode(graph, parent, elknode);
+
+        if(elknode.children){
+            elknode.children.forEach(function(child){
+                addRec(graph, root, child);
+            });
+        }
+
+        if(elknode.ports){
+            elknode.ports.forEach(function(port){
+                addRec(graph, root, port);
+            });
+        }
+
+        if(elknode.edges){
+            elknode.edges.forEach(function(edge){
+                addEdge(graph, root, edge);
+            });
+        }
+    }
+
+    function addNode(graph, parent, elknode){
+        let style = elknode.cresttype;
+        if(elknode.cresttype == "state" && elknode.currentstate){
+            style = "currentstate";
+        }
+        // TODO: we need to be aware that the height of an entity needs to be X pixels higher
+        // and that we also need to displace all x coordinates by that much
+        let vertex = graph.insertVertex(parent, elknode.id, elknode.label, elknode.x, elknode.y, elknode.width, elknode.height, style);
+        return vertex;
+    }
+
+    function addEdge(graph, parent, elknode){
+        let style = elknode.cresttype;
+        let source = graph.getModel().getCell(elknode.sources[0]);
+        let target = graph.getModel().getCell(elknode.targets[0]);
+        let edge = graph.insertEdge(parent, elknode.id, elknode.label, source, target, style);
+        var points = edge.geometry.points || []; // read original
+
+        // points.push(new mxPoint(step33.geometry.x + step33.geometry.width / 2 + 20,
+		// 						step11.geometry.y + step11.geometry.height * 4 / 5)];)
+        if(elknode.sections && elknode.sections.length > 0){
+            section = elknode.sections[0];
+            // points.push(new mxPoint(section.startPoint.x, section.startPoint.y));
+            if(section.bendPoints){
+                for(let i = 0; i < section.bendPoints.length; i++){
+                    points.push(new mxPoint(section.bendPoints[i].x, section.bendPoints[i].y));
+                }
+            }
+            points.push(new mxPoint(section.endPoint.x, section.endPoint.y));
+        }
+
+        edge.geometry.points = points;  // write back
+    }
+
+    function showModalWindow(graph, evt, title, content, width, height) {
+        var background = document.createElement('div');
+        background.style.position = 'absolute';
+        background.style.left = '0px';
+        background.style.top = '0px';
+        background.style.right = '0px';
+        background.style.bottom = '0px';
+        background.style.background = 'black';
+        mxUtils.setOpacity(background, 50);
+        document.body.appendChild(background);
+
+        if (mxClient.IS_IE) {
+            new mxDivResizer(background);
+        }
+
+        var x = Math.max(0, evt.offsetX-width/2); //document.body.scrollWidth/2-width/2);
+        var y = Math.max(10, evt.offsetY); //-height*2/3); //(document.body.scrollHeight ||
+            //document.documentElement.scrollHeight)/2-height*2/3);
+        var wnd = new mxWindow(title, content, x, y, width, height, false, true);
+        wnd.setClosable(true);
+
+        // Fades the background out after after the window has been closed
+        wnd.addListener(mxEvent.DESTROY, function(evt) {
+            graph.setEnabled(true);
+            mxEffects.fadeOut(background, 50, true, 10, 30, true);
+        });
+
+        graph.setEnabled(false);
+        graph.tooltipHandler.hide();
+        wnd.setVisible(true);
+    };
+
+
+    function setStyles(graph){
+
+        // ENTITY
+        style = graph.getStylesheet().getDefaultVertexStyle();
+        style = mxUtils.clone(style);
+        style[mxConstants.STYLE_SHAPE] = mxConstants.SHAPE_SWIMLANE;
+        // style[mxConstants.DEFAULT_STARTSIZE] = 10;
+        // style[mxConstants.STYLE_LABEL_WIDTH] = 70;
+        graph.getStylesheet().putCellStyle('entity', style);
+
+        // port style
+        style = graph.getStylesheet().getDefaultVertexStyle();
+        style = mxUtils.clone(style);
+
+            // inputs
+        style[mxConstants.STYLE_FILLCOLOR] = "#b5fed9";
+        graph.getStylesheet().putCellStyle('input', style);
+            // Local
+        style = mxUtils.clone(style);
+        style[mxConstants.STYLE_FILLCOLOR] = "#d2ceef";
+        graph.getStylesheet().putCellStyle('local', style);
+            // output
+        style = mxUtils.clone(style);
+        style[mxConstants.STYLE_FILLCOLOR] = "#fcc5b3";
+        graph.getStylesheet().putCellStyle('output', style);
+
+
+        // STATE
+        style = graph.getStylesheet().getDefaultVertexStyle();
+        style = mxUtils.clone(style);
+        style[mxConstants.STYLE_SHAPE] = mxConstants.SHAPE_ELLIPSE;
+        style[mxConstants.STYLE_FILLCOLOR] = "#e2cbc1";
+        graph.getStylesheet().putCellStyle('state', style);
+
+            // currentstate
+        style = mxUtils.clone(style);
+        style[mxConstants.STYLE_SHAPE] = mxConstants.SHAPE_DOUBLE_ELLIPSE;
+        graph.getStylesheet().putCellStyle('currentstate', style);
+
+
+        // EDGES
+        style = graph.getStylesheet().getDefaultEdgeStyle();
+        style[mxConstants.STYLE_CURVED] = 1;
+        style[mxConstants.STYLE_FONTCOLOR] = 'black';
+        style[mxConstants.STYLE_STROKECOLOR] = 'black';
+        style = mxUtils.clone(style);
+        style[mxConstants.STYLE_DASHED] = true;
+        style[mxConstants.STYLE_FIX_DASH] = '1';
+
+        graph.getStylesheet().putCellStyle('update', style);
+    }
+
+    function plot(elkgraph){
+        container = document.getElementById("graphContainer");
+        // Checks if the browser is supported
+        if (!mxClient.isBrowserSupported())
+        {
+            // Displays an error message if the browser is not supported.
+            mxUtils.error('Browser is not supported!', 200, false);
+        }
+        else
+        {
+
+            // Disables the built-in context menu
+            mxEvent.disableContextMenu(container);
+            console.log("one");
+
+            // Creates the graph inside the given container
+            var graph = new mxGraph(container);
+            graph.setTooltips(true);
+            graph.setConnectable(false);
+            graph.setCellsEditable(false);
+            graph.setResizeContainer(true);
+            graph.setHtmlLabels(true);
+            graph.isEdgeLabelsMovable(false);
+            graph.setAllowDanglingEdges(false);
+            graph.setCellsBendable(true);
+            graph.graphHandler.setRemoveCellsFromParent(false);
+            graph.gridSize = 25;
+
+            setStyles(graph);
+
+            console.log("two");
+
+            graph.getTooltipForCell = function(cell) {
+                if(cell.value.text){
+                    return cell.value.text;
+                } else {
+                    return "<h3>"+cell.value.label+"</h3>";
+                }
+            }
+
+            graph.getLabel = function(cell){
+                if(cell.isEdge()){
+                    // let srcX = cell.source.geometry.x + cell.source.geometry.width/2;
+                    // let srcY = cell.source.geometry.y + cell.source.geometry.height/2;
+                    // let tgtX = cell.target.geometry.x + cell.target.geometry.width/2;
+                    // let tgtY = cell.target.geometry.y + cell.target.geometry.height/2;
+                    //
+                    // let distance = Math.sqrt( Math.abs(tgtX - srcX) ** 2 + Math.abs(tgtY - srcY) ** 2 );
+                    // if(distance > 3 * 5 * cell.value.label.length && distance >= 100){
+                    //     return cell.value.label;
+                    // } else {
+                    //     return "";
+                    // }
+                    return "";
+                }
+
+                return cell.value.label;
+            }
+
+            graph.dblClick = function(evt, cell) {
+                // Do not fire a DOUBLE_CLICK event here as mxEditor will
+                // consume the event and start the in-place editor.
+                if (this.isEnabled() && !mxEvent.isConsumed(evt) && cell != null) {
+                    if(cell.isEdge()){
+                        var content = document.createElement('div');
+                        content.innerHTML = this.convertValueToString(cell);
+                        showModalWindow(this, evt, 'SourceCode', content, 400, 300);
+                    }
+                }
+
+                // Disables any default behaviour for the double click
+                mxEvent.consume(evt);
+            };
+
+
+            var parent = graph.getDefaultParent();
+
+            // Adds cells to the model in a single step
+            graph.getModel().beginUpdate();
+            try
+            {
+                addRec(graph, parent, elkgraph);
+                // layout.execute(parent);
+            }
+            finally
+            {
+                // Updates the display
+                graph.getModel().endUpdate();
+            }
+
+        }
+    }
+  </script>
+</head>
+<body onload="main()">
+    <!-- Creates a container for the graph with a grid wallpaper -->
+    <div id="graphContainer" style="position:relative;overflow:hidden;width:100%;height:100%;cursor:default;">
+    </div>
+</body>
+</html>

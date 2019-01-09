@@ -7,15 +7,15 @@ from crestdsl.simulator.to_z3 import Z3Converter, get_z3_value, get_z3_variable
 from pprint import pprint
 
 import logging
-logging.basicConfig(level=logging.INFO)  # basic logging level
-entityLog = logging.getLogger(name="crestdsl.model.entity")  # specific logging level
-entityLog.setLevel(logging.INFO)
-simLog = logging.getLogger(name="crestdsl.simulator.simulator")  # specific logging level
-simLog.setLevel(logging.INFO)
-ttLog = logging.getLogger(name="crestdsl.simulator.transitiontime")  # specific logging level
-ttLog.setLevel(logging.INFO)
-toZ3Log = logging.getLogger(name="crestdsl.simulator.to_z3")  # specific logging level
-toZ3Log.setLevel(logging.INFO)
+# logging.basicConfig(level=logging.INFO)  # basic logging level
+# entityLog = logging.getLogger(name="crestdsl.model.entity")  # specific logging level
+# entityLog.setLevel(logging.INFO)
+# simLog = logging.getLogger(name="crestdsl.simulator.simulator")  # specific logging level
+# simLog.setLevel(logging.INFO)
+# ttLog = logging.getLogger(name="crestdsl.simulator.transitiontime")  # specific logging level
+# ttLog.setLevel(logging.INFO)
+# toZ3Log = logging.getLogger(name="crestdsl.simulator.to_z3")  # specific logging level
+# toZ3Log.setLevel(logging.INFO)
 
 
 class TestZ3Conversion(unittest.TestCase):
@@ -357,10 +357,10 @@ class TestZ3Conversion(unittest.TestCase):
 
         # execute
         constraints = conv.to_z3(instance.update.function)
-        assert len(constraints) == 2
-        assert constraints[1].num_args() == 3
-        assert constraints[1].arg(1).num_args() == 2, "two entries in then"
-        assert constraints[1].arg(2).num_args() == 2, "two entries in orelse"
+        self.assertEqual(len(constraints), 2)
+        self.assertEqual(constraints[1].num_args(), 3)
+        self.assertEqual(constraints[1].arg(1).num_args(), 2, "two entries in then")
+        self.assertEqual(constraints[1].arg(2).num_args(), 2, "two entries in orelse")
 
     def test_update_if_elif_statement_structural_check_only(self):
         def update(self, dt):
@@ -378,14 +378,14 @@ class TestZ3Conversion(unittest.TestCase):
 
         # execute
         constraints = conv.to_z3(instance.update.function)
-        assert len(constraints) == 2
-        assert constraints[1].num_args() == 3
+        self.assertEqual(len(constraints), 2)
+        self.assertEqual(constraints[1].num_args(), 3)
 
-        assert constraints[1].arg(1).num_args() == 2, "there is not an x-variable passing + if-else"  # first is passing vars, second is if
+        self.assertEqual(constraints[1].arg(1).num_args(), 2, "there is not an x-variable passing + if-else")  # first is passing vars, second is if
         insideif = constraints[1].arg(2).arg(1)
-        assert insideif.num_args() == 3, "inside if doesn'nt have three parts"
-        assert insideif.arg(1).num_args() == 2, "two entries in then"
-        assert insideif.arg(2).num_args() == 2, "two entries in orelse"
+        self.assertEqual(insideif.num_args(), 3, "inside if doesn'nt have three parts")
+        self.assertEqual(insideif.arg(1).num_args(), 2, "two entries in then")
+        self.assertEqual(insideif.arg(2).num_args(), 2, "two entries in orelse")
 
     def test_update_if_statement_no_return(self):
         def update(self, dt):
@@ -405,11 +405,11 @@ class TestZ3Conversion(unittest.TestCase):
 
         # execute
         constraints = conv.to_z3(instance.update.function)
-        assert len(constraints) == 4
+        self.assertEqual( len(constraints), 4)
 
         # the fourth one is interesting
         ifelse = constraints[3]
-        assert ifelse.num_args() == 3
+        self.assertEqual(ifelse.num_args(), 3)
 
         then = ifelse.arg(1)
         orelse = ifelse.arg(2)
@@ -418,6 +418,69 @@ class TestZ3Conversion(unittest.TestCase):
         assert "(/ 43333.0 10000.0)" in then.arg(3).sexpr()
         assert "(/ 43333.0 10000.0)" in orelse.arg(3).sexpr()
 
+    def test_update_if_false_pass_elif_statement(self):
+        def update(self, dt):
+            x = 15
+            if False:
+                pass
+            elif x > 30:
+                return 30
+
+        instance = self.get_test_fixture(update)
+        z3_vars = self.get_test_z3vars_fixture(instance)
+        conv = Z3Converter(z3_vars, entity=instance, container=instance.update)
+
+        # execute
+        constraints = conv.to_z3(instance.update.function)
+        self.assertEqual( len(constraints), 2) # first line, then if/else
+
+        ifelse = constraints[1]
+        then = ifelse.arg(1)
+        orelse = ifelse.arg(2)
+
+        # TODO: missing assertions
+
+    def test_builtin_min_function(self):
+        def update(self, dt):
+            var = self.port.value
+            var2 = self.port.value
+            return min(var, var2)
+
+        instance = self.get_test_fixture(update)
+        z3_vars = self.get_test_z3vars_fixture(instance)
+        conv = Z3Converter(z3_vars, entity=instance, container=instance.update)
+
+        # execute
+        constraints = conv.to_z3(instance.update.function)
+        sexprs = [c.sexpr() for c in constraints]
+        # test
+        update_id = id(instance.update)
+        self.assertInMulti([
+            f"(= 314.0 var_1_{update_id})",
+            f"(= 314.0 var2_1_{update_id})",
+            f"(= port_{id(instance.port)} (ite (<= var_1_{update_id} var2_1_{update_id}) var_1_{update_id} var2_1_{update_id}))"
+        ], sexprs)
+
+    def test_builtin_max_function(self):
+        def update(self, dt):
+            var = self.port.value
+            var2 = self.port.value
+            return max(var, var2)
+
+        instance = self.get_test_fixture(update)
+        z3_vars = self.get_test_z3vars_fixture(instance)
+        conv = Z3Converter(z3_vars, entity=instance, container=instance.update)
+
+        # execute
+        constraints = conv.to_z3(instance.update.function)
+        sexprs = [c.sexpr() for c in constraints]
+        # test
+        update_id = id(instance.update)
+        self.assertInMulti([
+            f"(= 314.0 var_1_{update_id})",
+            f"(= 314.0 var2_1_{update_id})",
+            f"(= port_{id(instance.port)} (ite (>= var_1_{update_id} var2_1_{update_id}) var_1_{update_id} var2_1_{update_id}))"
+        ], sexprs)
 
 if __name__ == '__main__':
     unittest.main()

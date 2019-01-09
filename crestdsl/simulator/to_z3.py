@@ -54,7 +54,12 @@ def get_z3_val(valtype, value, name, datatype_name=None):
     elif valtype is Types.INT:
         val = z3.BitVecVal(value, 32)
     elif valtype is Types.INTEGER:
-        val = z3.IntVal(value)
+        try:
+            val = z3.IntVal(value)
+        except:
+            print(value, type(value))
+            pass
+
     elif valtype is Types.FLOAT:
         val = z3.FPVal(value, z3.Float32())
     elif valtype is Types.REAL:
@@ -244,6 +249,11 @@ class Z3Converter(SingleDispatch):
         return self.to_z3(self.body_ast)
 
     """ AST TYPES """
+
+    @to_z3.register(ast.Pass)
+    def to_z3_astPass(self, obj):
+        return None
+
     @to_z3.register(ast.NameConstant)
     def to_z3_astNameConstant(self, obj):
         return obj.value
@@ -475,7 +485,13 @@ class Z3Converter(SingleDispatch):
         else:
             tgt = self.find_z3_variable(self.target)
             tgt_type = tgt.type
-            return tgt == self.cast(value, v_type, tgt_type)
+            after_cast = self.cast(value, v_type, tgt_type)
+            try:
+                return tgt == after_cast
+            except Exception as e:
+                import pdb; pdb.set_trace()
+                pass
+
 
     @to_z3.register(ast.IfExp)
     def to_z3_astIfExp(self, obj):
@@ -540,7 +556,7 @@ class Z3Converter(SingleDispatch):
 
         test = self.to_z3(obj.test)
         body = self.to_z3(obj.body)
-        orelse = self.to_z3(obj.orelse) if obj.orelse else None
+        orelse = self.to_z3(obj.orelse) if obj.orelse else []
 
         body_outs = []
         else_outs = []
@@ -603,52 +619,68 @@ class Z3Converter(SingleDispatch):
         if func_name == "abs":
             val = self.to_z3(obj.args[0])
             return z3.If(val > 0, val, -1 * val)
+        if func_name == "min":
+            val1 = self.to_z3(obj.args[0])
+            val2 = self.to_z3(obj.args[1])
+            return z3.If(val1 <= val2, val1, val2)
+        if func_name == "max":
+            val1 = self.to_z3(obj.args[0])
+            val2 = self.to_z3(obj.args[1])
+            return z3.If(val1 >= val2, val1, val2)
 
         raise NotImplementedError("This version of CREST does not yet support function call statements.")
 
     def cast(self, value, is_type, to_type):
+        if is_type is Types.STRING and isinstance(to_type, z3.z3.DatatypeSortRef):
+            # the value is a string and it should be cast to a datatyperef
+            # (i.e. an enum-type), just return the value because we can deal with it
+            return value
+
+        value_is_int = isinstance(value, int)
+        value_is_float = isinstance(value, float)
+
         if is_type is to_type:  # already correct type, just return the value
             return value
 
             """ INT <---> INTEGER """
         elif is_type is Types.INT and to_type is Types.INTEGER:
-            if isinstance(value, (int, float)):
+            if value_is_int or value_is_float:
                 return value   # this happens if it is an int numeral (e.g. 2)
             else:
                 return z3.BV2Int(value)
         elif is_type is Types.INTEGER and to_type is Types.INT:
-            if isinstance(value, (int, float)):
+            if value_is_int or value_is_float:
                 return value
             else:
                 return z3.Int2BV(value, 32)
 
             """ INT <---> FLOAT """
         elif is_type is Types.FLOAT and to_type is Types.INT:
-            if isinstance(value, float):
+            if value_is_float:
                 return value  # this happens if it is a float numeral (e.g. 3.14)
             else:
                 return z3.fpToSBV(z3.RNE(), value, z3.BitVecSort(32))
         elif is_type is Types.INT and to_type is Types.FLOAT:
-            if isinstance(value, int):
+            if value_is_int:
                 return value
             else:
                 return z3.fpSignedToFP(z3.RNE(), value, z3.Float32())
 
             """ INTEGER <---> FLOAT """
         elif is_type is Types.FLOAT and to_type is Types.INTEGER:
-            if isinstance(value, float):
+            if value_is_float:
                 return value  # this happens if it is a float numeral (e.g. 3.14)
             else:
                 return self.cast(self.cast(value, Types.FLOAT, Types.INT), Types.INT, Types.INTEGER)
         elif is_type is Types.INTEGER and to_type is Types.FLOAT:
-            if isinstance(value, int):
+            if value_is_int:
                 return value
             else:
                 return self.cast(self.cast(value, Types.INTEGER, Types.INT), Types.INT, Types.FLOAT)
 
             """ from REAL """
         elif is_type is Types.REAL and to_type is Types.INTEGER:
-            if isinstance(value, float):
+            if value_is_float:
                 return value
             else:
                 return z3.ToInt(value)
@@ -663,24 +695,24 @@ class Z3Converter(SingleDispatch):
             roundTowardNegative ...... RTN()
             roundTowardZero .......... RTZ()
             """
-            if isinstance(value, (int, float)):  # int numeral
+            if value_is_int or value_is_float:  # int numeral
                 return value
             else:
                 return z3.fpRealToFP(z3.RNE(), value, z3.Float32())
 
             """ to REAL """
         elif is_type is Types.INT and to_type is Types.REAL:
-            if isinstance(value, (int, float)):  # int numeral
+            if value_is_int or value_is_float:  # int numeral
                 return value
             else:
                 return z3.ToReal(self.cast(value, Types.INT, Types.INTEGER))
         elif is_type is Types.INTEGER and to_type is Types.REAL:
-            if isinstance(value, (int, float)):  # int numeral
+            if value_is_int or value_is_float:  # int numeral
                 return value
             else:
                 return z3.ToReal(value)
         elif is_type is Types.FLOAT and to_type is Types.REAL:
-            if isinstance(value, (int, float)):
+            if value_is_int or value_is_float:
                 return value  # this happens if it is a float numeral (e.g. 3.14)
             else:
                 return z3.fpToReal(value)
@@ -736,6 +768,10 @@ class TypeResolver(SingleDispatch):
     def resolve_type(self, obj):
         logger.warning("don't know how to resolve type %s", type(obj))
         return None
+
+    @resolve_type.register(ast.Str)
+    def resolve_astStr(self, obj):
+        return Types.STRING
 
     @resolve_type.register(ast.NameConstant)
     def resolve_astNameConstant(self, obj):
@@ -875,6 +911,20 @@ class TypeResolver(SingleDispatch):
         target_type = self.resolve_two_types(then_type, else_type)
         return target_type
 
+    @resolve_type.register(ast.Call)
+    def resolve_type_Call(self, obj):
+        func_name = SH.get_attribute_string(obj.func)
+
+        if func_name == "abs":
+            return self.resolve_type(obj.args[0])
+        if func_name in ["min", "max"]:
+            type1 = self.resolve_type(obj.args[0])
+            type2 = self.resolve_type(obj.args[1])
+            target_type = self.resolve_two_types(type1, type2)
+            return target_type
+
+        raise NotImplementedError("This version of CREST does not yet resolving of types for function call statements.")
+
 
 """ End of Class - Start of helpers """
 
@@ -934,7 +984,8 @@ def extract_ifs_that_write_to_target_with_name(name, siblings):
 
 
 # FIXME: THIS SHOULD BE IN A DIFFERENT CLASS:
-def get_minimum_dt_of_several(comparators, timeunit, epsilon):
+def get_minimum_dt_of_several(comparators, timeunit, epsilon=config.epsilon):
+    raise DeprecatedWarning("get_minimum_dt_of_several is deprecated")
     comparators = [comp for comp in comparators if (comp is not None) and (comp[0] is not None)]
     if len(comparators) == 0:
         # Early exit... we should probably check this before we get into this function
@@ -947,13 +998,15 @@ def get_minimum_dt_of_several(comparators, timeunit, epsilon):
     min_dt = get_z3_var(timeunit, 'min_dt')
 
     identifiers = {}
-    for (dt, inf_up_trans) in comparators:
+    for comparator in comparators:
+        dt = comparator[0]
+        inf_up_trans = comparator[1]
         solver.add(min_dt <= dt)  # min_dt should be maximum this size (trying to find the smallest)
         is_me = z3.Bool(f"id{id(inf_up_trans)}_{inf_up_trans._name}")  # a bool that will state whether we are the smallest
         identifiers[inf_up_trans] = is_me
         solver.add(is_me == (min_dt == dt))
     logger.debug(f"comparators: {comparators}")
-    solver.add(z3.Or([min_dt == dt for (dt, inf_up_trans) in comparators]))  # but it has to be one of them!
+    solver.add(z3.Or([min_dt == comparator[0] for comparator in comparators]))  # but it has to be one of them!
 
     assert solver.check() == z3.sat, "the constraint to find the minimum dt is not solvable... that's weird"
     model = solver.model()
@@ -962,7 +1015,8 @@ def get_minimum_dt_of_several(comparators, timeunit, epsilon):
             return (model[min_dt], inf_up_trans)
 
 
-def get_minimum_dt_of_several_anonymous(comparators, timeunit, epsilon):
+def get_minimum_dt_of_several_anonymous(comparators, timeunit, epsilon=config.epsilon):
+    raise DeprecatedWarning("get_minimum_dt_of_several_anonymous is deprecated")
     comparators = [comp for comp in comparators if (comp is not None)]
     if len(comparators) == 0:
         # Early exit... we should probably check this before we get into this function
@@ -984,6 +1038,7 @@ def get_minimum_dt_of_several_anonymous(comparators, timeunit, epsilon):
 
 
 def to_python(some_number):
+    raise DeprecationWarning("use config.to_python instead")
     if isinstance(some_number, (int, float, str, bool)):
         return some_number
 
