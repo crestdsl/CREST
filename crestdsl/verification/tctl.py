@@ -14,7 +14,7 @@ class TCTLFormula(object):
     #     return self
 
     def __str__(self):
-        return f"{self.__class__.__name__}{str(self.interval)} {{{str(self.phi)}}}"
+        return f"{self.__class__.__name__}({str(self.phi)})"
 
     def __copy__(self):
         copy_type = type(self)
@@ -73,6 +73,11 @@ class And(TCTLFormula):
             props.update(op.get_propositions())
         return props
 
+    def __str__(self):
+        strs = ",".join([str(op) for op in self.operands])
+        return f"AND({strs})"
+
+
 class Or(TCTLFormula):
 
     def __init__(self, *args):
@@ -83,6 +88,10 @@ class Or(TCTLFormula):
         for op in self.operands:
             props.update(op.get_propositions())
         return props
+
+    def __str__(self):
+        strs = ",".join([str(op) for op in self.operands])
+        return f"OR({strs})"
 
 """ Quantifiers """
 class Quantifier(object):
@@ -123,7 +132,7 @@ class U(IntervalFormula):
         return copied
 
     def __str__(self):
-        return f"{{{self.psi}}} {super().__str__()}"
+        return f"{{{self.phi}}} {self.__class__.__name__}{str(self.interval)} {{{str(self.psi)}}}"
 
 """ Actual operators """
 

@@ -9,13 +9,22 @@ from . import checklib
 from . import tctl
 from .reachabilitycalculator import ReachabilityCalculator
 from crestdsl.simulator.simulator import Simulator
-from crestdsl.verification.statespace import StateSpace, SystemState
+from crestdsl.verification.statespace import StateSpace, SystemState, plotly_draw
 
 import logging
 logger = logging.getLogger(__name__)
 
 import operator  # for ordering operators
 order = { operator.eq : 0, operator.ne : 0, operator.le : 1, operator.ge : 1, operator.lt : 2, operator.gt : 2}
+
+def mc_tracing(func):
+    def wrapper(*args):
+        formula = args[1]
+        logger.debug(f"issatisfiable_boolean for formula {str(formula)}")
+        retval = func(*args)
+        logger.debug(f"{func.__name__} found {len(retval)} nodes for formula {str(formula)}")
+        return retval
+    return wrapper
 
 
 class SetBasedModelChecker(methoddispatch.SingleDispatch):
@@ -33,9 +42,10 @@ class SetBasedModelChecker(methoddispatch.SingleDispatch):
 
     def __init__(self, statespace=None):
         self.statespace = statespace.copy()  # operate on a copy of the state space
-        self.crestKripke = statespace.copy()  # operate on a copy of the state space
 
     def make_CREST_kripke(self, formula):
+        crestKripke = self.statespace.copy()  # operate on a copy of the state space
+
         with Cache() as c:
             props = formula.get_propositions()
             filtered_props = [prop for prop in props if not isinstance(prop, checklib.StateCheck)]  # remove statechecks, they're fine already
@@ -44,32 +54,32 @@ class SetBasedModelChecker(methoddispatch.SingleDispatch):
             logger.debug(f"Adapting the CREST Kripke structure for properties in formula:\n {formula}")
             for prop in sorted_props:
                 logger.debug(f"Expanding for {prop}")
-                stack_of_nodes = list(self.crestKripke.nodes)
+                stack_of_nodes = list(crestKripke.nodes)
                 while len(stack_of_nodes) > 0:
                     node = stack_of_nodes.pop(0)
-                    logger.debug(f"Analysing node {id(node)}")
+                    # logger.debug(f"Analysing node {id(node)}")
 
                     node.apply()
 
                     # test if check is satisfiable
                     current_prop_value = prop.check()
-                    logger.debug(f"Prop value for node {id(node)} is {current_prop_value}")
+                    # logger.debug(f"Prop value for node {id(node)} is {current_prop_value}")
 
                     # annotate node with current state
-                    if "crest_props" not in self.crestKripke.nodes[node]:
-                        self.crestKripke.nodes[node]["crest_props"] = dict()
-                    self.crestKripke.nodes[node]["crest_props"][prop] = current_prop_value
+                    if "crest_props" not in crestKripke.nodes[node]:
+                        crestKripke.nodes[node]["crest_props"] = dict()
+                    crestKripke.nodes[node]["crest_props"][prop] = current_prop_value
 
-                    node_successors = list(self.crestKripke.neighbors(node))
+                    node_successors = list(crestKripke.neighbors(node))
                     if len(node_successors) <= 0:  # skip because we didn't find any successors
-                        logger.debug(f"Node {id(node)} has no successors. Stop.")
+                        # logger.debug(f"Node {id(node)} has no successors. Stop.")
                         continue
 
-                    max_dt = self.crestKripke[node][node_successors[0]]['weight']
-                    logger.debug(f"Node {id(node)} has ({len(node_successors)}) successors. Their distance is {max_dt}")
+                    max_dt = crestKripke[node][node_successors[0]]['weight']
+                    # logger.debug(f"Node {id(node)} has ({len(node_successors)}) successors. Their distance is {max_dt}")
 
                     # find if prop can change
-                    rc = ReachabilityCalculator(self.crestKripke.system)
+                    rc = ReachabilityCalculator(crestKripke.system)
                     interval = tctl.Interval()
                     interval < max_dt
 
@@ -78,7 +88,7 @@ class SetBasedModelChecker(methoddispatch.SingleDispatch):
                     else:
                         reachable = rc.isreachable(checklib.NotCheck(prop), interval)
 
-                    logger.debug(f"Poperty changes value after {reachable} time units.")
+                    # logger.debug(f"Poperty changes value after {reachable} time units.")
 
                     # prop can change
                     if reachable is not False:  # it can change
@@ -91,25 +101,25 @@ class SetBasedModelChecker(methoddispatch.SingleDispatch):
                         newnode = SystemState(node.system).save()
 
                         for succ in node_successors:
-                            self.crestKripke.remove_edge(node, succ)  # remove old edge
-                            self.crestKripke.add_edge(newnode, succ, weight=max_dt-reachable)  # add new edge
+                            crestKripke.remove_edge(node, succ)  # remove old edge
+                            crestKripke.add_edge(newnode, succ, weight=max_dt-reachable)  # add new edge
 
                         # connect new node
-                        self.crestKripke.add_edge(node, newnode, weight=reachable)
+                        crestKripke.add_edge(node, newnode, weight=reachable)
 
                         # put new node up for exploration
                         stack_of_nodes.append(newnode)
 
-        return self.crestKripke
-
+        return crestKripke
 
     def check(self, formula, systemstate=None):
-        if systemstate is None:
-            systemstate = self.crestKripke.root
-
         crestKripke = self.make_CREST_kripke(formula)
+        sat_set = self.is_satisfiable(formula, crestKripke)
 
-        sat_set = self.is_satisfiable(crestKripke, formula)
+        if systemstate is None:
+            systemstate = crestKripke.root
+
+        logger.info(f"Found {len(sat_set)} nodes that satisfy formula {str(formula)}.\n The state we're interested in is among them -> {(systemstate in sat_set)}")
         return systemstate in sat_set
 
     """ - - - - - - - - - - - - - - """
@@ -117,80 +127,94 @@ class SetBasedModelChecker(methoddispatch.SingleDispatch):
     """ - - - - - - - - - - - - - - """
 
     @methoddispatch.singledispatch
-    def is_satisfiable(self, crestKripke, formula):
-        msg = f"Don't know how to check satisfiability of objects of type {type(check)}"
+    def is_satisfiable(self, formula, crestKripke):
+        msg = f"Don't know how to check satisfiability of objects of type {type(formula)}"
         logger.error(msg)
         raise ValueError(msg)
 
     @is_satisfiable.register(bool)
-    def issatisfiable_boolean(self, crestKripke, formula):
+    @mc_tracing
+    def issatisfiable_boolean(self, formula, crestKripke):
         if formula:
-            return crestKripke.nodes
+            retval = crestKripke.nodes
         else:
-            return set()
+            retval = set()
+        return retval
 
     @is_satisfiable.register(tctl.Not)
-    def issatisfiable_tctlNot(self, crestKripke, formula):
-        return self.is_satisfiable(crestKripke, True) - self.is_satisfiable(crestKripke, formula.phi)
+    @mc_tracing
+    def issatisfiable_tctlNot(self, formula, crestKripke):
+        retval = self.is_satisfiable(True, crestKripke) - self.is_satisfiable(formula.phi, crestKripke)
+        return retval
 
     @is_satisfiable.register(tctl.And)
-    def issatisfiable_tctlAnd(self, crestKripke, formula):
+    @mc_tracing
+    def issatisfiable_tctlAnd(self, formula, crestKripke):
         subexpressions = []
         for op in formula.operands:
-            subexpressions.append(self.is_satisfiable(crestKripke, op))
-        return intersection(*subexpressions)
+            sat_set = self.is_satisfiable(op, crestKripke)
+            logger.debug(f"issatisfiable_tctlAnd: subexpression {str(op)} is satisfiable by {len(sat_set)} nodes")
+            subexpressions.append(sat_set)
+        retval = set.intersection(*subexpressions)
+        return retval
 
     @is_satisfiable.register(tctl.Or)
-    def issatisfiable_tctlOr(self, crestKripke, formula):
+    @mc_tracing
+    def issatisfiable_tctlOr(self, formula, crestKripke):
         subexpressions = []
         for op in formula.operands:
-            subexpressions.append(self.is_satisfiable(crestKripke, op))
-        return union(*subexpressions)
+            subexpressions.append(self.is_satisfiable(op, crestKripke))
+        return set.union(*subexpressions)
 
     @is_satisfiable.register(tctl.AtomicProposition)
-    def issatisfiable_check_atomic(self, crestKripke, formula):
+    @mc_tracing
+    def issatisfiable_check_atomic(self, formula, crestKripke):
         """ This one is a check on one particular state, I guess it's not gonna be used often"""
-        logger.debug("is_satisfiable {str(formula)}")
-        systemstate.apply()
-        return formula.check()
+        retval = list()
+        for node in crestKripke.nodes:
+            node.apply()
+            if formula.check():
+                retval.append(node)
+        return set(retval)
 
     # procedure 3
-    def Sat_EU(self, crestKripke, formula):
-        Q1 = self.is_satisfiable(crestKripke, formula.phi)
-        Q = self.is_satisfiable(crestKripke, formula.psi)
-        Q_pre = union(*[set(crestKripke.predecessors(n)) for n in Q1 - Q])
+    def Sat_EU(self, formula, crestKripke):
+        Q1 = self.is_satisfiable(formula.phi, crestKripke)
+        Q = self.is_satisfiable(formula.psi, crestKripke)
+        Q_pre = set.union(*[set(crestKripke.predecessors(n)) for n in Q1 - Q])
 
         while len(Q_pre) > 0:
-            Q = union(Q, Q_pre)
-            Q_pre = union(*[set(crestKripke.predecessors(n)) for n in Q1 - Q])
+            Q = set.union(Q, Q_pre)
+            Q_pre = set.union(*[set(crestKripke.predecessors(n)) for n in Q1 - Q])
 
         return Q
 
     # procedure 4
-    def Sat_EG(self, crestKripke, formula):
-        Q1 = self.is_satisfiable(crestKripke, formula.phi)
+    def Sat_EG(self, formula, crestKripke):
+        Q1 = self.is_satisfiable(formula.phi, crestKripke)
         Q1_view = nx.subgraph_view(crestKripke, filter_node=(lambda x, Q1=Q1: x in Q1))
         component_generator = nx.strongly_connected_components(Q1_view)
-        Q = union(*[set(comp) for comp in component_generator])
+        Q = set.union(*[set(comp) for comp in component_generator])
 
-        Q_pre = union(*[set(crestKripke.predecessors(n)) for n in Q1 - Q])
+        Q_pre = set.union(*[set(crestKripke.predecessors(n)) for n in Q1 - Q])
 
         while len(Q_pre) > 0:
-            Q = union(Q, Q_pre)
-            Q_pre = union(*[set(crestKripke.predecessors(n)) for n in Q1 - Q])
+            Q = set.union(Q, Q_pre)
+            Q_pre = set.union(*[set(crestKripke.predecessors(n)) for n in Q1 - Q])
 
         return Q
 
     # procedure 5
-    def Sat_EUb(self, crestKripke, formula):
-        Q1 = self.is_satisfiable(crestKripke, formula.phi)
-        Q2 = self.is_satisfiable(crestKripke, formula.psi)
-        Qu = self.Sat_EU(crestKripke, formula)  # shortcut here
-        T = [ (s, 0) for s in Q2 ]  # create couples
-        TR = [ e for e in crestKripke.edges() ]
-
-        Q = set()
-        while len(T) > 0:
+    # def Sat_EUb(self, formula, crestKripke):
+    #     Q1 = self.is_satisfiable(formula.phi, crestKripke)
+    #     Q2 = self.is_satisfiable(formula.psi, crestKripke)
+    #     Qu = self.Sat_EU(crestKripke, formula)  # shortcut here
+    #     T = [ (s, 0) for s in Q2 ]  # create couples
+    #     TR = [ e for e in crestKripke.edges() ]
+    #
+    #     Q = set()
+    #     while len(T) > 0:
+    #         pass
 
 
 

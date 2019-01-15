@@ -45,49 +45,12 @@ class StateSpace(nx.DiGraph):
         cp = super().copy()
         cp.root = self.root
         cp.system = self.system
+        cp.copy = self.copy
         return cp
 
     def explore(self, iterations_left=1, iteration_counter=1):
-        # FIXME: THIS IS A HIGHLY UNPROFESSIONAL CACHE, but it works for now
-        # cache = Cache()
-        # cache.activate()
-        # import functools
-        #
-        # def create_cached_function(func):
-        #     @functools.lru_cache(maxsize=1024)
-        #     def new_func(entity, func=func):
-        #         # print("cache miss", func, entity)
-        #         return func(entity)
-        #     return new_func
-        #
-        # def create_cached_get_by_klass(func):
-        #     @functools.lru_cache(maxsize=1024)
-        #     def new_func(class_or_entity, klass, as_dict=False, func=func):
-        #         # print("cache miss", func, class_or_entity, klass, as_dict)
-        #         return func(class_or_entity, klass, as_dict)
-        #     return new_func
-        #
-        #
-        # # save originals
-        # orig_get_entities = model.get_entities
-        # orig_get_all_entities = model.get_all_entities
-        # orig_get_all_ports = model.get_all_ports
-        # orig_get_by_klass = model.entity.get_by_klass
-        #
-        # # replace originals
-        # model.get_entities = create_cached_function(model.get_entities)
-        # model.get_all_entities = create_cached_function(model.get_all_entities)
-        # model.get_all_ports = create_cached_function(model.get_all_ports)
-        # model.entity.get_by_klass = create_cached_get_by_klass(model.entity.get_by_klass)
         with Cache() as c:
             self._explore(iterations_left, iteration_counter)
-
-        # # reset to orginals
-        # model.get_entities = orig_get_entities
-        # model.get_all_entities = orig_get_all_entities
-        # model.get_all_ports = orig_get_all_ports
-        # model.entity.get_by_klass = orig_get_by_klass
-        # cache.deactivate()
 
     def _explore(self, iterations_left=1, iteration_counter=1):
         if iterations_left is None:
@@ -136,9 +99,9 @@ def plot(statespace):
     edge_labels = nx.get_edge_attributes(statespace,'weight')
     nx.draw_networkx_edge_labels(statespace, pos, edge_labels=edge_labels)
 
-def plotly_draw(statespace, text_func=None):
+def plotly_draw(statespace, text_func=None, highlight=None, debug=False):
 
-    data, annotations = plotly_data(statespace, text_func)
+    data, annotations = plotly_data(statespace, text_func, highlight, debug)
 
     axis=dict(
         showline=False,
@@ -157,18 +120,42 @@ def plotly_draw(statespace, text_func=None):
 
     plotly.offline.iplot(dict(data=data, layout=layout))
 
-def plotly_data(statespace, text_func=None):
+def plotly_data(statespace, text_func=None, highlight=None, debug=False):
+    if highlight is None:
+        highlight = []
+
     pos = plot_layout(statespace)
 
     labels = []
     if text_func is not None:
-        labels = [text_func(key) for key, val in pos.items()]
-    trace_nodes=dict(type="scatter",
-        x=[v[0] for v in pos.values()],
-        y=[v[1] for v in pos.values()],
+        labels = {key: text_func(key) for key, val in pos.items()}
+
+    trace_nodes=dict(
+        type="scatter",
+        x=[v[0] for k, v in pos.items() if k not in highlight],
+        y=[v[1] for k, v in pos.items() if k not in highlight],
+        text=[lbl for key, lbl in labels.items() if key not in highlight],
+        mode='markers',
+        marker=dict(size=15,color="blue"),
+        hoverinfo='text'
+    )
+
+    trace_highlight = dict(
+        type="scatter",
+        x=[v[0] for k, v in pos.items() if k in highlight],
+        y=[v[1] for k, v in pos.items() if k in highlight],
+        text=[lbl for key, lbl in labels.items() if key in highlight],
         mode='markers',
         marker=dict(size=15,color="orange"),
-        text=labels,
+        hoverinfo='text'
+    )
+
+    trace_texts = dict(
+        type="scatter",
+        x=[v[0] for k, v in pos.items()],
+        y=[v[1] for k, v in pos.items()],
+        text=[str(id(key)) for key, lbl in labels.items()],
+        mode='markers+text',
         hoverinfo='text'
     )
 
@@ -182,14 +169,15 @@ def plotly_data(statespace, text_func=None):
         marker=dict(opacity=0)
     )
 
+    # MIDDLE POINTS
     for e in statespace.edges(data='weight'):
         x0, y0 = pos[e[0]]
         x1, y1 = pos[e[1]]
-
         middle_node_trace['x'].append((x0+x1)/2)
         middle_node_trace['y'].append((y0+y1)/2)
         middle_node_trace['text'].append(str(e[2]))
 
+    # EDGES
     Xe=[]
     Ye=[]
     for e in statespace.edges(data='weight'):
@@ -215,11 +203,15 @@ def plotly_data(statespace, text_func=None):
             )
         )
 
-    return [trace_nodes, middle_node_trace], annotations
+    if debug:
+        return [trace_nodes, trace_highlight, middle_node_trace,trace_texts], annotations
+
+
+    return [trace_nodes, trace_highlight, middle_node_trace], annotations
 
 def plot_layout(statespace):
-    cp = statespace.copy()
-    pos = nx.nx_agraph.graphviz_layout(cp, prog="sfdp", args='-Grankdir=LR')  # -Goverlap=false -Gsplines=true')  -Gnslimit=3 -Gnslimit1=3
+    # cp = statespace.copy()
+    pos = nx.nx_agraph.graphviz_layout(statespace, prog="sfdp", args='-Grankdir=LR -Goverlap=false -Gsplines=true') # -Gnslimit=3 -Gnslimit1=3
     return pos
 
 def as_dataframe(statespace):
