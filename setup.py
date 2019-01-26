@@ -1,6 +1,6 @@
-# build:               python3 setup.py sdist bdist_wheel
-# upload to test-pypi: python3 -m twine upload --repository-url https://test.pypi.org/legacy/ dist/*
-# upload to pypi:      python3 -m twine upload dist/*
+# build:               python setup.py sdist bdist_wheel
+# upload to test-pypi: python -m twine upload --repository-url https://test.pypi.org/legacy/ dist/*
+# upload to pypi:      python -m twine upload dist/*
 
 import setuptools
 
@@ -9,7 +9,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="crestdsl",
-    version="0.1.1",
+    version="0.2",
     author="Stefan Klikovits",
     author_email="crestdsl@klikovits.net",
     description="A Continuous REactive SysTems DSL",
@@ -18,14 +18,23 @@ setuptools.setup(
     url="https://github.com/stklik/CREST",
     packages=setuptools.find_packages(),
     install_requires=[
-        'methoddispatch>=2',
+        'pip',  # upgrade pip to latest version
+        'methoddispatch>=2',  # important because version 2 introduced a breaking change
+        'matplotlib',
+        'graphviz>',
+        'pygraphviz>=1.5',
         'astor>=0.7',
         'pandas>0.1',
-        'numpy'
+        'numpy',
+        'networkx>=2.1'
+        'astor>=0.6',
+        'plotly>=3.5',  # for interactive plotting
+        'cufflinks>=0.14',  # for plotly + pandas plotting
+        'pwlf>=0.3'  # for the machine learning
     ],
-    classifiers=(
+    classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
-    ),
+    ],
 )
