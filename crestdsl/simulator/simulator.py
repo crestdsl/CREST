@@ -80,17 +80,18 @@ class Simulator(BaseSimulator):
         if self.transition(entity):
             self.advance_and_stabilise(entity, 0)  # we already advanced time-wise, but now make sure that we're stable (only if we fired a transition...)
 
-        # if change in any value of the targets (subentity inputs, etc.) then recurse
-        value_changed = False
-        for p in get_targets(entity):
-            if p.value != target_values[p]:  # I hope the get_targets here is correct
-                value_changed = True
-                logger.debug(f"The target value of port '{p._name}' in entity '{p._parent._name}' changed from {target_values[p]} to {p.value}")
-
-        # TODO: This is a performance loss if we do it for EVERY changed value, we should do some form of smart analysis!
-        if value_changed:
-            logger.debug(f"Stabilise '{entity._name}' ({entity.__class__.__name__}) again. Some values changed and we might have an indirect feedback loop.")
-            self.advance_and_stabilise(entity, 0)
+        # This should now have been taken care of by the dependencyOrder algorithm
+        # # if change in any value of the targets (subentity inputs, etc.) then recurse
+        # value_changed = False
+        # for p in get_targets(entity):
+        #     if p.value != target_values[p]:  # I hope the get_targets here is correct
+        #         value_changed = True
+        #         logger.debug(f"The target value of port '{p._name}' in entity '{p._parent._name}' changed from {target_values[p]} to {p.value}")
+        #
+        # # TODO: This is a performance loss if we do it for EVERY changed value, we should do some form of smart analysis!
+        # if value_changed:
+        #     logger.debug(f"Stabilise '{entity._name}' ({entity.__class__.__name__}) again. Some values changed and we might have an indirect feedback loop.")
+        #     self.advance_and_stabilise(entity, 0)
 
         logger.debug(f"Finished advancing {time} and stabilising entity {entity._name} ({entity.__class__.__name__})")
         return True
