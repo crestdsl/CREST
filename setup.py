@@ -26,7 +26,7 @@ setuptools.setup(
         'astor>=0.7',
         'pandas>0.1',
         'numpy',
-        'networkx>=2.1'
+        'networkx>=2.2'
         'astor>=0.6',
         'plotly>=3.5',  # for interactive plotting
         'cufflinks>=0.14',  # for plotly + pandas plotting
