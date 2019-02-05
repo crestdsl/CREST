@@ -4,7 +4,7 @@
 
 FROM stklik/scipy-notebook-z3:1.0
 
-LABEL maintainer="Stefan Klikovits <stefan@klikovits.net>"
+LABEL maintainer="Stefan Klikovits <crest@klikovits.net>"
 
 USER root
 
@@ -24,16 +24,20 @@ RUN pip install --no-cache-dir --upgrade matplotlib
 RUN pip install --no-cache-dir --upgrade astor
 RUN pip install --no-cache-dir --upgrade pwlf
 RUN pip install --no-cache-dir --upgrade graphviz pygraphviz
+RUN pip install --no-cache-dir --upgrade networkx
 
 # install jupyter extensions
 RUN pip install --no-cache-dir jupyter_contrib_nbextensions
 RUN jupyter contrib nbextension install --system
 
 #RUN jupyter labextension install @jupyterlab/plotly-extension
+RUN jupyter labextension install @jupyter-widgets/jupyterlab-manager
+RUN jupyter labextension install jupyter-matplotlib
 
 RUN jupyter nbextension enable init_cell/main
 RUN jupyter nbextension enable hide_input/main
 RUN jupyter nbextension enable python-markdown/main
+
 RUN jupyter nbextension enable code_prettify/code_prettify
 RUN jupyter nbextension enable toc2/main
 RUN jupyter nbextension enable codefolding/main
