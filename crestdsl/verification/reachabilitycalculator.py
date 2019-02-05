@@ -4,7 +4,8 @@ from crestdsl.config import config
 
 import crestdsl.simulator.sourcehelper as SH
 
-from crestdsl.config import to_python, Epsilon
+from crestdsl.simulator.epsilon import Epsilon
+from crestdsl.config import to_python
 from crestdsl.simulator.z3calculator import Z3Calculator
 from crestdsl.verification import checklib
 

@@ -24,6 +24,10 @@ def check_state(entity):
 def check_port(port):
     return PortCheck(port)
 
+
+""" C H E C K S """
+
+
 class Check(tctl.AtomicProposition):
 
     def __or__(self, other):
@@ -230,7 +234,6 @@ class NotCheck(Check):
         copy_type = type(self)
         copied = copy_type(self.operand)
         return copied
-
 
 def symbol(op):
     return {

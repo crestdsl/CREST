@@ -5,7 +5,8 @@ from .to_z3 import Z3Converter, get_z3_var, get_z3_value, get_z3_variable, get_m
 from .z3conditionchangecalculator import Z3ConditionChangeCalculator, get_behaviour_change_dt_from_constraintset
 from .z3calculator import Z3Calculator
 import z3
-from crestdsl.config import to_python, Epsilon
+from crestdsl.config import to_python
+from .epsilon import Epsilon
 
 import logging
 import pprint

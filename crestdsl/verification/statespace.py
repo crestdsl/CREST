@@ -1,10 +1,8 @@
 import matplotlib.pyplot as plt
-plt.rcParams['figure.figsize'] = [20, 10]
 
 import plotly
 import plotly.graph_objs as go
 from plotly.offline import download_plotlyjs, plot
-plotly.offline.init_notebook_mode(connected=True)
 
 import networkx as nx
 import math
@@ -31,22 +29,33 @@ class StateSpace(nx.DiGraph):
     Creates a graph of initial node + stabilised nodes.
     Graph elements are StateSpaceNodes  """
 
-    def __init__(self, system, *args, **kwargs):
+    def __init__(self, system=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        logger.debug(f"New state space")
-        self.system = system
+        if system:
+            self.graph["system"] = system
+            sysstate = SystemState(system).save()
+            self.graph["root"] = sysstate
+            self.add_node(sysstate, label="INIT", explored=False)  # initial node
 
-        # self.graph = nx.DiGraph()  # stores the big graph (stabilised states)
-        sysstate = SystemState(system).save()
-        self.root = sysstate
-        self.add_node(sysstate, label="INIT", explored=False)  # initial node
-
-    def copy(self):
-        cp = super().copy()
-        cp.root = self.root
-        cp.system = self.system
-        cp.copy = self.copy
-        return cp
+    def explore_until_time(self, time):
+        """
+        Asserts that the graph is expanded so all paths are at least a certain time long,
+        i.e. the length to the leaves is at least a amount
+        """
+        logger.info(f"Expanding until all leaves have a minimum path of more than {time} time units.")
+        leaves = [v for v, d in self.out_degree() if d == 0]
+        while len(leaves) > 0:
+            leaf = leaves.pop()
+            if self.out_degree(leaf) == 0 and not self.nodes(data='explored', default=False)[leaf]:
+                try:
+                    length, path = nx.single_source_dijkstra(self, source=self.graph["root"], target=leaf, cutoff=time)
+                    logger.debug(f"Leaf {leaf} reachable in {length} time units. Calculating successors.")
+                    successors, dt = self.calculate_successors_for_node(leaf)
+                    for successor in successors:
+                        self.add_edge(leaf, successor, weight=dt)
+                        leaves.append(successor)
+                except nx.NetworkXNoPath:
+                    logger.debug(f"No path to node {leaf} within {time} time units. That's okay.")
 
     def explore(self, iterations_left=1, iteration_counter=1):
         with Cache() as c:
@@ -85,7 +94,7 @@ class StateSpace(nx.DiGraph):
     def calculate_successors_for_node(self, node):
         logger.debug(f"Calculating successors of node {node}")
         node.apply()  # this is a problem, we can't work in parallel
-        ssc = StateSpaceCalculator(self.system)
+        ssc = StateSpaceCalculator(self.graph["system"])
 
         successors, dt = ssc.advance_to_nbct()
         self.nodes[node]['explored'] = True
@@ -100,6 +109,7 @@ def plot(statespace):
     nx.draw_networkx_edge_labels(statespace, pos, edge_labels=edge_labels)
 
 def plotly_draw(statespace, text_func=None, highlight=None, debug=False):
+    plotly.offline.init_notebook_mode(connected=True)
 
     data, annotations = plotly_data(statespace, text_func, highlight, debug)
 
@@ -126,7 +136,7 @@ def plotly_data(statespace, text_func=None, highlight=None, debug=False):
 
     pos = plot_layout(statespace)
 
-    labels = []
+    labels = {}
     if text_func is not None:
         labels = {key: text_func(key) for key, val in pos.items()}
 

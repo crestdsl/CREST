@@ -115,7 +115,7 @@ def get_entity_modifiers_in_dependency_order(entity):
         keep = not ("modifier" in obj and isinstance(obj["modifier"], crest.Update) and obj["modifier"].state != crest.get_current(obj["modifier"]._parent))
         return keep
 
-    DG = nx.graphviews.subgraph_view(orig_DG, node_filter)
+    DG = nx.graphviews.subgraph_view(orig_DG, filter_node=node_filter)
 
     if not nx.is_directed_acyclic_graph(DG):
         for cycle in nx.simple_cycles(DG):

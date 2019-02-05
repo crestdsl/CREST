@@ -1,4 +1,4 @@
-from crestdsl.config import Epsilon
+from crestdsl.simulator.epsilon import Epsilon
 
 import functools
 import operator
@@ -22,6 +22,8 @@ class TCTLFormula(object):
         return copied
 
     def get_propositions(self):
+        if isinstance(self.phi, bool):
+            return list()
         return self.phi.get_propositions()
 
 """
@@ -58,10 +60,6 @@ class AtomicProposition(TCTLFormula):
 
 class Not(TCTLFormula):
     pass
-    # def simplify(self):
-    #     if isinstance(self.formula, Not):
-    #         return self.phi.phi.simplify()
-    #     return self.phi.simplify()
 
 class And(TCTLFormula):
     def __init__(self, *args):
@@ -70,13 +68,13 @@ class And(TCTLFormula):
     def get_propositions(self):
         props = set()
         for op in self.operands:
-            props.update(op.get_propositions())
+            if isinstance(op, TCTLFormula):
+                props.update(op.get_propositions())
         return props
 
     def __str__(self):
         strs = ",".join([str(op) for op in self.operands])
         return f"AND({strs})"
-
 
 class Or(TCTLFormula):
 
@@ -86,12 +84,51 @@ class Or(TCTLFormula):
     def get_propositions(self):
         props = set()
         for op in self.operands:
-            props.update(op.get_propositions())
+            if isinstance(op, TCTLFormula):
+                props.update(op.get_propositions())
         return props
 
     def __str__(self):
         strs = ",".join([str(op) for op in self.operands])
         return f"OR({strs})"
+
+class Implies(TCTLFormula):
+
+    def __init__(self, phi, psi, interval=None):
+        super().__init__(phi)
+        self.psi = psi
+
+    def get_propositions(self):
+        props = list()
+        if isinstance(self.phi, TCTLFormula):
+            phi_props = self.phi.get_propositions()
+            props.extend(phi_props)
+        if isinstance(self.psi, TCTLFormula):
+            psi_props = self.psi.get_propositions()
+            props.extend(psi_props)
+        return list(set(props))
+
+    def __str__(self):
+        return f"{str(self.phi)} ==> {str(self.psi)}"
+
+class Equality(TCTLFormula):
+
+    def __init__(self, phi, psi, interval=None):
+        super().__init__(phi)
+        self.psi = psi
+
+    def get_propositions(self):
+        props = list()
+        if isinstance(self.phi, TCTLFormula):
+            phi_props = self.phi.get_propositions()
+            props.extend(phi_props)
+        if isinstance(self.psi, TCTLFormula):
+            psi_props = self.psi.get_propositions()
+            props.extend(psi_props)
+        return list(set(props))
+
+    def __str__(self):
+        return f"{str(self.phi)} <==> {str(self.psi)}"
 
 """ Quantifiers """
 class Quantifier(object):
@@ -107,9 +144,19 @@ class E(Quantifier):
 
 class IntervalFormula(TCTLFormula):
 
-    def __init__(self, phi):
+    def __init__(self, phi, interval=None):
         super().__init__(phi)
-        self.interval = Interval()
+        if interval is None:
+            self.interval = Interval()
+        else:
+            self.interval = interval
+
+    def __copy__(self):
+        copy_type = type(self)
+        copied = copy_type(None, None)
+        copied.phi = copy.copy(self.phi)
+        copied.interval = copy.copy(self.interval)
+        return copied
 
     def in_interval(self, value):
         return self.interval.ininterval(value)
@@ -118,9 +165,13 @@ class IntervalFormula(TCTLFormula):
         self.interval = pos
         return self
 
+    def __str__(self):
+        return f"{self.__class__.__name__}{str(self.interval)} {{{str(self.phi)}}}"
+
+
 class U(IntervalFormula):
-    def __init__(self, phi, psi):
-        super().__init__(phi)
+    def __init__(self, phi, psi, interval=None):
+        super().__init__(phi, interval)
         self.psi = psi
 
     def __copy__(self):
@@ -130,16 +181,6 @@ class U(IntervalFormula):
         copied.psi = copy.copy(self.psi)
         copied.interval = copy.copy(self.interval)
         return copied
-
-    def __str__(self):
-        return f"{{{self.phi}}} {self.__class__.__name__}{str(self.interval)} {{{str(self.psi)}}}"
-
-""" Actual operators """
-
-""" E """
-
-class EU(E, U):
-    pass
 
     def get_propositions(self):
         props = list()
@@ -151,27 +192,41 @@ class EU(E, U):
             props.extend(psi_props)
         return list(set(props))
 
-class EF(TCTLFormula):
+    def __str__(self):
+        return f"{{{self.phi}}} {self.__class__.__name__}{str(self.interval)} {{{str(self.psi)}}}"
 
-    def __init__(self, phi):
-        super().__init__(phi)
+class F(IntervalFormula):
+    pass
 
-    def simplify(self):
-        return EU(True, self.phi)
+class G(IntervalFormula):
+    pass
 
-# class EG(TCTLFormula):
-#
-#     def __init__(self, phi):
-#         super().__init__(phi)
-#
-# class AU(A, U):
-#     pass
-#
-#
-# class AG(A):
-#     def __init__(self, phi):
-#         super().__init__(phi)
 
+""" Actual operators """
+
+""" E """
+
+class EU(E, U):
+    pass
+
+class EF(E, F):
+    pass
+
+class EG(E, G):
+    pass
+
+
+
+""" A"""
+
+class AU(A, U):
+    pass
+
+class AF(A, F):
+    pass
+
+class AG(E, G):
+    pass
 
 """
 - - - - - - - - - - - -
@@ -181,11 +236,11 @@ class EF(TCTLFormula):
 
 class Interval(object):
 
-    def __init__(self):
-        self.start = 0
-        self.end = math.inf
-        self.start_operator = operator.ge
-        self.end_operator = operator.lt
+    def __init__(self, start=0, end=math.inf, start_op=operator.ge, end_op=operator.lt):
+        self.start = start
+        self.end = end
+        self.start_operator = start_op
+        self.end_operator = end_op
 
     def ininterval(self, value):
         return self.start_operator(value, self.start) and self.end_operator(value, self.end)
@@ -256,7 +311,7 @@ class Interval(object):
         self.end += value
         return self
 
-    def __eq__(self, other):
+    def compare(self, other):
         return all([
             self.start == other.start,
             self.start_operator == other.start_operator,
@@ -307,3 +362,6 @@ def interval_symbol(op):
         operator.gt: '(' ,
         operator.ge: '[' ,
         }[op]
+
+
+__all__ = ['Interval', 'Not', 'And', 'Or', 'Implies', 'Equality', 'EU', 'EF', 'EG','AU', 'AF', 'AG']

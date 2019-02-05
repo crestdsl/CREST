@@ -15,15 +15,14 @@ class Cache(object):
         self.orig_get_by_klass = model.entity.get_by_klass
 
         self._created = False
-        
+
     def __enter__(self):
         self._cache = Cache()
         self._cache.activate()
         return self._cache
 
     def __exit__(self, type, value, traceback):
-        self._cache.activate()
-        return True
+        self._cache.deactivate()
 
     def create_cached(self):
         def create_cached_function(func):

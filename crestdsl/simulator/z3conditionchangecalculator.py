@@ -2,7 +2,7 @@ import astor
 import z3
 from .to_z3 import Z3Converter, get_minimum_dt_of_several_anonymous
 import crestdsl.simulator.sourcehelper as SH
-from crestdsl.config import Epsilon
+from .epsilon import Epsilon
 
 import logging
 logger = logging.getLogger(__name__)

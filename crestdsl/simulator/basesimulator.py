@@ -6,8 +6,8 @@ from crestdsl.model import get_all_entities, get_all_ports, REAL, \
 from .transitiontime import TransitionTimeCalculator
 from .conditiontimedchangecalculator import ConditionTimedChangeCalculator
 from .to_z3 import evaluate_to_bool
-from crestdsl.config import to_python, Epsilon
-
+from crestdsl.config import to_python
+from .epsilon import Epsilon
 import random
 
 

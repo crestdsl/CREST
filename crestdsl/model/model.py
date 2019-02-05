@@ -36,6 +36,8 @@ class Transition(meta.CrestObject):
         parent = copy.deepcopy(self._parent, memo)
         return Influence(source, target, self.guard, self._name, parent)
 
+    def isenabled(self):
+        return self.guard(self._parent)
 
 class Influence(meta.CrestObject):
     def __init__(self, source, target, function=None, name="", parent=None):
