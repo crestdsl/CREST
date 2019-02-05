@@ -20,3 +20,6 @@ class Resource(object):
             return self.domain[attr]
         else:
             return super().__getattribute__(attr)
+
+    def __str__(self):
+        return self.unit
