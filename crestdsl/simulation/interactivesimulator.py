@@ -3,6 +3,7 @@ from .simulator import Simulator
 import colored
 from colored import stylize
 import random
+import sys
 
 import logging
 logger = logging.getLogger(__name__)
@@ -26,8 +27,8 @@ class InteractiveSimulator(Simulator):
         transitions_texts = [stylize(idx, colored.attr("bold")).rjust(pad) + f"  ... {trans._name} (transition to '{trans.target._name}')" for idx, trans in enumerate(enabled_transitions)]
         transitions_list = "\n".join(transitions_texts)
 
-        longtext = f"""{stylize(' Non-Determinism detected ', colored.bg('dark_orange') + colored.attr('bold'))}
-There are multiple enabled transitions in entity: {stylize(' '+str(entity)+' ',  colored.bg('yellow_1') + colored.attr('bold'))}
+        longtext = f"""{stylize(' Non-Determinism detected ', colored.fg('black') + colored.bg('dark_orange') + colored.attr('bold'))}
+There are multiple enabled transitions in entity: {stylize(' '+str(entity)+' ',  colored.fg('black') + colored.bg('yellow_1') + colored.attr('bold'))}
 (Current time: {stylize(self.global_time, colored.attr("bold"))} -- Current automaton state: {stylize(entity.current._name, colored.attr("bold"))})
 
 {stylize('Choose one of the following transitions by entering the according number:', colored.attr('underlined'))}
@@ -37,6 +38,7 @@ There are multiple enabled transitions in entity: {stylize(' '+str(entity)+' ', 
 {stylize('r', colored.attr("bold"))}  ... choose a transition randomly
 {stylize('p', colored.attr("bold"))}  ... plot the system
 {stylize('pe', colored.attr("bold"))} ... plot the entity in which non-determinism occurs
+{stylize('q!', colored.attr("bold"))} ... to exit the script (not recommended in Jupyter mode)
 
 """
         print(longtext)
@@ -49,6 +51,8 @@ There are multiple enabled transitions in entity: {stylize(' '+str(entity)+' ', 
                 self.plot(entity=entity)
             elif userinput == "r":
                 return random.choice(enabled_transitions)
+            elif userinput == "q!":
+                sys.exit()
             elif userinput in [str(idx) for idx in range(len(enabled_transitions))]:
                 choice = int(userinput)
                 return enabled_transitions[choice]  # <<<<< This is the exit of the function, otherwise we're trapped !!
