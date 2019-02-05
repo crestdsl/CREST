@@ -4,7 +4,7 @@ import operator
 import unittest
 import math
 
-from crestdsl.config import Epsilon, eps
+from crestdsl.simulation.epsilon import Epsilon, eps
 
 class GetPropositionsTest(unittest.TestCase):
 
@@ -159,7 +159,7 @@ class IntervalTest(unittest.TestCase):
         i2 >= 10
         i2 <= 30
 
-        self.assertTrue(i1 == i2)
+        self.assertTrue(i1.compare(i2))
 
     def test_operatorEquals_onEqualIntervals_differentDatatypes(self):
         i1 = tctl.Interval()
@@ -170,7 +170,7 @@ class IntervalTest(unittest.TestCase):
         i2 >= 10
         i2 <= 30.0
 
-        self.assertTrue(i1 == i2)
+        self.assertTrue(i1.compare(i2))
 
     def test_operatorEquals_onEqualIntervals_discoversDifferentStart(self):
         i1 = tctl.Interval()
@@ -181,7 +181,7 @@ class IntervalTest(unittest.TestCase):
         i2 >= 10
         i2 <= 30
 
-        self.assertFalse(i1 == i2)
+        self.assertFalse(i1.compare(i2))
 
     def test_operatorEquals_onEqualIntervals_discoversDifferentStartOperator(self):
         i1 = tctl.Interval()
@@ -192,7 +192,7 @@ class IntervalTest(unittest.TestCase):
         i2 >= 10
         i2 <= 30
 
-        self.assertFalse(i1 == i2)
+        self.assertFalse(i1.compare(i2))
 
     def test_operatorEquals_onEqualIntervals_discoversDifferentEnd(self):
         i1 = tctl.Interval()
@@ -203,7 +203,7 @@ class IntervalTest(unittest.TestCase):
         i2 >= 10
         i2 <= 30
 
-        self.assertFalse(i1 == i2)
+        self.assertFalse(i1.compare(i2))
 
     def test_operatorEquals_onEqualIntervals_discoversDifferentEndOperator(self):
         i1 = tctl.Interval()
@@ -214,7 +214,7 @@ class IntervalTest(unittest.TestCase):
         i2 >= 10
         i2 <= 30
 
-        self.assertFalse(i1 == i2)
+        self.assertFalse(i1.compare(i2))
 
 
     """

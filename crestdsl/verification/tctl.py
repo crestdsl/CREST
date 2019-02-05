@@ -1,4 +1,4 @@
-from crestdsl.simulator.epsilon import Epsilon
+from crestdsl.simulation.epsilon import Epsilon
 
 import functools
 import operator

@@ -10,7 +10,7 @@ import crestdsl.model as crest
 from . import checklib
 from . import tctl
 from .reachabilitycalculator import ReachabilityCalculator
-from crestdsl.simulator.simulator import Simulator
+from crestdsl.simulation.simulator import Simulator
 from crestdsl.verification.statespace import StateSpace, SystemState, plotly_draw
 
 import logging

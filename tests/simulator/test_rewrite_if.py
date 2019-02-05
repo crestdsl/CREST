@@ -1,7 +1,7 @@
 import unittest
 import ast
-import crestdsl.simulator.sourcehelper as SH
-from crestdsl.simulator.to_z3 import *
+from crestdsl.simulation import sourcehelper as SH
+from crestdsl.simulation.to_z3 import *
 
 import logging
 logging.basicConfig(level=logging.INFO)  # basic logging level

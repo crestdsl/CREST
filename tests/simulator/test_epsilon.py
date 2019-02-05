@@ -1,5 +1,5 @@
 import unittest
-from crestdsl.simulator.epsilon import Epsilon, eps
+from crestdsl.simulation.epsilon import Epsilon, eps
 
 class EpsilonTest(unittest.TestCase):
 

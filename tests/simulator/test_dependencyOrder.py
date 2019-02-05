@@ -1,6 +1,6 @@
 import unittest
 import crestdsl.model as crest
-from crestdsl.simulator.dependencyOrder import ordered_modifiers
+from crestdsl.simulation.dependencyOrder import ordered_modifiers
 
 testRes = crest.Resource("float-resource", crest.Types.REAL)
 class TestSubEntity(crest.Entity):

@@ -2,11 +2,11 @@ import methoddispatch
 
 from crestdsl.config import config
 
-import crestdsl.simulator.sourcehelper as SH
+from crestdsl.simulation import sourcehelper as SH
 
-from crestdsl.simulator.epsilon import Epsilon
+from crestdsl.simulation.epsilon import Epsilon
 from crestdsl.config import to_python
-from crestdsl.simulator.z3calculator import Z3Calculator
+from crestdsl.simulation.z3calculator import Z3Calculator
 from crestdsl.verification import checklib
 
 import math  # for infinity

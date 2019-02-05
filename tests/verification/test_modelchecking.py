@@ -59,6 +59,7 @@ class TestEntity(crest.Entity):
     def reset_port(self, dt):
         return 0
 
+@unittest.skip
 class ModelCheckerIsSatisfiableTest(unittest.TestCase):
 
     def setUp(self):
@@ -67,7 +68,7 @@ class ModelCheckerIsSatisfiableTest(unittest.TestCase):
 
         # create statespace graph
         self.ss = StateSpace(self.system)
-        self.ss.root.max_dt = 7  # the time we can spend in the root state
+        self.ss.graph["root"].max_dt = 7  # the time we can spend in the root state
 
     def test_PortCheck_issatisfiable_noTimeAdvance(self):
         """The AtomicFormula is satisfied already"""
@@ -76,14 +77,14 @@ class ModelCheckerIsSatisfiableTest(unittest.TestCase):
         chk2 = check(self.system.secondPort) == 3  # port initial value is 3
         chk = chk1 & chk2
 
-        self.ss.root.apply()
+        self.ss.graph["root"].apply()
         self.assertTrue(chk.check(), "the check gave the wrong result")
 
         # action
         mc = ModelChecker(self.ss)
         original_is_satisfiable = mc.is_satisfiable  # copy reference, so we can now safely mock the potentially recursive call
         mc.is_satisfiable = mock.MagicMock()
-        result_trace = original_is_satisfiable(chk, self.ss.root)
+        result_trace = original_is_satisfiable(chk, self.ss.graph["root"])
 
         # assert
         self.assertIn(0, result_trace, "Assert that the time advance of 7 is in the trace")
@@ -96,7 +97,7 @@ class ModelCheckerIsSatisfiableTest(unittest.TestCase):
         chk2 = check(self.system.secondPort) >= 7  # transition is at 10
         chk = chk1 & chk2
 
-        self.ss.root.apply()
+        self.ss.graph["root"].apply()
         self.assertFalse(chk.check(), "the check gave the wrong result")
 
         # action
@@ -118,14 +119,14 @@ class ModelCheckerIsSatisfiableTest(unittest.TestCase):
         chk.interval > 2  # we want more time to pass
         chk.interval < 6
 
-        self.ss.root.apply()
+        self.ss.graph["root"].apply()
         self.assertTrue(chk.check(), "the check is currently passing")
 
         # action
         mc = ModelChecker(self.ss)
         original_is_satisfiable = mc.is_satisfiable  # copy reference, so we can now safely mock the potentially recursive call
         mc.is_satisfiable = mock.MagicMock()
-        result_trace = original_is_satisfiable(chk, self.ss.root)
+        result_trace = original_is_satisfiable(chk, self.ss.graph["root"])
 
         # assert
         self.assertFalse(result_trace, "Assert that the formula is unsatisfiable.")
@@ -140,14 +141,14 @@ class ModelCheckerIsSatisfiableTest(unittest.TestCase):
 
         self.ss.successors = mock.MagicMock(return_value=[mock.sentinel.successor])
 
-        self.ss.root.apply()
+        self.ss.graph["root"].apply()
         self.assertTrue(chk.check(), "the check is currently passing")
 
         # action
         mc = ModelChecker(self.ss)
         original_is_satisfiable = mc.is_satisfiable  # copy reference, so we can now safely mock the potentially recursive call
         mc.is_satisfiable = mock.MagicMock(return_value=False)
-        result_trace = original_is_satisfiable(chk, self.ss.root)
+        result_trace = original_is_satisfiable(chk, self.ss.graph["root"])
 
         # assert
         self.assertFalse(result_trace, "Assert that the formula is unsatisfiable.")
@@ -161,9 +162,9 @@ class ModelCheckerIsSatisfiableTest(unittest.TestCase):
         chk = check(self.system.port) > self.system.secondPort  # cannot be bigger
 
         self.ss.successors = mock.MagicMock(return_value=[])  # assert that there are no successors
-        self.ss.root.max_dt = math.inf
+        self.ss.graph["root"].max_dt = math.inf
 
-        self.ss.root.apply()
+        self.ss.graph["root"].apply()
         self.assertFalse(chk.check(), "the check is currently not working")
 
         # action
@@ -202,7 +203,7 @@ class ModelCheckerIsSatisfiableTest(unittest.TestCase):
         mc = ModelChecker(self.ss)
         original_is_satisfiable = mc.is_satisfiable  # copy reference, so we can now safely mock the potentially recursive call
         mc.is_satisfiable = mock.MagicMock(return_value=False)
-        result_trace = original_is_satisfiable(chk, self.ss.root)
+        result_trace = original_is_satisfiable(chk, self.ss.graph["root"])
 
         # assert
         self.assertFalse(result_trace, "Assert that the model checker found it unsatisfiable")
@@ -224,7 +225,7 @@ class ModelCheckerIsSatisfiableTest(unittest.TestCase):
         mc = ModelChecker(self.ss)
         original_is_satisfiable = mc.is_satisfiable  # copy reference, so we can now safely mock the potentially recursive call
         mc.is_satisfiable = mock.MagicMock(side_effect=[False, [5]])
-        result_trace = original_is_satisfiable(chk, self.ss.root)
+        result_trace = original_is_satisfiable(chk, self.ss.graph["root"])
 
         # assert
         self.assertEqual(2, mc.is_satisfiable.call_count, "assert that the mock was called twice")
@@ -243,7 +244,7 @@ class ModelCheckerIsSatisfiableTest(unittest.TestCase):
         mc = ModelChecker(self.ss)
         original_is_satisfiable = mc.is_satisfiable  # copy reference, so we can now safely mock the potentially recursive call
         mc.is_satisfiable = mock.MagicMock(side_effect=[[17, 23], [5]])
-        result_trace = original_is_satisfiable(chk, self.ss.root)
+        result_trace = original_is_satisfiable(chk, self.ss.graph["root"])
 
         # assert
         mc.is_satisfiable.assert_called_once()  # exit after the first satisfiable
@@ -259,11 +260,12 @@ class ModelCheckerIsValid(unittest.TestCase):
 
         # create statespace graph
         self.ss = StateSpace(self.system)
-        self.ss.root.max_dt = 7  # the time we can spend in the root state
+        self.ss.graph["root"].max_dt = 7  # the time we can spend in the root state
 
     def test_isValid(self):
         pass
 
+@unittest.skip
 class ModelCheckerCheckEUTest(unittest.TestCase):
 
     def setUp(self):
@@ -272,7 +274,7 @@ class ModelCheckerCheckEUTest(unittest.TestCase):
 
         # create statespace graph
         self.ss = StateSpace(self.system)
-        self.ss.root.max_dt = 7  # the time we can spend in the root state
+        self.ss.graph["root"].max_dt = 7  # the time we can spend in the root state
 
     def test_futureInterval_checkFirstFormulaForCurrentPeriod_isInvalid(self):
         """ Testing exit label 1) """
@@ -297,7 +299,7 @@ class ModelCheckerCheckEUTest(unittest.TestCase):
         mc.is_valid.assert_called_once()
         (formula, systemstate), kwargs = mc.is_valid.call_args  # get the last callargs
         self.assertEqual(formula.interval.end, 7, "The subformula validity check was called with the correct interval end")
-        self.assertEqual(systemstate, self.ss.root, "The subformula validity check was called on the correct state")
+        self.assertEqual(systemstate, self.ss.graph["root"], "The subformula validity check was called on the correct state")
 
         # assert that the check was not called (we exited early)
         mc.check.assert_not_called()
@@ -327,7 +329,7 @@ class ModelCheckerCheckEUTest(unittest.TestCase):
         mc.is_valid.assert_called_once()
         (formula, systemstate), kwargs = mc.is_valid.call_args  # get the last callargs
         self.assertEqual(formula.interval.end, 7, "The subformula validity check was called with the correct interval end")
-        self.assertEqual(systemstate, self.ss.root, "The subformula validity check was called on the correct state")
+        self.assertEqual(systemstate, self.ss.graph["root"], "The subformula validity check was called on the correct state")
 
         # assert that a modified version of the formula (-= maxdt) was called on each successor
         self.assertEqual(mc.check.call_count, 2, "Check recursed on each of the successors, because both returned False")
@@ -367,7 +369,7 @@ class ModelCheckerCheckEUTest(unittest.TestCase):
         mc.is_valid.assert_called_once()
         (formula, systemstate), kwargs = mc.is_valid.call_args  # get the last callargs
         self.assertEqual(formula.interval.end, 7, "The subformula validity check was called with the correct interval end")
-        self.assertEqual(systemstate, self.ss.root, "The subformula validity check was called on the correct state")
+        self.assertEqual(systemstate, self.ss.graph["root"], "The subformula validity check was called on the correct state")
 
         # assert that a modified version of the formula (-= maxdt) was called on each successor
         self.assertEqual(mc.check.call_count, 2, "Check recursed on each of the successors, because both returned False")
@@ -432,7 +434,7 @@ class ModelCheckerCheckEUTest(unittest.TestCase):
         mc.is_valid.assert_called_once()
         (formula, systemstate), kwargs = mc.is_valid.call_args  # get the last callargs
         self.assertEqual(formula.interval.end, 7, "The subformula validity check was called with the correct interval end")
-        self.assertEqual(systemstate, self.ss.root, "The subformula validity check was called on the correct state")
+        self.assertEqual(systemstate, self.ss.graph["root"], "The subformula validity check was called on the correct state")
 
         # assert that the check was not called (we exited early)
         mc.check.assert_not_called()
@@ -464,7 +466,7 @@ class ModelCheckerCheckEUTest(unittest.TestCase):
         mc.is_valid.assert_called_once()
         (formula, systemstate), kwargs = mc.is_valid.call_args  # get the last callargs
         self.assertEqual(formula.interval.end, 7, "The subformula validity check was called with the correct interval end")
-        self.assertEqual(systemstate, self.ss.root, "The subformula validity check was called on the correct state")
+        self.assertEqual(systemstate, self.ss.graph["root"], "The subformula validity check was called on the correct state")
 
         # assert that a modified version of the formula (-= maxdt) was called on each successor
         self.assertEqual(mc.check.call_count, 2, "Check recursed on each of the successors, because both returned False")
@@ -506,7 +508,7 @@ class ModelCheckerCheckEUTest(unittest.TestCase):
         mc.is_valid.assert_called_once()
         (formula, systemstate), kwargs = mc.is_valid.call_args  # get the last callargs
         self.assertEqual(formula.interval.end, 7, "The subformula validity check was called with the correct interval end")
-        self.assertEqual(systemstate, self.ss.root, "The subformula validity check was called on the correct state")
+        self.assertEqual(systemstate, self.ss.graph["root"], "The subformula validity check was called on the correct state")
 
         # assert that a modified version of the formula (-= maxdt) was called on each successor
         self.assertEqual(mc.check.call_count, 2, "Check recursed on each of the successors, because both returned False")
@@ -549,7 +551,7 @@ class ModelCheckerCheckEUTest(unittest.TestCase):
         (formula, systemstate), kwargs = mc.is_valid.call_args  # get the last callargs
         self.assertEqual(formula.interval.start, 0, "phi was checked for validity from the start of the period")
         self.assertEqual(formula.interval.end, 5, "The phi validity check was called with the correct interval end")
-        self.assertEqual(systemstate, self.ss.root, "The phi validity check was called on the correct state")
+        self.assertEqual(systemstate, self.ss.graph["root"], "The phi validity check was called on the correct state")
 
     def test_startsCurrentPeriod_endsCurrentPeriod_psiSatisfiable_phiNOTValidUntilPsi(self):
         """ Testing exit label 9) """
@@ -578,4 +580,4 @@ class ModelCheckerCheckEUTest(unittest.TestCase):
         (formula, systemstate), kwargs = mc.is_valid.call_args  # get the last callargs
         self.assertEqual(formula.interval.start, 0, "phi was checked for validity from the start of the period")
         self.assertEqual(formula.interval.end, 5, "The phi validity check was called with the correct interval end")
-        self.assertEqual(systemstate, self.ss.root, "The phi validity check was called on the correct state")
+        self.assertEqual(systemstate, self.ss.graph["root"], "The phi validity check was called on the correct state")

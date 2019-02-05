@@ -1,7 +1,7 @@
 import inspect
 import types
 
-import crestdsl.simulator.sourcehelper as SH
+from crestdsl.simulation import sourcehelper as SH
 import crestdsl.model as crest
 import logging
 logger = logging.getLogger(__name__)

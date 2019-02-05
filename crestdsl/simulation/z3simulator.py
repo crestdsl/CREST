@@ -1,7 +1,7 @@
 
 from crestdsl.model import get_all_ports, REAL
 
-import crestdsl.simulator.sourcehelper as SH
+from crestdsl.simulation import sourcehelper as SH
 
 import z3
 from .to_z3 import get_z3_value, get_z3_variable, Z3Converter, get_z3_var

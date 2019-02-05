@@ -3,7 +3,7 @@ from crestdsl.model import get_targets, get_sources, get_inputs, \
     Influence, Update, Entity, Transition
 from .to_z3 import evaluate_to_bool
 from .basesimulator import BaseSimulator
-import crestdsl.simulator.dependencyOrder as DO
+from crestdsl.simulation import dependencyOrder as DO
 
 import logging
 logger = logging.getLogger(__name__)
@@ -121,11 +121,11 @@ class Simulator(BaseSimulator):
         ntt = to_python(next_trans[0])
         if evaluate_to_bool(ntt >= t):
             if logger.getEffectiveLevel() <= logging.INFO:
-                logger.info(f"Time: {self.global_time} | Next behaviour change in {ntt}. That's ntt >= t, hence just advancing.)")
+                logger.info(f"Time: {self.global_time} | Next behaviour change in {ntt} ({next_trans[1]._name}). That's ntt >= t, hence just advancing.)")
             return self._actually_advance(t, logging.INFO)
         else:
             if logger.getEffectiveLevel() <= logging.INFO:
-                logger.info(f"Time: {self.global_time} | The next behaviour change is in {ntt} time units. Advancing that first, then the rest of the {t}.")
+                logger.info(f"Time: {self.global_time} | The next behaviour change is in {ntt} ({next_trans[1]._name}) time units. Advancing that first, then the rest of the {t}.")
 
             if not self._actually_advance(ntt, logging.INFO):  # no recursion, but inlined for higher performance (avoids re-calculating ntt one level down)
                 return False  # this means that we had an eror, just drop out here

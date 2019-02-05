@@ -11,8 +11,8 @@ from .tctl import AtomicProposition, TCTLFormula  # * in tctl only offers some o
 from .statespace import SystemState, plotly_draw
 from .reachabilitycalculator import ReachabilityCalculator
 
-from crestdsl.simulator.epsilon import eps
-from crestdsl.simulator.simulator import Simulator
+from crestdsl.simulation.epsilon import eps
+from crestdsl.simulation.simulator import Simulator
 
 import logging
 logger = logging.getLogger(__name__)

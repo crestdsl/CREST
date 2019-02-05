@@ -10,10 +10,10 @@ import math
 import pandas as pd
 
 import crestdsl.model as model
-import crestdsl.simulator.sourcehelper as SH
+from crestdsl.simulation import sourcehelper as SH
 from crestdsl.config import to_python
-from crestdsl.simulator.simulator import Simulator
-import crestdsl.simulator.dependencyOrder as DO
+from crestdsl.simulation.simulator import Simulator
+import crestdsl.simulation.dependencyOrder as DO
 
 from crestdsl.caching import Cache
 
