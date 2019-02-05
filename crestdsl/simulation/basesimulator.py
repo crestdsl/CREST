@@ -148,29 +148,39 @@ class BaseSimulator(object):
 
     def transition(self, entity, transition=None):
         logger.debug("transitions in entity %s (%s)", entity._name, entity.__class__.__name__)
+        if transition is None:
+            transition = self.select_transition_to_trigger(entity)
+
+        if transition is None:  # there are no enabled transitions ! (exit early)
+            return False
+
+        # in case it was passed as parameter
+        assert self._get_transition_guard_value(transition), "It seems that the transition that was chosen to be fired is not enabled."
+
+        entity.current = transition.target
+        logger.info(f"Time: {self.global_time} | Firing transition <<{transition._name}>> in {entity._name} ({entity.__class__.__name__}) : {transition.source._name} -> {transition.target._name}  | current global time: {self.global_time}")
+
+        transition_updates = [up for up in get_updates(transition._parent) if up.state is transition]  # FIXME: until we completely switched to only allowing actions...
+        actions = [a for a in get_actions(transition._parent) if a.transition is transition]
+        for act in actions + transition_updates:
+            logger.debug(f"Triggering action {act._name} in entity {entity._name} ({entity.__class__.__name__})")
+            newval = self._get_action_function_value(act)
+            if newval != act.target.value:
+                logger.info(f"Port value changed: {act.target._name} ({act.target._parent._name}) {act.target.value} -> {newval}")
+                act.target.value = newval
+
+        # return if a transition was fired
+        return (transition is not None)
+
+    def select_transition_to_trigger(self, entity):
+        """ This one operates randomly """
         transitions_from_current_state = [t for t in get_transitions(entity) if t.source is entity.current]
         enabled_transitions = [t for t in transitions_from_current_state if self._get_transition_guard_value(t)]
 
         if len(enabled_transitions) >= 1:
-            if transition is None:  # if we didn't specify one, choose one randomly
-                transition = random.choice(enabled_transitions)
-            else:
-                assert transition in enabled_transitions, "The transition that was chosen to be fired is not enabled."
-
-            entity.current = transition.target
-            logger.info(f"Time: {self.global_time} | Firing transition <<{transition._name}>> in {entity._name} ({entity.__class__.__name__}) : {transition.source._name} -> {transition.target._name}  | current global time: {self.global_time}")
-
-            transition_updates = [up for up in get_updates(transition._parent) if up.state is transition]  # FIXME: until we completely switched to only allowing actions...
-            actions = [a for a in get_actions(transition._parent) if a.transition is transition]
-            for act in actions + transition_updates:
-                logger.debug(f"Triggering action {act._name} in entity {entity._name} ({entity.__class__.__name__})")
-                newval = self._get_action_function_value(act)
-                if newval != act.target.value:
-                    logger.info(f"Port value changed: {act.target._name} ({act.target._parent._name}) {act.target.value} -> {newval}")
-                    act.target.value = newval
-
-        # return if a transition was fired
-        return (transition is not None)
+            return random.choice(enabled_transitions)
+        else:
+            return None
 
     def _get_transition_guard_value(self, transition):
         value = transition.guard(transition._parent)
