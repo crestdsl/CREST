@@ -19,6 +19,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     install_requires=[
         'pip',  # upgrade pip to latest version
+        'colored>1.3',  # for colored print output
         'methoddispatch>=2',  # important because version 2 introduced a breaking change
         'matplotlib',
         'graphviz>',

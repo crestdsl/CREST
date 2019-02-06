@@ -25,6 +25,7 @@ RUN pip install --no-cache-dir --upgrade astor
 RUN pip install --no-cache-dir --upgrade pwlf
 RUN pip install --no-cache-dir --upgrade graphviz pygraphviz
 RUN pip install --no-cache-dir --upgrade networkx
+RUN pip install --no-cache-dir --upgrade colored
 
 # install jupyter extensions
 RUN pip install --no-cache-dir jupyter_contrib_nbextensions
