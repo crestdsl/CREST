@@ -183,7 +183,7 @@ class BaseSimulator(object):
         transitions_from_current_state = [t for t in get_transitions(entity) if t.source is entity.current]
         enabled_transitions = [t for t in transitions_from_current_state if self._get_transition_guard_value(t)]
 
-        if len(enabled_transitions) >= 1:
+        if len(enabled_transitions) >= 1:  # by default, select one randomly
             return random.choice(enabled_transitions)
         else:
             return None
@@ -299,70 +299,6 @@ class BaseSimulator(object):
                 logger.info(f"The following port value changed: {port._name} ({port._parent._name}) {before[port]} -> {port.value}")
         return retval
 
-        # updates_from_current_state = [up for up in get_updates(entity) if up.state == entity.current]
-        #
-        # original_port_values = {t: t.value for t in get_all_ports(entity)}
-        # original_states = {e: e.current for e in get_all_entities(entity)}
-        #
-        # values_after_update = {}
-        # for update in updates_from_current_state:
-        #     update_func_value = self._get_update_function_value(update, time)
-        #     values_after_update[update.target] = update_func_value
-        #     if not bool(original_port_values[update.target] == update_func_value):
-        #         logger.debug(f"Update <<{update._name}>> in entity {entity._name} ({entity.__class__.__name__}) TEMP changing value of port {update.target._name} (type: {update.target.resource.unit}) to {update_func_value} (from {original_target_values[update.target]}) | global time {self.global_time}")
-        #         # changes = True
-        # self._value_change(values_after_update)
-        # self.influence_fp(entity)  # propagate through influences and to children
-        #
-        # subentity_inputs_before_update = {}
-        # for sub in get_entities(entity):
-        #     self.update(sub, time)
-        #
-        # secondary_changes = True
-        # while secondary_changes:
-        #     """ Check if the update effects are final """
-        #     secondary_changes = False  # reset the repetition flag
-        #     secondary_changes_to_values_after_update = {}
-        #     for secondary_update in updates_from_current_state:
-        #         # reset value, to make sure those self-referencing counters are still possible and not giving infinite loops
-        #         secondary_update.target.value = original_port_values[secondary_update.target]
-        #         up_func_value = self._get_update_function_value(secondary_update, time)
-        #         secondary_update.target.value = values_after_update[secondary_update.target]  # we did this reset only for the calculation
-        #         if not bool(up_func_value == values_after_update[secondary_update.target]):
-        #             # if we come here, then clearly the value changed through the second update, i.e. there is a dependency somewhere
-        #             logger.debug(f"Update {secondary_update._name} entity {entity._name} ({entity.__class__.__name__}) SECONDARY changing value of port {secondary_update.target._name} (type: {secondary_update.target.resource.unit}) to {up_func_value} (from {values_after_update[secondary_update.target]}) | global time {self.global_time}")
-        #             logger.debug(f"up_func_value: {up_func_value} --- values_after_update: {values_after_update[secondary_update.target]}")
-        #             secondary_changes = True
-        #             secondary_changes_to_values_after_update[secondary_update.target] = up_func_value
-        #             values_after_update[secondary_update.target] = up_func_value
-        #     self._value_change(secondary_changes_to_values_after_update)
-        #     self.influence_fp(entity)
-        #
-        #     """ Check if the subentities need re-calculation """
-        #     for subentity in get_entities(entity):
-        #         for input_port in get_inputs(subentity):
-        #             if not bool(input_port.value == values_after_update[update.target]):
-        #                 # If one of the input values changed, we need to re-calculate
-        #                 self.reset(subentity, original_states, original_port_values)
-        #                 self.update(subentity, time)  # retry update
-        #                 break  # we reset, that's enough for now
-        #
-        # """ Report if there were changes """
-        # changes = False
-        # for port in get_all_ports(entity):
-        #     if not bool(port.value == original_port_values[port]):
-        #         logger.info(f"Updates in entity {entity._name} ({entity.__class__.__name__}) changed value of port {port._name} (type: {port.resource.unit}) to {port.value} (from {original_port_values[port]}) | global time {self.global_time}")
-        #         changes = True
-        #
-        # for ent in get_all_entities(entity):
-        #     if ent.current == original_states[ent]:
-        #         logger.info(f"Updates in entity {entity._name} ({entity.__class__.__name__}) changed state of entity {ent._name} to {ent.current._name} (from {original_states[ent]._name}) | global time {self.global_time}")
-        #         changes = True
-        #
-        # stabilisation_changes = self.stabilise(entity)  # TODO: not sure if this is necessary, think about it
-        #
-        # return changes or stabilisation_changes
-
     def reset_subentity(self, entity, state_map, port_value_map):
         logger.debug(f"Resetting entity {entity._name} ({entity.__class__.__name__})")
         for ent in get_all_entities(entity):
@@ -373,64 +309,6 @@ class BaseSimulator(object):
             if port not in get_inputs(entity):  # don't reset the input values
                 port.value = port_value_map[port]
             # port.pre = port_value_map[port]  # but reset all pre values, including inputs, because we really want that state before
-
-    # def update_fp(self, entity, time):
-    #     logger.debug("update_fp in entity %s (%s)", entity._name, entity.__class__.__name__)
-    #     updates_from_current = [up for up in get_updates(entity) if up.state == entity.current]
-    #
-    #     # save values
-    #     original_target_values = {t: t.value for t in get_targets(entity)}
-    #
-    #     values_after_update = {}
-    #     for update in updates_from_current:
-    #         update_func_value = self._get_update_function_value(update, time)
-    #         values_after_update[update.target] = update_func_value
-    #         if not bool(original_target_values[update.target] == update_func_value):
-    #             logger.debug(f"Update <<{update._name}>> in entity {entity._name} ({entity.__class__.__name__}) TEMP changing value of port {update.target._name} (type: {update.target.resource.unit}) to {update_func_value} (from {original_target_values[update.target]}) | global time {self.global_time}")
-    #             # changes = True
-    #     self._value_change(values_after_update)
-    #     self.influence_fp(entity)  # propagate through influences and to children
-    #
-    #     secondary_changes = True
-    #     while secondary_changes:
-    #         secondary_changes = False  # reset the repetition flag
-    #         secondary_changes_to_values_after_update = {}
-    #         for secondary_update in updates_from_current:
-    #             # reset value, to make sure those self-referencing counters are still possible and not giving infinite loops
-    #             secondary_update.target.value = original_target_values[secondary_update.target]
-    #             up_func_value = self._get_update_function_value(secondary_update, time)
-    #             secondary_update.target.value = values_after_update[secondary_update.target]  # we did this reset only for the calculation
-    #             if not bool(up_func_value == values_after_update[secondary_update.target]):
-    #                 # if we come here, then clearly the value changed through the second update, i.e. there is a dependency somewhere
-    #                 logger.debug(f"Update {secondary_update._name} entity {entity._name} ({entity.__class__.__name__}) SECONDARY changing value of port {secondary_update.target._name} (type: {secondary_update.target.resource.unit}) to {up_func_value} (from {values_after_update[secondary_update.target]}) | global time {self.global_time}")
-    #                 logger.debug(f"up_func_value: {up_func_value} --- values_after_update: {values_after_update[secondary_update.target]}")
-    #                 secondary_changes = True
-    #                 secondary_changes_to_values_after_update[secondary_update.target] = up_func_value
-    #                 values_after_update[secondary_update.target] = up_func_value
-    #         self._value_change(secondary_changes_to_values_after_update)
-    #         self.influence_fp(entity)
-    #
-    #     changes = False
-    #     for target_port, value in original_target_values.items():
-    #         if not bool(target_port.value == value):
-    #             logger.info(f"Updates in entity {entity._name} ({entity.__class__.__name__}) changed value of port {target_port._name} (type: {target_port.resource.unit}) to {target_port.value} (from {value}) | global time {self.global_time}")
-    #             changes = True
-    #
-    #     return changes
-    #
-    #     # changes = {}
-    #     # # execute updates
-    #     # for update in updates_from_current:
-    #     #     up_func_value = self._get_update_function_value(update, time)
-    #     #     if not bool(up_func_value == original_target_values[update.target]):
-    #     #         changes[update.target] = up_func_value
-    #     #         logger.info(f"Update {update._name} in entity {entity._name} ({entity.__class__.__name__}) changing value of port {update.target._name} (type: {update.target.resource.unit}) to {up_func_value} | global time {self.global_time}")
-    #     #
-    #     # # this actually executes the change of values
-    #     # self._value_change(changes)
-    #     #
-    #     # # return if there were changes
-    #     # return (len(changes) > 0)
 
     def _get_update_function_value(self, update, time):
         if isinstance(time, Epsilon):
@@ -464,12 +342,12 @@ class BaseSimulator(object):
             #     return True
             # return False
 
-    def advance(self, t, consider_behaviour_changes=config.consider_behaviour_changes):
+    def advance(self, time_to_advance, consider_behaviour_changes=config.consider_behaviour_changes):
         filter = self.WarningDuplicateFilter()
         for handler in logging.root.handlers:
             handler.addFilter(filter)
 
-        retval = self.advance_rec(t, consider_behaviour_changes)
+        retval = self.advance_rec(time_to_advance, consider_behaviour_changes)
 
         for handler in logging.root.handlers:
             handler.removeFilter(filter)
@@ -477,12 +355,12 @@ class BaseSimulator(object):
         return retval
 
     """ advance """
-    def advance_rec(self, t, consider_behaviour_changes=config.consider_behaviour_changes):
+    def advance_rec(self, time_to_advance, consider_behaviour_changes=config.consider_behaviour_changes):
         self.save_trace()
 
-        logger.info(f"Received instructions to advance {t} time steps. (Current global time: {self.global_time})")
-        logger.debug("starting advance of %s time units. (global time now: %s)", t, self.global_time)
-        if evaluate_to_bool(t <= 0):
+        logger.info(f"Received instructions to advance {time_to_advance} time steps. (Current global time: {self.global_time})")
+        logger.debug(f"starting advance of {time_to_advance} time units. (global time now: {self.global_time})")
+        if evaluate_to_bool(time_to_advance <= 0):
             logger.warn("Advancing 0 is not allowed. Use stabilise_fp instead.")
             return
 
@@ -493,9 +371,9 @@ class BaseSimulator(object):
 
         if next_trans is None:
             logger.info(f"No next transition, just advance {t}")
-            self.global_time += t
+            self.global_time += time_to_advance
             # execute all updates in all entities
-            self.update(self.system, t)
+            self.update(self.system, time_to_advance)
             logger.debug("Finished updates after advance")
 
             # stabilise the system
@@ -506,22 +384,22 @@ class BaseSimulator(object):
 
         # ntt = next_trans[0]
         ntt = to_python(next_trans[0])
-        if evaluate_to_bool(ntt >= t):
+        if evaluate_to_bool(ntt >= time_to_advance):
             logger.info(f"Advancing {t}")
-            self.global_time += t
+            self.global_time += time_to_advance
             # execute all updates in all entities
-            self.update(self.system, t)
+            self.update(self.system, time_to_advance)
             logger.debug("Finished updates after advance")
 
             # stabilise the system
             self._stabilise_fp(self.system)
-            logger.info(f"Finished Advancing {t}")
+            logger.info(f"Finished Advancing {time_to_advance}")
         else:
             logger.info(f"The next transition is in {ntt} time units. Advancing that first, then the rest of the {t}.")
             self.advance_rec(ntt, consider_behaviour_changes)
-            logger.info(f"Now need to advance the rest of the {t}: {t - ntt}")
+            logger.info(f"Now need to advance the rest of the {time_to_advance}: {time_to_advance - ntt}")
             self.advance_rec(t - ntt, consider_behaviour_changes)
-            logger.debug(f"finished total advance of {t} (time is now {self.global_time})")
+            logger.debug(f"finished total advance of {time_to_advance} (time is now {self.global_time})")
 
         self.save_trace()
 
@@ -543,51 +421,6 @@ class BaseSimulator(object):
         return TransitionTimeCalculator(self.system, self.timeunit, use_integer_and_real=self.default_to_integer_real).get_next_transition_time()
 
     """ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - """
-
-    # def advance_behaviour_change(self, t):
-    #     # save traces
-    #     self.save_trace()
-    #
-    #     logger.info(f"Received instructions to advance {t} time steps. (Current global time: {self.global_time})")
-    #     logger.debug("starting advance of %s time units. (global time now: %s)", t, self.global_time)
-    #     if t <= 0:
-    #         logger.warn("Advancing 0 is not allowed. Use stabilise_fp instead.")
-    #         return
-    #
-    #     next_trans = self.next_behaviour_change_time()
-    #     if next_trans is None:
-    #         logger.info(f"No next behaviour change, just advance {t}")
-    #         # execute all updates in all entities
-    #         self.update(self.system, t)
-    #         # for e in get_all_entities(self.system):
-    #         #     self.update(e, t)
-    #
-    #         # stabilise the system
-    #         self._stabilise_fp(self.system)
-    #         self.global_time += t
-    #
-    #         # record those traces
-    #         self.save_trace()
-    #         return
-    #
-    #     ntt = to_python(next_trans[0])
-    #     if ntt >= t:
-    #         logger.info("Advancing %s", t)
-    #         # execute all updates in all entities
-    #         self.update(self.system, t)
-    #
-    #         # stabilise the system
-    #         self._stabilise_fp(self.system)
-    #         self.global_time += t
-    #     else:
-    #         logger.info(f"The next behaviour change is in {ntt} time units. Advancing that first, then the rest of the {t}.")
-    #         self.advance_behaviour_change(ntt)
-    #         logger.info(f"Now need to advance the rest of the {t}: {t - ntt}")
-    #         self.advance_behaviour_change(t - ntt)
-    #         logger.debug(f"finished total advance of {t} (time is now {self.global_time})")
-    #
-    #     # record those traces
-    #     self.save_trace()
 
     def next_behaviour_change_time(self, excludes=None):
         """Excludes is a list of transitions that we don't consider."""

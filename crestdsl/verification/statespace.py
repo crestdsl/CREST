@@ -10,9 +10,12 @@ from crestdsl.caching import Cache
 import logging
 logger = logging.getLogger(__name__)
 
+EXPLORED = "explored"
 
-def getleafnodes(graph):
-    return [x for x in graph.nodes() if graph.out_degree(x)==0]
+
+def explored_leaves(graph):
+    return
+
 
 class StateSpace(nx.DiGraph):
     """
@@ -36,7 +39,7 @@ class StateSpace(nx.DiGraph):
         leaves = [v for v, d in self.out_degree() if d == 0]
         while len(leaves) > 0:
             leaf = leaves.pop()
-            if self.out_degree(leaf) == 0 and not self.nodes(data='explored', default=False)[leaf]:
+            if self.out_degree(leaf) == 0 and not self.nodes(data=EXPLORED, default=False)[leaf]:
                 try:
                     length, path = nx.single_source_dijkstra(self, source=self.graph["root"], target=leaf, cutoff=time)
                     logger.debug(f"Leaf {leaf} reachable in {length} time units. Calculating successors.")
@@ -67,7 +70,7 @@ class StateSpace(nx.DiGraph):
         # unexplored_leaves = [ssn for ssn in getleafnodes(self) if not self.nodes.data('explored', default=False)[ssn]]
 
         # print(111, self.nodes().data('explored'))
-        unexplored = [n for (n, exp) in self.nodes(data='explored', default=False) if not exp]
+        unexplored = [n for (n, exp) in self.nodes(data=EXPLORED, default=False) if not exp]
         logger.info(f"Calculating successors of {len(unexplored)} unexplored nodes")
         # assert len(unexplored_leaves) == len(unexplored), f"{unexplored_leaves} \n {unexplored}"
 
@@ -86,9 +89,9 @@ class StateSpace(nx.DiGraph):
         node.apply()  # this is a problem, we can't work in parallel
         ssc = StateSpaceCalculator(self.graph["system"])
 
-        successors, dt = ssc.advance_to_nbct()
-        self.nodes[node]['explored'] = True
-        return successors, dt
+        successor_transitions, dt = ssc.advance_to_nbct()
+        self.nodes[node][EXPLORED] = True
+        return successor_transitions, dt
 
 
 def as_dataframe(statespace):
@@ -104,69 +107,6 @@ def as_dataframe(statespace):
     df = pandas.DataFrame(node_vals)
     return df
 
-# class StateSpaceNode(object):
-#
-#     def __init__(self, systemstate, explored=False):
-#         logger.debug(f"Created new statespace node {systemstate}")
-#         assert isinstance(systemstate, SystemState)
-#         self.systemstate = systemstate
-#         # self.endstate = None
-#         self.max_dt = math.inf  # before exploring, we assume that we can stay here indefinitely
-#
-#         # props
-#         self._successors = []   #{}  # {<<successor>>: <<TransitionType>>}
-#         self._statespace_calculator = None
-#         self.explored = explored
-#
-#     def apply(self):
-#         self.systemstate.apply()
-#
-#     def get_successors(self):
-#         """
-#         Returns the list of successors than can be reached by advance + stabilisation.
-#         Internally we store the states before stabilisation and intermediate stabilisation steps too.
-#         """
-#
-#         if not self.explored:  # if explored, return ends (= graph's leaves)
-#             self.calculate_successors()
-#             self.explored = True
-#         return self._successors
-#
-#     def calculate_successors(self):
-#         logger.debug(f"Calculating successors of node {self.systemstate}")
-#
-#         self.systemstate.apply()  # this is a problem, we can't work in parallel
-#         # ntc = NoTransitionCalculator(self.systemstate.system)
-#         # ntc_dt = ntc.advance_to_nbct()  # returns the advanced time
-#         # self.max_dt = ntc_dt
-#
-#         # if ntc_dt is None:
-#         #     return  # no next behaviour change time
-#
-#         # self.endstate = SystemState(ntc.system).save()  # save the upper bounds
-#
-#         # self.systemstate.apply()  # reset state
-#         ssc = StateSpaceCalculator(self.systemstate.system)
-#
-#         successors, dt = ssc.advance_to_nbct()
-#         if dt is not None:
-#             self.max_dt = dt
-#             self._successors.extend(successors)
-#             logger.debug(f"Found {len(successors)} successors")
-#         else:
-#             logger.debug(f"No successors found")
-#
-#     def __str__(self):
-#         return str(hash(self))
-#
-#     def __hash__(self):
-#         return hash(self.systemstate)
-#
-#     def __eq__(self, other):
-#         try:
-#             return self.systemstate == other.systemstate
-#         except:
-#             return False
 
 class SystemState(object):
     """ An encoding of the system. Stores current state, current port values and pre port values"""
@@ -255,33 +195,33 @@ class SystemState(object):
         pre = [(port, value, other.pre.get(port, None)) for port, value in self.pre.items() if value is not other.pre.get(port, None)]
         return states, ports, pre
 
-class NoTransitionCalculator(Simulator):
-    """
-    This calculator is INCORRECT.
-    It advances a certain time, but does not execute transitions.
-    We can however use it to create an upper bounds on the continuous variables (ports).
-    This is useful for state space exploration, because we can quickly check
-    if a value is between start and end of a continuous evolution.
-    Note however, that in many cases, the system state produced by ignoring the transitions can NEVER be reached.
-    Meaning: We still have to verify if it's possible !
-    """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.record_traces = False  # don't do logging here, we don't need it
-
-    def transition(self, entity):
-        return False
-
-    def advance_to_nbct(self):
-        nbct = self.next_behaviour_change_time()
-        if nbct is None:  # no behaviour change and no next transition through time advance
-            return
-
-        dt = to_python(nbct[0])
-        if dt > 0:
-            succ_states = self.advance(dt)
-        return dt
+# class NoTransitionCalculator(Simulator):
+#     """
+#     This calculator is INCORRECT.
+#     It advances a certain time, but does not execute transitions.
+#     We can however use it to create an upper bounds on the continuous variables (ports).
+#     This is useful for state space exploration, because we can quickly check
+#     if a value is between start and end of a continuous evolution.
+#     Note however, that in many cases, the system state produced by ignoring the transitions can NEVER be reached.
+#     Meaning: We still have to verify if it's possible !
+#     """
+#
+#     def __init__(self, *args, **kwargs):
+#         super().__init__(*args, **kwargs)
+#         self.record_traces = False  # don't do logging here, we don't need it
+#
+#     def transition(self, entity):
+#         return False
+#
+#     def advance_to_nbct(self):
+#         nbct = self.next_behaviour_change_time()
+#         if nbct is None:  # no behaviour change and no next transition through time advance
+#             return
+#
+#         dt = to_python(nbct[0])
+#         if dt > 0:
+#             succ_states = self.advance(dt)
+#         return dt
 
 class StateSpaceCalculator(Simulator):
 
