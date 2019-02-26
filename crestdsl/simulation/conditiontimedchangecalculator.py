@@ -1,29 +1,46 @@
-from crestdsl.model import Influence, get_updates, get_influences, get_transitions, get_path_to_attribute
+from crestdsl.model import Influence, get_updates, get_influences, get_transitions
 from crestdsl.simulation import sourcehelper as SH
 import ast
-from .to_z3 import Z3Converter, get_z3_var, get_z3_value, get_z3_variable, get_minimum_dt_of_several
+from .to_z3 import Z3Converter, get_z3_variable, get_minimum_dt_of_several
 from .z3conditionchangecalculator import Z3ConditionChangeCalculator, get_behaviour_change_dt_from_constraintset
 from .z3calculator import Z3Calculator
 import z3
 from crestdsl.config import to_python
-from .epsilon import Epsilon
+from .epsilon import Epsilon, eps_string
 
 import logging
-import pprint
 logger = logging.getLogger(__name__)
+
+
+# TODO: extract this function and put in a central place
+# also do this in other files
+def log_if_level(level, message):
+    """Logs the message if the level is below the specified level"""
+    if logger.getEffectiveLevel() <= level:
+        logger.log(level, message)
 
 
 class ConditionTimedChangeCalculator(Z3Calculator):
 
-    def get_next_behaviour_change_time(self, entity=None):
+    def get_next_behaviour_change_time(self, entity=None, excludes=None):
         """calculates the time until one of the  behaviours changes (transition fire or if/else change in update/influence)"""
         if not entity:
             entity = self.entity
+
+        if excludes is None:  # exclude these from consideration
+            excludes = []
+
         logger.debug(f"Calculating next behaviour change time for entity {entity._name} ({entity.__class__.__name__}) and it's subentities")
         system_times = self.calculate_system(entity)
 
+        """ Filter transitions that we don't like """
+        before = len(system_times)
+        system_times = [tuple([time] + rest) for time, *rest in system_times if tuple(rest) not in excludes]
+        if len(system_times) < before:
+            logger.warning(f"Attention, some behaviour changes have been excluded (e.g. because they caused too many {eps_string} transitions in a row)")
+
         # system_times = [t for e in get_all_entities(self.entity) for t in self.collect_transition_times_from_entity(e)]
-        logger.debug("All behaviour changes in entity %s (%s): ", entity._name, entity.__class__.__name__)
+        # logger.debug("All behaviour changes in entity %s (%s): ", entity._name, entity.__class__.__name__)
         # logger.debug(str([(e._name, f"{t.source._name} -> {t.target._name} ({name})", dt) for (e, t, name, dt) in system_times]))
 
         if len(system_times) > 0:
@@ -63,8 +80,6 @@ class ConditionTimedChangeCalculator(Z3Calculator):
                     all_dts.append(trans_dts)
 
         if logger.getEffectiveLevel() <= logging.DEBUG:
-            # XXX the code below makes CREST slow
-            # We should only run it in debug mode, then we might as well return the smallest time
             min_dt = get_minimum_dt_of_several(all_dts, self.timeunit)
             if min_dt is not None:
                 logger.debug(f"Minimum behaviour change time for entity {entity._name} ({entity.__class__.__name__}) is {min_dt}")
@@ -84,6 +99,7 @@ class ConditionTimedChangeCalculator(Z3Calculator):
         return influence_update._cached_contains_if
 
     def get_condition_change_enablers(self, influence_update):
+        """ Calculates if an if/else condition within the function can change its value """
         logger.debug(f"Calculating condition change time in '{influence_update._name}' in entity '{influence_update._parent._name}' ({influence_update._parent.__class__.__name__})")
         solver = z3.Optimize()
 
@@ -115,13 +131,11 @@ class ConditionTimedChangeCalculator(Z3Calculator):
             param_key = params[0] + "_" + str(id(influence_update))
             z3_param = get_z3_variable(influence_update.source, params[0], str(id(influence_update)))
 
-            if logger.getEffectiveLevel() <= logging.DEBUG:  # only log if the level is appropriate, since z3's string-conversion takes ages
-                logger.debug(f"adding param: z3_vars[{param_key}] = {params[0]}_0 : {z3_param} ")
+            log_if_level(logging.DEBUG, f"adding param: z3_vars[{param_key}] = {params[0]}_0 : {z3_param} ")
 
             z3_vars[param_key] = {params[0] + "_0": z3_param}
 
-            if logger.getEffectiveLevel() <= logging.DEBUG:  # only log if the level is appropriate, since z3's string-conversion takes ages
-                logger.debug(f"influence entry constraint: {z3_src} == {z3_param}")
+            log_if_level(logging.DEBUG, f"influence entry constraint: {z3_src} == {z3_param}")
             solver.add(z3_src == z3_param)
 
         solver.push()
@@ -131,10 +145,10 @@ class ConditionTimedChangeCalculator(Z3Calculator):
             influence_update._cached_z3_behaviour_change_constraints = conv.calculate_constraints(influence_update.function)
 
         constraints = influence_update._cached_z3_behaviour_change_constraints
-        min_dt = get_behaviour_change_dt_from_constraintset(solver, constraints, z3_vars['dt'])
+        min_dt, label = get_behaviour_change_dt_from_constraintset(solver, constraints, z3_vars['dt'])
         if min_dt is not None:
-            logger.info(f"Minimum condition change times in '{influence_update._name}' in entity '{influence_update._parent._name}' ({influence_update._parent.__class__.__name__}) is {min_dt}")
-            return (to_python(min_dt), influence_update)
+            logger.info(f"Minimum condition change times in '{influence_update._name}' in entity '{influence_update._parent._name}' ({influence_update._parent.__class__.__name__}) is {min_dt} (at label {label})")
+            return (to_python(min_dt), influence_update, label)
         else:
             return None
 
@@ -178,28 +192,24 @@ class ConditionTimedChangeCalculator(Z3Calculator):
 
         # import pprint;pprint.pprint(z3_vars)
 
-        # if logger.getEffectiveLevel() <= logging.DEBUG:  # only log if the level is appropriate, since z3's string-conversion takes ages
-        #     logger.debug(f"Constraints handed to solver:\n{solver}")
+        # log_if_level(logging.DEBUG, f"Constraints handed to solver:\n{solver}")
 
         objective = solver.minimize(z3_vars['dt'])  # find minimal value of dt
         check = solver.check()
         # logger.debug("satisfiability: %s", check)
         if solver.check() == z3.sat:
-            if logger.getEffectiveLevel() <= logging.INFO:
-                logger.info(f"Minimum time to enable transition '{transition._name}' in entity '{transition._parent._name}' ({transition._parent.__class__.__name__}) will be enabled in {to_python(objective.value())}")
+            log_if_level(logging.INFO, f"Minimum time to enable transition '{transition._name}' in entity '{transition._parent._name}' ({transition._parent.__class__.__name__}) will be enabled in {to_python(objective.value())}")
             # return (objective.value(), transition, as_epsilon_expr)
             inf_coeff, numeric_coeff, eps_coeff = objective.lower_values()
             return (Epsilon(numeric_coeff, eps_coeff), transition)
         elif check == z3.unknown:
-            if logger.getEffectiveLevel() <= logging.WARNING:
-                logger.warning(f"The calculation of the minimum transition time for '{transition._name}' in entity '{transition._parent._name}' ({transition._parent.__class__.__name__}) was UNKNOWN. This usually happening in the presence of non-linear constraints. Do we have any?")
+            log_if_level(logging.WARNING, f"The calculation of the minimum transition time for '{transition._name}' in entity '{transition._parent._name}' ({transition._parent.__class__.__name__}) was UNKNOWN. This usually happening in the presence of non-linear constraints. Do we have any?")
             std_solver = z3.Solver()
             std_solver.add(solver.assertions())
             std_solver_check = std_solver.check()
             if std_solver_check == z3.sat:
                 min_dt = std_solver.model()[z3_vars['dt']]
-                if logger.getEffectiveLevel() <= logging.INFO:
-                    logger.info(f"We did get a solution using the standard solver though: {to_python(min_dt)} Assuming that this is the smallest solution. CAREFUL THIS MIGHT BE WRONG (especially when the transition is an inequality constraint)!!!")
+                log_if_level(logging.INFO, f"We did get a solution using the standard solver though: {to_python(min_dt)} Assuming that this is the smallest solution. CAREFUL THIS MIGHT BE WRONG (especially when the transition is an inequality constraint)!!!")
                 return (to_python(min_dt), transition)
             elif std_solver_check == z3.unknown:
                 logger.error(f"The standard solver was also not able to decide if there is a solution or not. The constraints are too hard!!!")

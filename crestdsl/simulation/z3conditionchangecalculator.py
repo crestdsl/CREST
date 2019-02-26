@@ -12,7 +12,7 @@ def get_behaviour_change_dt_from_constraintset(solver, constraints, dt):
     times = {cs: time for cs, time in times.items() if time is not None}
     if len(times) > 0:
         minimum = min(times, key=times.get)
-        return times[minimum]  #, minimum.label
+        return times[minimum], minimum.label
     else:
         None
 

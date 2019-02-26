@@ -2,6 +2,9 @@ import numbers
 
 from crestdsl.config import config, to_python
 
+eps_string = "\u03B5"
+
+
 class Epsilon(numbers.Number):
 
     def __init__(self, numeric=0, epsilon=0):
@@ -70,7 +73,7 @@ class Epsilon(numbers.Number):
 
     def __str__(self):
         n = self.numeric
-        e = "\u03B5"
+        e = eps_string
         if self.epsilon == 0:
             return f"{n}"
 

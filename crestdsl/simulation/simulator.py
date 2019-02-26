@@ -4,10 +4,19 @@ from crestdsl.model import get_targets, get_sources, get_inputs, \
 from .to_z3 import evaluate_to_bool
 from .basesimulator import BaseSimulator
 from crestdsl.simulation import dependencyOrder as DO
+from .epsilon import eps
+
+from itertools import groupby
 
 import logging
 logger = logging.getLogger(__name__)
 
+# TODO: extract this function and put in a central place
+# also do this in other files
+def log_if_level(level, message):
+    """Logs the message if the level is below the specified level"""
+    if logger.getEffectiveLevel() <= level:
+        logger.log(level, message)
 
 class Simulator(BaseSimulator):
 
@@ -68,10 +77,11 @@ class Simulator(BaseSimulator):
                 self.advance_and_stabilise(mod, time)
 
         # save traces before transitioning (so we know where we've been)
-        if self.record_traces:
-            data = {port: port.value for port in get_targets(entity)}
-            data.update({entity: entity.current})
-            self.traces.save_multiple(self.global_time, data)
+        # if self.record_traces:
+        #     data = {port: port.value for port in get_targets(entity)}
+        #     data.update({entity: entity.current})
+        #     self.traces.save_multiple(self.global_time, data)
+        self.save_trace()
 
         # set pre again, for the actions that are triggered after the transitions
         for port in get_targets(entity):  # + get_targets(entity):
@@ -98,6 +108,12 @@ class Simulator(BaseSimulator):
 
     """ advance """
 
+    def _get_excludes(self, transition_log, minimum=config.remove_epsilon_after):
+        """If there was the same epsilon transition five times in a row, we remove it"""
+        epsilon_removed = [tuple(rest) for (time, *rest) in transition_log]
+        excludes = [key for key, group in groupby(epsilon_removed) if len(list(group)) >= minimum]
+        return excludes
+
     def advance_rec(self, t, consider_behaviour_changes=config.consider_behaviour_changes):
         self.save_trace()
 
@@ -108,41 +124,46 @@ class Simulator(BaseSimulator):
             return
 
         if consider_behaviour_changes:
-            next_trans = self.next_behaviour_change_time()
+            excludes = self._get_excludes(self._transition_log)
+            next_trans = self.next_behaviour_change_time(excludes=excludes)
         else:
             next_trans = self.next_transition_time()
 
         if next_trans is None:
-            if logger.getEffectiveLevel() <= logging.INFO:
-                logger.info(f"Time: {self.global_time} | No next transition")
+            log_if_level(logging.INFO, f"Time: {self.global_time} | No next transition")
             return self._actually_advance(t, logging.INFO)
 
         # ntt = next_trans[0]
+
         ntt = to_python(next_trans[0])
+
+        # to discover if we have epsilon loops
+        if ntt != eps:
+            self._transition_log = []  # reset transition log if we don't have an epsilon transition
+        else:
+            self._transition_log.append(next_trans)
+
         if evaluate_to_bool(ntt >= t):
-            if logger.getEffectiveLevel() <= logging.INFO:
-                logger.info(f"Time: {self.global_time} | Next behaviour change in {ntt} ({next_trans[1]._name}). That's ntt >= t, hence just advancing.)")
+            log_if_level(logging.INFO, f"Time: {self.global_time} | Next behaviour change in {ntt} ({next_trans[1]._name}). That's ntt >= t, hence just advancing.)")
             return self._actually_advance(t, logging.INFO)
         else:
-            if logger.getEffectiveLevel() <= logging.INFO:
-                logger.info(f"Time: {self.global_time} | The next behaviour change is in {ntt} ({next_trans[1]._name}) time units. Advancing that first, then the rest of the {t}.")
+            log_if_level(logging.INFO, f"Time: {self.global_time} | The next behaviour change is in {ntt} ({next_trans[1]._name}) time units. Advancing that first, then the rest of the {t}.")
 
             if not self._actually_advance(ntt, logging.INFO):  # no recursion, but inlined for higher performance (avoids re-calculating ntt one level down)
                 return False  # this means that we had an eror, just drop out here
 
-            if logger.getEffectiveLevel() <= logging.INFO:
-                logger.info(f"Time: {self.global_time} | Now need to advance the rest of the {t}: {t - ntt}")
+            log_if_level(logging.INFO, f"Time: {self.global_time} | Now need to advance the rest of the {t}: {t - ntt}")
 
             self.advance_rec(t - ntt, consider_behaviour_changes)
 
-            if logger.getEffectiveLevel() <= logging.DEBUG:
-                logger.debug(f"Time: {self.global_time} | finished total advance of {t} (time is now {self.global_time})")
+            # DONE !!
+            log_if_level(logging.DEBUG, f"Time: {self.global_time} | finished total advance of {t} (time is now {self.global_time})")
 
     def _actually_advance(self, t, loglevel):
-        if logger.getEffectiveLevel() <= loglevel:
-            logger.log(loglevel, f"Time: {self.global_time} | Advancing {t}")
+        """ This method triggers either the advance of time """
+        log_if_level(loglevel, f"Time: {self.global_time} | Advancing {t}")
 
-        # execute all updates in all entities
+        # execute all updates in all entities (intercept infinite recursion error)
         try:
             self.global_time += t
             return_value = self.advance_and_stabilise_system(t)
@@ -150,8 +171,7 @@ class Simulator(BaseSimulator):
             logger.error(f"Time: {self.global_time} | There was an infinite recursion when trying to advance {t} time steps. Probably due to infinite state transitions without time advance. Check your system!")
             return False
 
-        if logger.getEffectiveLevel() <= loglevel:
-            logger.log(loglevel, f"Time: {self.global_time} | Finished advance and update of system")
+        log_if_level(loglevel, f"Time: {self.global_time} | Finished advance and update of system")
 
         self.save_trace()
         return return_value

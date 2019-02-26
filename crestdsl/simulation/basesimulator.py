@@ -29,6 +29,8 @@ class BaseSimulator(object):
         # go ahead and save the values right away
         self.save_trace()
 
+        self._transition_log = list()
+
     def save_trace(self):
         if self.record_traces:
             self.traces.save_entity(self.system, self.global_time)
@@ -583,9 +585,10 @@ class BaseSimulator(object):
     #     # record those traces
     #     self.save_trace()
 
-    def next_behaviour_change_time(self):
-        """ this function is a convenience for debugging, so we don't have to create a TransitionTimeCalculator manually """
-        nbct = ConditionTimedChangeCalculator(self.system, self.timeunit, use_integer_and_real=self.default_to_integer_real).get_next_behaviour_change_time()
+    def next_behaviour_change_time(self, excludes=None):
+        """Excludes is a list of transitions that we don't consider."""
+
+        nbct = ConditionTimedChangeCalculator(self.system, self.timeunit, use_integer_and_real=self.default_to_integer_real).get_next_behaviour_change_time(excludes=excludes)
         if nbct is not None:
             logger.info(f"The next behaviour change is {nbct[1]._name} in {to_python(nbct[0])} time steps")
         else:
