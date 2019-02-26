@@ -29,6 +29,8 @@ class Port(meta.CrestObject):
     def to_plotly_json(self):
         return api.get_name(self)
 
+    # def __str__(self):
+    #     return super().__str__() + f": {self.value}({str(self.resource)})"
 
 class Input(Port):
     pass
