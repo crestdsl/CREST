@@ -7,8 +7,13 @@ except:
     INTERACTIVE = False
     pass
 
+# basic loggingconfig:
+import logging
+logging.basicConfig(level=logging.WARNING)
+
 # only export config, by default
 __all__ = ['config']
+
 
 class ConfigObject(object):
 
@@ -30,11 +35,16 @@ class ConfigObject(object):
         """ pretty printing / approximation """
         self.approx = 100
 
+        """ User interface rounding """
+        self.ui_display_round = 4
+
 
 config = ConfigObject()
 
+
 import numbers
 import z3
+
 
 def to_python(some_number):
     if isinstance(some_number, numbers.Number):

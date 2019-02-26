@@ -35,6 +35,9 @@ class BaseSimulator(object):
         if self.record_traces:
             self.traces.save_entity(self.system, self.global_time)
 
+    @property
+    def trace(self):
+        return self.traces
 
     @property
     def global_time(self):
@@ -60,7 +63,8 @@ class BaseSimulator(object):
         if not entity:
             entity = self.system
         if self.plotter:
-            title = "(t = %s)" % self.global_time
+            time = self.global_time.to_number() if isinstance(self.global_time, Epsilon) else self.global_time
+            title = f"(t = {round(time, config.ui_display_round)})"
             return self.plotter.plot(entity, name=title, **kwargs)
         else:
             logger.error("No plotter defined!!!")

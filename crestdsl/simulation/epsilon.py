@@ -93,5 +93,8 @@ class Epsilon(numbers.Number):
     def to_number(self, eps_value=config.epsilon):
         return self.numeric + eps_value * self.epsilon
 
+    def to_plotly_json(self):
+        return self.to_number()
+
 
 eps = Epsilon(epsilon=1)

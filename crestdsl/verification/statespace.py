@@ -1,17 +1,7 @@
-import matplotlib.pyplot as plt
-
-import plotly
-import plotly.graph_objs as go
-from plotly.offline import download_plotlyjs, plot
-
 import networkx as nx
 import math
 
-import pandas as pd
-
 import crestdsl.model as model
-from crestdsl.simulation import sourcehelper as SH
-from crestdsl.config import to_python
 from crestdsl.simulation.simulator import Simulator
 import crestdsl.simulation.dependencyOrder as DO
 
@@ -100,129 +90,6 @@ class StateSpace(nx.DiGraph):
         self.nodes[node]['explored'] = True
         return successors, dt
 
-def plot(statespace):
-    pos = plot_layout(statespace)
-    nx.draw(statespace, pos)
-    node_labels = {node: statespace.nodes[node].get("label", "") for node in statespace.nodes()}
-    nx.draw_networkx_labels(statespace, pos, labels=node_labels)
-    edge_labels = nx.get_edge_attributes(statespace,'weight')
-    nx.draw_networkx_edge_labels(statespace, pos, edge_labels=edge_labels)
-
-def plotly_draw(statespace, text_func=None, highlight=None, debug=False):
-    plotly.offline.init_notebook_mode(connected=True)
-
-    data, annotations = plotly_data(statespace, text_func, highlight, debug)
-
-    axis=dict(
-        showline=False,
-        zeroline=False,
-        showgrid=False,
-        showticklabels=False,
-        title=''
-    )
-    layout=dict(
-        showlegend=False,
-        xaxis=axis,
-        yaxis=axis,
-        hovermode='closest',
-        annotations=annotations
-    )
-
-    plotly.offline.iplot(dict(data=data, layout=layout))
-
-def plotly_data(statespace, text_func=None, highlight=None, debug=False):
-    if highlight is None:
-        highlight = []
-
-    pos = plot_layout(statespace)
-
-    labels = {}
-    if text_func is not None:
-        labels = {key: text_func(key) for key, val in pos.items()}
-
-    trace_nodes=dict(
-        type="scatter",
-        x=[v[0] for k, v in pos.items() if k not in highlight],
-        y=[v[1] for k, v in pos.items() if k not in highlight],
-        text=[lbl for key, lbl in labels.items() if key not in highlight],
-        mode='markers',
-        marker=dict(size=15,color="blue"),
-        hoverinfo='text'
-    )
-
-    trace_highlight = dict(
-        type="scatter",
-        x=[v[0] for k, v in pos.items() if k in highlight],
-        y=[v[1] for k, v in pos.items() if k in highlight],
-        text=[lbl for key, lbl in labels.items() if key in highlight],
-        mode='markers',
-        marker=dict(size=15,color="orange"),
-        hoverinfo='text'
-    )
-
-    trace_texts = dict(
-        type="scatter",
-        x=[v[0] for k, v in pos.items()],
-        y=[v[1] for k, v in pos.items()],
-        text=[str(id(key)) for key, lbl in labels.items()],
-        mode='markers+text',
-        hoverinfo='text'
-    )
-
-    middle_node_trace = dict(
-        type='scatter',
-        x=[],
-        y=[],
-        text=[],
-        mode='markers+text',
-        hoverinfo='text',
-        marker=dict(opacity=0)
-    )
-
-    # MIDDLE POINTS
-    for e in statespace.edges(data='weight'):
-        x0, y0 = pos[e[0]]
-        x1, y1 = pos[e[1]]
-        middle_node_trace['x'].append((x0+x1)/2)
-        middle_node_trace['y'].append((y0+y1)/2)
-        middle_node_trace['text'].append(str(e[2]))
-
-    # EDGES
-    Xe=[]
-    Ye=[]
-    for e in statespace.edges(data='weight'):
-        Xe.extend([pos[e[0]][0], pos[e[1]][0], None])
-        Ye.extend([pos[e[0]][1], pos[e[1]][1], None])
-
-    trace_edges=dict(
-        type='scatter',
-        mode='lines+text',
-        x=Xe,
-        y=Ye,
-        line=dict(width=1, color='rgb(25,25,25)'),
-    )
-
-    annotations = []
-    for e in statespace.edges(data='weight'):
-        x0, y0 = pos[e[0]]
-        x1, y1 = pos[e[1]]
-        annotations.append(
-            dict(x=x1, y=y1, xref='x', yref='y',
-                ax=x0, ay=y0, axref='x', ayref='y',
-                opacity=.5,standoff=7,startstandoff=7,
-            )
-        )
-
-    if debug:
-        return [trace_nodes, trace_highlight, middle_node_trace,trace_texts], annotations
-
-
-    return [trace_nodes, trace_highlight, middle_node_trace], annotations
-
-def plot_layout(statespace):
-    # cp = statespace.copy()
-    pos = nx.nx_agraph.graphviz_layout(statespace, prog="sfdp", args='-Grankdir=LR -Goverlap=false -Gsplines=true') # -Gnslimit=3 -Gnslimit1=3
-    return pos
 
 def as_dataframe(statespace):
     node_vals = []
@@ -233,7 +100,8 @@ def as_dataframe(statespace):
         new_dict.update(node.systemstate.ports)
         node_vals.append(new_dict)
 
-    df = pd.DataFrame(node_vals)
+    import pandas
+    df = pandas.DataFrame(node_vals)
     return df
 
 # class StateSpaceNode(object):

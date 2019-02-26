@@ -3,9 +3,14 @@ from functools import singledispatch
 import crestdsl.model as Model
 from crestdsl.model.entity import MetaEntity as MetaEntity
 
+from crestdsl.config import config
+
 from crestdsl.simulation import sourcehelper as SH
 from crestdsl.model.meta import PARENT_IDENTIFIER, CURRENT_IDENTIFIER, CrestObject
 import uuid
+
+import numbers
+
 """
 Produces JSON that can be interpreted by the Eclipse Layout Kernel (ELK).
 I tried to use OpenKieler's elkjs.
@@ -129,11 +134,13 @@ def gen_State(obj, name="", parent=None, **kwargs):
 @generate.register(Model.Port)
 def gen_Port(obj, name='', parent=None, **kwargs):
     value = obj.value if obj.value is not None else "???"
+    round_value = round(value, config.ui_display_round) if isinstance(value, numbers.Number) else value
+
     unit = obj.resource.unit if obj.resource is not None else "???"
 
     node = {'id': str(id(obj)),
             'label': {'label': f"{name}" +
-                      (f"<br />{value} ({unit})" if obj.value is not None and obj.resource is not None else ""),
+                      (f"<br />{round_value} ({unit})" if obj.value is not None and obj.resource is not None else ""),
                       'text': f'<h3>{name}</h3>' +
                       (f'<p>{value} ({unit})</p>' if (obj.value is not None and obj.resource is not None) else ""),
                       },
