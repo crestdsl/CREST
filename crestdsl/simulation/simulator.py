@@ -7,6 +7,7 @@ from crestdsl.simulation import dependencyOrder as DO
 from .epsilon import eps
 
 from itertools import groupby
+import math
 
 import logging
 logger = logging.getLogger(__name__)
@@ -108,8 +109,10 @@ class Simulator(BaseSimulator):
 
     """ advance """
 
-    def _get_excludes(self, transition_log, minimum=config.remove_epsilon_after):
+    def _get_excludes(self, transition_log, minimum=config.remove_epsilon_transition_after):
         """If there was the same epsilon transition five times in a row, we remove it"""
+        if minimum is None:  # set to infinite if it's undefined
+            minimum = math.inf
         epsilon_removed = [tuple(rest) for (time, *rest) in transition_log]
         excludes = [key for key, group in groupby(epsilon_removed) if len(list(group)) >= minimum]
         return excludes
