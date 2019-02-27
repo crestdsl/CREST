@@ -35,6 +35,9 @@ class StateSpace(nx.DiGraph):
         Asserts that the graph is expanded so all paths are at least a certain time long,
         i.e. the length to the leaves is at least a amount
         """
+        # save state for later
+        current_system_state_backup = SystemState(self.graph["system"]).save()
+
         logger.info(f"Expanding until all leaves have a minimum path of more than {time} time units.")
         leaves = [v for v, d in self.out_degree() if d == 0]
         while len(leaves) > 0:
@@ -43,16 +46,26 @@ class StateSpace(nx.DiGraph):
                 try:
                     length, path = nx.single_source_dijkstra(self, source=self.graph["root"], target=leaf, cutoff=time)
                     logger.debug(f"Leaf {leaf} reachable in {length} time units. Calculating successors.")
-                    successors, dt = self.calculate_successors_for_node(leaf)
-                    for successor in successors:
-                        self.add_edge(leaf, successor, weight=dt)
+                    successors_transitions, dt = self.calculate_successors_for_node(leaf)
+                    for successor, transitions in successors_transitions:
+                        self.add_edge(leaf, successor, weight=dt, transitions=transitions)
                         leaves.append(successor)
                 except nx.NetworkXNoPath:
                     logger.debug(f"No path to node {leaf} within {time} time units. That's okay.")
 
+        # revert system back to original state
+        current_system_state_backup.apply()
+
     def explore(self, iterations_left=1, iteration_counter=1):
+        # save state for later
+        current_system_state_backup = SystemState(self.graph["system"]).save()
+
         with Cache() as c:
             self._explore(iterations_left, iteration_counter)
+
+        # reset system state
+        current_system_state_backup.apply()
+
 
     def _explore(self, iterations_left=1, iteration_counter=1):
         if iterations_left is None:
@@ -77,10 +90,10 @@ class StateSpace(nx.DiGraph):
         continue_exploration = False
         for ssnode in unexplored:
             logger.debug(f"calculating successors of node {ssnode}")
-            successors, dt = self.calculate_successors_for_node(ssnode)
+            successors_transitions, dt = self.calculate_successors_for_node(ssnode)
             # logger.debug(f"successors are: {successors}, after {ssnode.max_dt}")
-            for successor in successors:
-                self.add_edge(ssnode, successor, weight=dt)
+            for successor, transitions in successors_transitions:
+                self.add_edge(ssnode, successor, weight=dt, transitions=transitions)
                 continue_exploration = True  # successors found, meaning that we should continue exploring
         return continue_exploration
 
@@ -230,16 +243,17 @@ class StateSpaceCalculator(Simulator):
         self.record_traces = False  # don't do logging here, we don't need it
 
     def advance_and_stabilise(self, entity, time):
+        """ saves the transitions in a list """
         # logger.debug(f"Time: {self.global_time} | Advancing {time} and stabilising entity {entity._name} ({entity.__class__.__name__})")
         for port in model.get_targets(entity):  # + get_targets(entity):
             port.pre = port.value
 
-        systemstates = [SystemState(self.system).save()]
+        systemstates = [ (SystemState(self.system).save(), []) ]
 
         for mod in DO.get_entity_modifiers_in_dependency_order(entity):
             if isinstance(mod, model.Influence):
                 # logger.debug(f"Time: {self.global_time} | Triggering influence {mod._name} in entity {entity._name} ({entity.__class__.__name__})")
-                for sysstate in systemstates:
+                for (sysstate, transitions) in systemstates:
                     sysstate.apply()  # restores the captured state
                     newval = self._get_influence_function_value(mod)
                     if newval != mod.target.value:
@@ -249,7 +263,7 @@ class StateSpaceCalculator(Simulator):
                     sysstate.update()  # store the current values
             elif isinstance(mod, model.Update):
                 # logger.debug(f"Triggering update {mod._name} in entity {entity._name} ({entity.__class__.__name__})")
-                for sysstate in systemstates:
+                for (sysstate, transitions) in systemstates:
                     sysstate.apply()
                     newval = self._get_update_function_value(mod, time)
                     if newval != mod.target.value:
@@ -259,13 +273,15 @@ class StateSpaceCalculator(Simulator):
                     sysstate.update()
             elif isinstance(mod, model.Entity):
                 new_systemstates = []
-                for sysstate in systemstates:
+                for (sysstate, transitions) in systemstates:
                     sysstate.apply()
-                    new_systemstates.extend(self.advance_and_stabilise(mod, time))  # must return new states
+                    new_systemstates.extend(
+                        [ (new_state, transitions + new_trans) for (new_state, new_trans) in self.advance_and_stabilise(mod, time)]
+                    )
                 systemstates = new_systemstates  # the returned states are the new ones
 
         """ store pre's """
-        for sysstate in systemstates:
+        for (sysstate, transitions) in systemstates:
             sysstate.apply()
             # set pre again, for the actions that are triggered after the transitions
             for port in model.get_targets(entity):  # + get_targets(entity):
@@ -274,19 +290,20 @@ class StateSpaceCalculator(Simulator):
 
         """ check if transitions are enabled and do them """
         new_systemstates = []
-        for sysstate in systemstates:
+        for (sysstate, transitions) in systemstates:
             sysstate.apply()
             # returns the new transition_states or
             # EMPTY LIST if no transitions fired (!!!)
             # this is important and a convention here
-            trans_states = self.transition(entity)
-            if len(trans_states) > 0:
-                for tstate in trans_states:
+            states_after_transitions = self.transition(entity)
+            if len(states_after_transitions) > 0:
+                for (tstate, ttransitions) in states_after_transitions:
                     tstate.apply()
-                    new_tstates = self.advance_and_stabilise(entity, 0)  # returns a list of new states
-                    new_systemstates.extend(new_tstates)  # we already advanced time-wise, but now make sure that we're stable (only if we fired a transition...)
+                    new_systemstates.extend(
+                        [ (new_state, ttransitions + new_trans) for (new_state, new_trans) in self.advance_and_stabilise(entity, 0)]
+                    )   # we already advanced time-wise, but now make sure that we're stable (only if we fired a transition...)
             else:
-                new_systemstates.append(sysstate)  # nothing changed, so keep this state
+                new_systemstates.append( (sysstate, transitions) )  # nothing changed, so keep this state
 
         # logger.debug(f"Finished advancing {time} and stabilising entity {entity._name} ({entity.__class__.__name__})")
         return new_systemstates
@@ -296,8 +313,9 @@ class StateSpaceCalculator(Simulator):
         transitions_from_current_state = [t for t in model.get_transitions(entity) if t.source is entity.current]
         enabled_transitions = [t for t in transitions_from_current_state if self._get_transition_guard_value(t)]
 
+        state_before = SystemState(self.system).save()  # backup the state
+
         states_after = []
-        state_before = SystemState(self.system).save()
         for transition in enabled_transitions:
             state_before.apply()  # reset to original state
             entity.current = transition.target
@@ -306,15 +324,12 @@ class StateSpaceCalculator(Simulator):
             transition_updates = [up for up in model.get_updates(transition._parent) if up.state is transition]  # FIXME: until we completely switched to only allowing actions...
             actions = [a for a in model.get_actions(transition._parent) if a.transition is transition]
             for act in actions + transition_updates:
-                # logger.debug(f"Triggering action {act._name} in entity {entity._name} ({entity.__class__.__name__})")
                 newval = self._get_action_function_value(act)
                 if newval != act.target.value:
-                    # logger.info(f"Port value changed: {act.target._name} ({act.target._parent._name}) {act.target.value} -> {newval}")
                     act.target.value = newval
 
             state_after = SystemState(self.system).save()
-            states_after.append(state_after)
-
+            states_after.append( (state_after, [transition]) )
 
         # return the new states if there are any (this means that empty list means no transitions were fired)
         # logger.debug(f"finished transitions in entity {entity._name} ({entity.__class__.__name__}): Created {len(states_after)} new states!")
@@ -328,8 +343,9 @@ class StateSpaceCalculator(Simulator):
 
         dt = nbct[0]
         if dt > 0:
-            succ_states = self.advance(dt)
+            succ_states_and_transitions = self.advance(dt)
         else:
-            succ_states = self.stabilise()
+            succ_states_and_transitions = self.stabilise()
 
-        return succ_states, dt
+        # succ_states = {s for s, ts in succ_states_and_transitions}  # reduce to set
+        return succ_states_and_transitions, dt
