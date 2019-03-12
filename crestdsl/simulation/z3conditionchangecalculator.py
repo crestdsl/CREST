@@ -14,7 +14,7 @@ def get_behaviour_change_dt_from_constraintset(solver, constraints, dt):
         minimum = min(times, key=times.get)
         return times[minimum], minimum.label
     else:
-        None
+        return None, None
 
 class ConstraintSet(object):
 

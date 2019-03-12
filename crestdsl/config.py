@@ -30,7 +30,7 @@ class ConfigObject(object):
             self.default_plotter = dotter
         self.record_traces = True
         self.consider_behaviour_changes = True
-        self.remove_epsilon_after = 3
+        self.remove_epsilon_transition_after = 5
 
         """ pretty printing / approximation """
         self.approx = 100
