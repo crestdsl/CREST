@@ -7,8 +7,8 @@ from .epsilon import Epsilon
 import logging
 logger = logging.getLogger(__name__)
 
-def get_behaviour_change_dt_from_constraintset(solver, constraints, dt):
-    times = {cs: cs.check_behaviour_change(solver, dt) for cs in constraints}
+def get_behaviour_change_dt_from_constraintset(solver, constraints, dt, ctx=z3.main_ctx()):
+    times = {cs: cs.check_behaviour_change(solver, dt, ctx) for cs in constraints}
     times = {cs: time for cs, time in times.items() if time is not None}
     if len(times) > 0:
         minimum = min(times, key=times.get)
@@ -26,16 +26,22 @@ class ConstraintSet(object):
     def set_label(self, label):
         self.label = label
 
-    def check_behaviour_change(self, solver, dt):
+    def check_behaviour_change(self, solver, dt, ctx):
         """
         Returns either a numeric (Epsilon) value, or None.
         Epsilon states the time until the constraint is solvable.
         """
+        condition = self.condition 
+        constraints = self.constraints_until_condition
+        if ctx != z3.main_ctx():
+            condition = self.condition.translate(ctx)
+            constraints = [c.translate(ctx) for c in self.constraints_until_condition]
+
         solver.push()  # initial solver point (#1)
-        solver.add(self.constraints_until_condition)
+        solver.add(constraints)
 
         solver.push()  # (#2)
-        solver.add(self.condition)
+        solver.add(condition)
         solver.add(dt == 0)
         check = solver.check() == z3.sat
         logger.debug(f"The {self.label} is currently {check}")
@@ -46,9 +52,9 @@ class ConstraintSet(object):
         solver.add(dt > 0)  # time needs to pass
         # flip it
         if check:
-            solver.add(z3.Not(self.condition))  # currently sat, check if time can make it unsat
+            solver.add(z3.Not(condition))  # currently sat, check if time can make it unsat
         else:  # currently not sat
-            solver.add(self.condition)  # check if time can make it sat
+            solver.add(condition)  # check if time can make it sat
         objective = solver.minimize(dt)  # get the minimum
 
         returnvalue = None

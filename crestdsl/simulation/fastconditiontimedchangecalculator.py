@@ -119,7 +119,8 @@ class FastConditionTimedChangeCalculator(ConditionTimedChangeCalculator):
         """ Calculates if an if/else condition within the function can change its value """
         logger.debug(f"Calculating condition change time in '{influence_update._name}' in entity '{influence_update._parent._name}' ({influence_update._parent.__class__.__name__})")
         
-        solver = z3.Optimize()
+        ctx = z3.Context()
+        solver = z3.Optimize(ctx)
     
         # build a mapping that shows the propagation of information to the influence/update source (what influences the guard)
         if isinstance(influence_update, model.Influence):
@@ -129,30 +130,49 @@ class FastConditionTimedChangeCalculator(ConditionTimedChangeCalculator):
             read_ports.append(influence_update.target)
             modifier_map = self.get_modifier_map(read_ports)
     
-        z3_vars = self.z3_vars
+        z3_vars = {}
+        for port, value in self.z3_vars.items():
+            if port == "dt":
+                z3_vars[port] = value.translate(ctx)
+            elif isinstance(port, model.Port):
+                portname = port._name
+                portname_with_parent = port._parent._name + "." + port._name
+                
+                variable = value[port._name].translate(ctx)
+                pre_var = value[port._name + "_0"].translate(ctx)
+                
+                z3_vars[port] = {
+                    portname: variable,
+                    portname_with_parent: variable,
+                    portname + "_0": pre_var,
+                    portname_with_parent + "_0": pre_var,
+                    portname + ".pre": pre_var,
+                    portname_with_parent + ".pre": pre_var,
+                }
+            else:
+                logger.error(f"Don't know what to do with {port} {type(port)}. Value = \n {value}")
+                raise ValueError("cannot translate port to context")
+    
     
         # add the initial values for the sources of the dataflow
-        z3var_constraints = []
         for port, modifiers in modifier_map.items():
             # set default port value to the current value
-            pre_value = get_z3_value(port, port._name + "_0")
+            pre_value = get_z3_value(port, port._name + "_0").translate(ctx)
             solver.add(z3_vars[port][port._name + "_0"] == pre_value)
             if len(modifiers) == 0:
-                z3var_constraints.append(z3_vars[port][port._name] == z3_vars[port][port._name + "_0"])
-        solver.add(z3var_constraints)
-        # NOTE: we do not add a "dt >= 0" or "dt == 0" constraint here, because it would break the solving
+                solver.add(z3_vars[port][port._name] == z3_vars[port][port._name + "_0"])
     
         # create the constraints for updates and influences
         for port, modifiers in modifier_map.items():
             for modifier in modifiers:
                 if modifier != influence_update:  # skip the one we're actually analysing, this should be already done in the modifier-map creation...
                     constraints = self.z3_modifier_constraints[modifier]
-                    solver.add(constraints)
+                    solver.add([const.translate(ctx) for const in constraints])
     
         conditionchanged_constraintset, additionals = self.z3_conditionchanged_constraintsets[influence_update]
-        solver.add(additionals)
+        solver.add([a.translate(ctx) for a in additionals])
     
-        min_dt, label = get_behaviour_change_dt_from_constraintset(solver, conditionchanged_constraintset, z3_vars['dt'])
+        min_dt, label = get_behaviour_change_dt_from_constraintset(solver, conditionchanged_constraintset, z3_vars['dt'], ctx=ctx)
         if min_dt is not None:
             logger.info(f"Minimum condition change times in '{influence_update._name}' in entity '{influence_update._parent._name}' ({influence_update._parent.__class__.__name__}) is {min_dt} (at label {label})")
             return (to_python(min_dt), influence_update, label)
@@ -167,8 +187,8 @@ class FastConditionTimedChangeCalculator(ConditionTimedChangeCalculator):
         - ports are influenced by Influences starting at other ports (find recursively)
         """
         logger.debug(f"Calculating the transition time of '{transition._name}' in entity '{transition._parent._name}' ({transition._parent.__class__.__name__})")
-        
-        solver = z3.Optimize()
+        ctx = z3.Context()
+        solver = z3.Optimize(ctx)
     
         # find the ports that influence the transition
         transition_ports = SH.get_accessed_ports(transition.guard, transition)
@@ -176,30 +196,51 @@ class FastConditionTimedChangeCalculator(ConditionTimedChangeCalculator):
         # build a mapping that shows the propagation of information to the guard (what influences the guard)
         modifier_map = self.get_modifier_map(transition_ports)
     
-        z3_vars = self.z3_vars
+        z3_vars = {}
+        for port, value in self.z3_vars.items():
+            if port == "dt":
+                z3_vars[port] = value.translate(ctx)
+            elif isinstance(port, model.Port):
+                portname = port._name
+                portname_with_parent = port._parent._name + "." + port._name
+                
+                variable = value[port._name].translate(ctx)
+                pre_var = value[port._name + "_0"].translate(ctx)
+                
+                z3_vars[port] = {
+                    portname: variable,
+                    portname_with_parent: variable,
+                    portname + "_0": pre_var,
+                    portname_with_parent + "_0": pre_var,
+                    portname + ".pre": pre_var,
+                    portname_with_parent + ".pre": pre_var,
+                }
+            else:
+                logger.error(f"Don't know what to do with {port} {type(port)}. Value = \n {value}")
+                raise ValueError("cannot translate port to context")
+
         solver.add(z3_vars['dt'] >= 0)
     
         # add the initial values for the sources of the dataflow
-        z3var_constraints = []
         for port, modifiers in modifier_map.items():
             # set default port value to the current value
-            pre_value = get_z3_value(port, port._name + "_0")
+            pre_value = get_z3_value(port, port._name + "_0").translate(ctx)
             solver.add(z3_vars[port][port._name + "_0"] == pre_value)
             if len(modifiers) == 0:
-                z3var_constraints.append(z3_vars[port][port._name] == z3_vars[port][port._name + "_0"])
-        solver.add(z3var_constraints)
+                solver.add(z3_vars[port][port._name] == z3_vars[port][port._name + "_0"])
     
         # create the constraints for updates and influences
         for port, modifiers in modifier_map.items():
             for modifier in modifiers:
                 constraints = self.z3_modifier_constraints[modifier]
-                solver.add(constraints)
+                solver.add([const.translate(ctx) for const in constraints])
     
-        guard_constraint = self.z3_modifier_constraints[transition]
+        guard_constraint = [guardconst.translate(ctx) for guardconst in self.z3_modifier_constraints[transition] if not isinstance(guardconst, bool)]
         # this is because we cannot add booleans directly to a z3.Optimize (it works for Solver)
         # the issue is here:  https://github.com/Z3Prover/z3/issues/1736
         if isinstance(guard_constraint, bool):
-            guard_constraint = z3.And(guard_constraint)
+            guard_constraint = z3.And(guard_constraint, ctx)
+            
         solver.add(guard_constraint)
     
         objective = solver.minimize(z3_vars['dt'])  # find minimal value of dt
