@@ -5,6 +5,8 @@ from crestdsl.model import get_all_entities, get_all_ports, REAL, \
     get_inputs, get_outputs, get_sources, get_locals
 from .transitiontime import TransitionTimeCalculator
 from .conditiontimedchangecalculator import ConditionTimedChangeCalculator
+from .parallelconditiontimedchangecalculator import ParallelConditionTimedChangeCalculator
+from .fastconditiontimedchangecalculator import FastConditionTimedChangeCalculator
 from .to_z3 import evaluate_to_bool
 from crestdsl.config import to_python
 from .epsilon import Epsilon
@@ -25,6 +27,9 @@ class BaseSimulator(object):
         self.default_to_integer_real = default_to_integer_real
         self.traces = TraceStore()
         self.record_traces = record_traces
+        
+        # self.conditionchangecalculator = ConditionTimedChangeCalculator(self.system, self.timeunit, use_integer_and_real=self.default_to_integer_real)
+        self.conditionchangecalculator = FastConditionTimedChangeCalculator(self.system, self.timeunit, use_integer_and_real=self.default_to_integer_real)
 
         # go ahead and save the values right away
         self.save_trace()
@@ -425,7 +430,7 @@ class BaseSimulator(object):
     def next_behaviour_change_time(self, excludes=None):
         """Excludes is a list of transitions that we don't consider."""
 
-        nbct = ConditionTimedChangeCalculator(self.system, self.timeunit, use_integer_and_real=self.default_to_integer_real).get_next_behaviour_change_time(excludes=excludes)
+        nbct = self.conditionchangecalculator.get_next_behaviour_change_time(excludes=excludes)
         if nbct is not None:
             logger.info(f"The next behaviour change is {nbct[1]._name} in {to_python(nbct[0])} time steps")
         else:

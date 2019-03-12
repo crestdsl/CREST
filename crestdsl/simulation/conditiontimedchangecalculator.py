@@ -80,10 +80,20 @@ class ConditionTimedChangeCalculator(Z3Calculator):
                     all_dts.append(trans_dts)
 
         if logger.getEffectiveLevel() <= logging.DEBUG:
-            min_dt = get_minimum_dt_of_several(all_dts, self.timeunit)
-            if min_dt is not None:
-                logger.debug(f"Minimum behaviour change time for entity {entity._name} ({entity.__class__.__name__}) is {min_dt}")
-            return [min_dt]  # return a list
+            if len(all_dts) == 0:
+                logger.debug("There were no change times in entity {entity._name} ({entity.__class__.__name__}).")
+                return []
+            
+            min_dt_eps = min(all_dts, key=(lambda x: x[0]))
+            # min_dt = get_minimum_dt_of_several(all_dts, self.timeunit)
+            if min_dt_eps is not None:
+                logger.debug(f"Minimum behaviour change time for entity {entity._name} ({entity.__class__.__name__}) is {min_dt_eps}")
+            return [min_dt_eps]  # return a list
+            
+            # min_dt = get_minimum_dt_of_several(all_dts, self.timeunit)
+            # if min_dt is not None:
+            #     logger.debug(f"Minimum behaviour change time for entity {entity._name} ({entity.__class__.__name__}) is {min_dt}")
+            # return [min_dt]  # return a list
         else:
             # XXX This is the faster one that we run when we're not debugging !!
             return all_dts
@@ -122,7 +132,7 @@ class ConditionTimedChangeCalculator(Z3Calculator):
                     constraints = self._get_constraints_from_modifier(modifier, z3_vars)
                     solver.add(constraints)
 
-        solver.push()  # backup
+        # solver.push()  # backup
 
         # if it's an influence, we need to add the source param equation
         if isinstance(influence_update, Influence):
@@ -138,7 +148,7 @@ class ConditionTimedChangeCalculator(Z3Calculator):
             log_if_level(logging.DEBUG, f"influence entry constraint: {z3_src} == {z3_param}")
             solver.add(z3_src == z3_param)
 
-        solver.push()
+        # solver.push()
 
         if not hasattr(influence_update, "_cached_z3_behaviour_change_constraints"):
             conv = Z3ConditionChangeCalculator(z3_vars, entity=influence_update._parent, container=influence_update, use_integer_and_real=self.use_integer_and_real)
