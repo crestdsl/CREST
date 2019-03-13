@@ -5,8 +5,8 @@ from crestdsl.model import get_all_entities, get_all_ports, REAL, \
     get_inputs, get_outputs, get_sources, get_locals
 from .transitiontime import TransitionTimeCalculator
 from .conditiontimedchangecalculator import ConditionTimedChangeCalculator
-from .parallelconditiontimedchangecalculator import ParallelConditionTimedChangeCalculator
 from .fastconditiontimedchangecalculator import FastConditionTimedChangeCalculator
+from .contextconditiontimedchangecalculator import ContextConditionTimedChangeCalculator
 from .to_z3 import evaluate_to_bool
 from crestdsl.config import to_python
 from .epsilon import Epsilon
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class BaseSimulator(object):
 
-    def __init__(self, system, time=0, timeunit=REAL, plotter=config.default_plotter, default_to_integer_real=config.use_integer_and_real, record_traces=config.record_traces):
+    def __init__(self, system, time=0, timeunit=REAL, plotter=config.default_plotter, default_to_integer_real=config.use_integer_and_real, record_traces=config.record_traces, own_context=True):
         self.system = system
         self.timeunit = timeunit
         self.plotter = plotter
@@ -28,8 +28,11 @@ class BaseSimulator(object):
         self.traces = TraceStore()
         self.record_traces = record_traces
         
-        # self.conditionchangecalculator = ConditionTimedChangeCalculator(self.system, self.timeunit, use_integer_and_real=self.default_to_integer_real)
-        self.conditionchangecalculator = FastConditionTimedChangeCalculator(self.system, self.timeunit, use_integer_and_real=self.default_to_integer_real)
+        # the latter one is a (tiny) bit slower, but operates in its own Z3 context !! (I hope we can parallelize things now)
+        if own_context:
+            self.conditionchangecalculator = ContextConditionTimedChangeCalculator(self.system, self.timeunit, use_integer_and_real=self.default_to_integer_real)
+        else:
+            self.conditionchangecalculator = ConditionTimedChangeCalculator(self.system, self.timeunit, use_integer_and_real=self.default_to_integer_real)
 
         # go ahead and save the values right away
         self.save_trace()
