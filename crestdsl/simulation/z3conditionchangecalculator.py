@@ -23,6 +23,13 @@ class ConstraintSet(object):
         self.condition = condition
         self.label = ""
 
+    def translate_to_context(self, ctx):
+        translated = ConstraintSet()
+        translated.label = self.label
+        translated.condition = self.condition.translate(ctx)
+        translated.constraints = [c.translate(ctx) for c in self.constraints_until_condition]
+        return translated
+        
     def set_label(self, label):
         self.label = label
 
@@ -33,7 +40,7 @@ class ConstraintSet(object):
         """
         condition = self.condition 
         constraints = self.constraints_until_condition
-        if ctx != z3.main_ctx():
+        if ctx != condition.ctx:  # the wrong context, translate to the correct one
             condition = self.condition.translate(ctx)
             constraints = [c.translate(ctx) for c in self.constraints_until_condition]
 
