@@ -4,6 +4,9 @@
 
 import setuptools
 
+with open('requirements.txt', "r") as f:
+    requires = f.read().split()
+
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
@@ -18,23 +21,7 @@ setuptools.setup(
     url="https://github.com/stklik/CREST",
     packages=setuptools.find_packages(),
     setup_requires=['wheel'],
-    install_requires=[
-        'pip',  # upgrade pip to latest version
-        'importlib_resources',
-        'colored>=1.3',  # for colored print output
-        'methoddispatch>=2',  # important because version 2 introduced a breaking change
-        'matplotlib',
-        'graphviz>',
-        'pygraphviz>=1.5',
-        'astor>=0.7',
-        'pandas>0.1',
-        'numpy',
-        'networkx>=2.2'
-        'astor>=0.6',
-        'plotly>=3.5',  # for interactive plotting
-        'cufflinks>=0.14',  # for plotly + pandas plotting
-        'pwlf>=0.3'  # for the machine learning
-    ],
+    install_requires=requires,
     include_package_data=True,
     classifiers=[
         "Programming Language :: Python :: 3",

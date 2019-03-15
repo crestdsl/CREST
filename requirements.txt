@@ -1,0 +1,14 @@
+importlib_resources
+colored>=1.3
+methoddispatch>=2
+matplotlib
+graphviz
+pygraphviz>=1.5
+astor>=0.7
+pandas>0.1
+numpy
+networkx>=2.2
+astor>=0.6
+plotly>=3.5
+cufflinks>=0.14
+pwlf>=0.3
