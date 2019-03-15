@@ -1,7 +1,7 @@
 from crestdsl.verification.statespace import StateSpace
 from crestdsl.verification.checklib import check
 from crestdsl.verification import tctl
-from crestdsl.verification import PointwiseModelChecker
+from crestdsl.verification.pointwise import PointwiseModelChecker
 
 import crestdsl.model as crest
 import operator
@@ -206,7 +206,7 @@ class PointwiseModelCheckerTest(unittest.TestCase):
         mc = PointwiseModelChecker(self.ss)
         # solution = mc.check(formula)
         # print(solution)
-        crestKripke = mc.make_CREST_kripke(formula)
+        crestKripke = mc.make_CREST_Kripke(formula)
         nodes = mc.is_satisfiable(formula, crestKripke)
 
     def test_check_EU(self):
@@ -218,5 +218,5 @@ class PointwiseModelCheckerTest(unittest.TestCase):
 
         # solution = mc.check(formula)
         # print(solution)
-        crestKripke = mc.make_CREST_kripke(formula)
+        crestKripke = mc.make_CREST_Kripke(formula)
         nodes = mc.is_satisfiable(formula, crestKripke)

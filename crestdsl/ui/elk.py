@@ -1,36 +1,63 @@
-from IPython.display import display, HTML
+from crestdsl.config import config
+
+if config.interactive:
+    from IPython.display import display, HTML
+
+
 from functools import singledispatch
 import crestdsl.model as Model
 from crestdsl.model.entity import MetaEntity as MetaEntity
-
-from crestdsl.config import config
 
 from crestdsl.simulation import sourcehelper as SH
 from crestdsl.model.meta import PARENT_IDENTIFIER, CURRENT_IDENTIFIER, CrestObject
 import uuid
 
+from os import path
+import os
+
 import numbers
+try:
+    from importlib.resources import read_text
+except:
+    from importlib_resources import read_text
 
 """
 Produces JSON that can be interpreted by the Eclipse Layout Kernel (ELK).
 I tried to use OpenKieler's elkjs.
 """
+UI_DISPLAY_ROUND = 4
+
+def write_to_filename(filename, content):
+    idx = 0
+    flnm = f"{filename}_{idx}.html"
+    while path.exists(flnm):
+        flnm = flnm = f"{filename}_{idx}.html"
+        idx += 1
+    with open(flnm, "w") as filehandle:
+        filehandle.write(str(content))
 
 
 def plot(object_to_plot, name='', **kwargs):
     elkgraph = generate_root(object_to_plot, name)
     elkgraph = str(elkgraph)
-    with open("crestdsl/ui/index.html", 'r') as htmlfile:
-        htmlcontent = htmlfile.read()
-        full = htmlcontent.replace('ELKGRAPH', str(elkgraph))
-        full = full.replace("\"", "&quot;")
-        inIframe = """
+    
+    htmlcontent = read_text("crestdsl.ui", "index.html")
+    # with open("crestdsl/ui/index.html", 'r') as htmlfile:
+    #     htmlcontent = htmlfile.read()
+    full = htmlcontent.replace('ELKGRAPH', str(elkgraph))
+    full = full.replace("\"", "&quot;")
+    inIframe = """
     <iframe id="iframe_IFRAME_ID" style="border:none;padding:0px;" width="100%" height="25px" id="map" srcdoc="
     PAGE
     " />
     """.replace("PAGE", full).replace("IFRAME_ID", str(uuid.uuid4()))
+    if config.interactive:
         display(HTML(inIframe))
-        return
+    else:
+        # FIXME: This is broken... the HTML doesn't actually work when output locally
+        filename = object_to_plot.__class__.__name__
+        write_to_filename(filename, full)
+    return
 
     return "<h1 style='color:red;'>Something went wrong during the graph generation. Sorry!</h1>"
 

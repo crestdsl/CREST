@@ -15,15 +15,13 @@ class GetPropositionsTest(unittest.TestCase):
     def test_And_return_parts(self):
         ap = tctl.AtomicProposition(None)
         ap2 = tctl.AtomicProposition(None)
-        ap3 = tctl.AtomicProposition(None)
-        and_formula = tctl.And(ap, ap2, ap3)
-        self.assertCountEqual(and_formula.get_propositions(), [ap, ap2, ap3])
+        and_formula = tctl.And(ap, ap2)
+        self.assertCountEqual(and_formula.get_propositions(), [ap, ap2])
 
     def test_And_return_parts_avoids_duplicates(self):
         ap = tctl.AtomicProposition(None)
-        ap2 = tctl.AtomicProposition(None)
-        and_formula = tctl.And(ap, ap2, ap)
-        self.assertCountEqual(and_formula.get_propositions(), [ap, ap2])
+        and_formula = tctl.And(ap, ap)
+        self.assertCountEqual(and_formula.get_propositions(), [ap])
 
     def test_And_return_parts_avoids_nested_duplicates(self):
         ap = tctl.AtomicProposition(None)
@@ -36,14 +34,13 @@ class GetPropositionsTest(unittest.TestCase):
         ap = tctl.AtomicProposition(None)
         ap2 = tctl.AtomicProposition(None)
         ap3 = tctl.AtomicProposition(None)
-        or_formula = tctl.Or(ap, ap2, ap3)
-        self.assertCountEqual(or_formula.get_propositions(), [ap, ap2, ap3])
+        or_formula = tctl.Or(ap, ap2)
+        self.assertCountEqual(or_formula.get_propositions(), [ap, ap2])
 
     def test_Or_return_parts_avoids_duplicates(self):
         ap = tctl.AtomicProposition(None)
-        ap2 = tctl.AtomicProposition(None)
-        or_formula = tctl.Or(ap, ap2, ap)
-        self.assertCountEqual(or_formula.get_propositions(), [ap, ap2])
+        or_formula = tctl.Or(ap, ap)
+        self.assertCountEqual(or_formula.get_propositions(), [ap])
 
     def test_Or_return_parts_avoids_nested_duplicates(self):
         ap = tctl.AtomicProposition(None)
@@ -56,7 +53,7 @@ class GetPropositionsTest(unittest.TestCase):
         ap = tctl.AtomicProposition(None)
         deepnest = tctl.And(ap, ap)
         for _ in range(10):
-            deepnest = tctl.And(deepnest, ap, tctl.Or(deepnest, ap))
+            deepnest = tctl.And(deepnest, tctl.And(ap, tctl.Or(deepnest, ap)))
         self.assertCountEqual(deepnest.get_propositions(), [ap])
 
 

@@ -17,6 +17,7 @@ RUN mkdir /var/lib/apt/lists/partial && \
 
 # install astor and gaphviz
 RUN pip install --no-cache-dir --upgrade pip
+RUN pip install --no-cache-dir --upgrade importlib_resources
 RUN pip install --no-cache-dir --upgrade methoddispatch
 RUN pip install --no-cache-dir --upgrade plotly
 RUN pip install --no-cache-dir --upgrade cufflinks

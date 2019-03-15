@@ -1,11 +1,10 @@
 try:
     get_ipython()  # test if we're in ipython
-    from .ui import elk
     INTERACTIVE = True
 except:
-    from .ui import dotter
     INTERACTIVE = False
     pass
+
 
 # basic loggingconfig:
 import logging
@@ -18,25 +17,55 @@ __all__ = ['config']
 class ConfigObject(object):
 
     def __init__(self):
-        """ z3 """
-        self.use_integer_and_real = True
-        self.epsilon = 10 ** -10
-        self.allow_global_python_variables = True  # allows to use global variables in code
-
-        """ simulator """
-        if INTERACTIVE:
-            self.default_plotter = elk
-        else:
-            self.default_plotter = dotter
-        self.record_traces = True
-        self.consider_behaviour_changes = True
-        self.remove_epsilon_transition_after = 5
-
         """ pretty printing / approximation """
         self.approx = 100
+    
+    @property
+    def interactive(self):
+        return INTERACTIVE
+    
+    
+    """ z3 Definitions """
 
-        """ User interface rounding """
-        self.ui_display_round = 4
+    @property
+    def use_integer_and_real(self):
+        # Whether to use integer and real instead of bitvec and float
+        return True
+    
+    @property
+    def epsilon(self):
+        return 10 ** -10
+    
+    """ User interface rounding """
+    
+    @property 
+    def ui_display_round(self):
+        return 4
+    
+    """ simulator """
+
+    @property
+    def default_plotter(self):
+        if INTERACTIVE:
+            from crestdsl.ui import elk
+            return elk
+        else:
+            from crestdsl.ui import dotter
+            return dotter
+    
+    @property
+    def record_traces(self):
+        return True
+    
+    @property
+    def consider_behaviour_changes(self):
+        return True
+    
+    @property
+    def remove_epsilon_transition_after(self):
+        return 5
+
+    
 
 
 config = ConfigObject()

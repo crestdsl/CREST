@@ -1,0 +1,2 @@
+include crestdsl/ui/*.js
+include crestdsl/ui/*.html

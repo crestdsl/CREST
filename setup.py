@@ -17,9 +17,11 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/stklik/CREST",
     packages=setuptools.find_packages(),
+    setup_requires=['wheel'],
     install_requires=[
         'pip',  # upgrade pip to latest version
-        'colored>1.3',  # for colored print output
+        'importlib_resources',
+        'colored>=1.3',  # for colored print output
         'methoddispatch>=2',  # important because version 2 introduced a breaking change
         'matplotlib',
         'graphviz>',
@@ -33,9 +35,12 @@ setuptools.setup(
         'cufflinks>=0.14',  # for plotly + pandas plotting
         'pwlf>=0.3'  # for the machine learning
     ],
+    include_package_data=True,
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
+    test_suite='nose.collector',
+    tests_require=['nose'],
 )
