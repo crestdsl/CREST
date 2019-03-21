@@ -1,18 +1,9 @@
-try:
-    get_ipython()  # test if we're in ipython
-    INTERACTIVE = True
-except:
-    INTERACTIVE = False
-    pass
-
-
 # basic loggingconfig:
 import logging
 logging.basicConfig(level=logging.WARNING)
 
 # only export config, by default
 __all__ = ['config']
-
 
 class ConfigObject(object):
 
@@ -22,8 +13,11 @@ class ConfigObject(object):
     
     @property
     def interactive(self):
-        return INTERACTIVE
-    
+        try:
+            __IPYTHON__
+            return True
+        except NameError:
+            return False
     
     """ z3 Definitions """
 
@@ -46,7 +40,7 @@ class ConfigObject(object):
 
     @property
     def default_plotter(self):
-        if INTERACTIVE:
+        if self.interactive:
             from crestdsl.ui import elk
             return elk
         else:
@@ -64,6 +58,10 @@ class ConfigObject(object):
     @property
     def remove_epsilon_transition_after(self):
         return 5
+        
+    @property
+    def plotformat(self):
+        return 'png'
 
     
 

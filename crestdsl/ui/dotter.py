@@ -1,3 +1,4 @@
+from datetime import datetime
 from graphviz import Source
 from crestdsl.model.meta import PARENT_IDENTIFIER, CURRENT_IDENTIFIER, CrestObject
 import crestdsl.model as Model
@@ -7,6 +8,8 @@ import astor
 from crestdsl.simulation import sourcehelper as SH
 from functools import singledispatch
 import random
+
+from crestdsl.config import config
 
 import logging
 logger = logging.getLogger(__name__)
@@ -57,8 +60,14 @@ def plot(object_to_dot, name="", **kwargs):
         {body}
     }}
     """
-
-    s = Source(src, filename='graph.gv', engine='dot')
+    
+    time = "_t"+str(kwargs['time']) if 'time' in kwargs else ""
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f"{object_to_dot.__class__.__name__}_{timestamp}{time}"
+    s = Source(src, filename=filename, engine='dot')
+    if not config.interactive:
+        s.render(directory="plots", filename=filename, format=kwargs.get('format', config.plotformat), cleanup=True,view=False)
+        
     # print(src)
     # s.view(cleanup=True)
     return s

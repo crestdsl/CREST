@@ -3,7 +3,6 @@ from crestdsl.config import config
 if config.interactive:
     from IPython.display import display, HTML
 
-
 from functools import singledispatch
 import crestdsl.model as Model
 from crestdsl.model.entity import MetaEntity as MetaEntity
@@ -12,8 +11,8 @@ from crestdsl.simulation import sourcehelper as SH
 from crestdsl.model.meta import PARENT_IDENTIFIER, CURRENT_IDENTIFIER, CrestObject
 import uuid
 
-from os import path
 import os
+from datetime import datetime
 
 import numbers
 try:
@@ -27,16 +26,6 @@ I tried to use OpenKieler's elkjs.
 """
 UI_DISPLAY_ROUND = 4
 
-def write_to_filename(filename, content):
-    idx = 0
-    flnm = f"{filename}_{idx}.html"
-    while path.exists(flnm):
-        flnm = flnm = f"{filename}_{idx}.html"
-        idx += 1
-    with open(flnm, "w") as filehandle:
-        filehandle.write(str(content))
-
-
 def plot(object_to_plot, name='', **kwargs):
     elkgraph = generate_root(object_to_plot, name)
     elkgraph = str(elkgraph)
@@ -45,18 +34,23 @@ def plot(object_to_plot, name='', **kwargs):
     # with open("crestdsl/ui/index.html", 'r') as htmlfile:
     #     htmlcontent = htmlfile.read()
     full = htmlcontent.replace('ELKGRAPH', str(elkgraph))
-    full = full.replace("\"", "&quot;")
+    quot_replaced = full.replace("\"", "&quot;")
     inIframe = """
     <iframe id="iframe_IFRAME_ID" style="border:none;padding:0px;" width="100%" height="25px" id="map" srcdoc="
     PAGE
     " />
-    """.replace("PAGE", full).replace("IFRAME_ID", str(uuid.uuid4()))
+    """.replace("PAGE", quot_replaced).replace("IFRAME_ID", str(uuid.uuid4()))
     if config.interactive:
         display(HTML(inIframe))
     else:
         # FIXME: This is broken... the HTML doesn't actually work when output locally
-        filename = object_to_plot.__class__.__name__
-        write_to_filename(filename, full)
+        if not os.path.exists("plots"):
+            os.mkdir("plots")
+        time = "_t"+str(kwargs['time']) if 'time' in kwargs else ""
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"plots/{object_to_plot.__class__.__name__}_{timestamp}{time}.html"
+        with open(filename, "w") as filehandle:
+            filehandle.write(str(full))
     return
 
     return "<h1 style='color:red;'>Something went wrong during the graph generation. Sorry!</h1>"
