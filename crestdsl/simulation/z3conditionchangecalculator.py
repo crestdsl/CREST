@@ -24,10 +24,11 @@ class ConstraintSet(object):
         self.label = ""
 
     def translate_to_context(self, ctx):
-        translated = ConstraintSet()
+        condition = self.condition.translate(ctx)
+        constraints = [c.translate(ctx) for c in self.constraints_until_condition]
+        
+        translated = ConstraintSet(constraints, condition)
         translated.label = self.label
-        translated.condition = self.condition.translate(ctx)
-        translated.constraints = [c.translate(ctx) for c in self.constraints_until_condition]
         return translated
         
     def set_label(self, label):

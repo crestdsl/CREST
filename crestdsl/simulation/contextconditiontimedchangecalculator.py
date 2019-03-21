@@ -79,7 +79,7 @@ def translate_to_context(cache, ctx):
     return translated
 
 
-def init_z3_constraints_and_vars(self, timeunit, use_integer_and_real):
+def init_z3_constraints_and_vars(entity, timeunit, use_integer_and_real):
     
     cache = SimpleNamespace()
      
@@ -97,7 +97,7 @@ def init_z3_constraints_and_vars(self, timeunit, use_integer_and_real):
         
         variable = get_z3_variable(port, port._name)
         pre_var = get_z3_variable(port, port._name + "_0")
-         
+        
         cache.z3_vars[port] = {
             portname: variable,
             portname_with_parent: variable,
@@ -114,7 +114,7 @@ def init_z3_constraints_and_vars(self, timeunit, use_integer_and_real):
     cache.z3_modifier_constraints = {}
     cache.z3_conditionchanged_constraintsets = {}
     for influence in model.get_all_influences(entity):
-        constraints = get_constraints_from_modifier(influence, cache.z3_vars, cache=False, use_integer_and_real=use_integer_and_real)
+        constraints = get_constraints_from_modifier(influence, cache.z3_vars, use_integer_and_real=use_integer_and_real, cache=False)
         cache.z3_modifier_constraints[influence] = constraints
         
         # TODO: this should be nicer somehow ...
@@ -129,7 +129,7 @@ def init_z3_constraints_and_vars(self, timeunit, use_integer_and_real):
         cache.z3_conditionchanged_constraintsets[influence] = (conv.calculate_constraints(influence.function), z3_src == z3_param )
          
     for update in model.get_all_updates(entity):
-        constraints = get_constraints_from_modifier(update, cache.z3_vars, cache=False)
+        constraints = get_constraints_from_modifier(update, cache.z3_vars, use_integer_and_real, cache=False)
         cache.z3_modifier_constraints[update] = constraints
         
         conv = Z3ConditionChangeCalculator(cache.z3_vars, entity=update._parent, container=update, use_integer_and_real=use_integer_and_real)
@@ -148,72 +148,9 @@ class ContextConditionTimedChangeCalculator(ConditionTimedChangeCalculator):
         logger.debug("Initializing z3 constraints and variables")
         entity = self.entity
 
-        # load from a cache, if it exists
-        if getattr(entity, "_constraint_cache", None) is not None:
-            logger.debug("Initializing from cache")
-            self.cache = entity._constraint_cache
-            return
-
-        self.cache = SimpleNamespace()
-        
-        # create port variables for all ports
-        self.cache.z3_vars = {}
-        self.cache.z3_port_constraints = {}
-        
-        dt_var = get_z3_var(self.timeunit, 'dt')
-        self.cache.z3_vars['dt'] = dt_var
-        self.cache.z3_vars['dt'].type = self.timeunit
-        
-        for port in model.get_all_ports(entity):
-            portname = port._name
-            portname_with_parent = port._parent._name + "." + port._name
-            
-            variable = get_z3_variable(port, port._name)
-            pre_var = get_z3_variable(port, port._name + "_0")
-            
-            self.cache.z3_vars[port] = {
-                portname: variable,
-                portname_with_parent: variable,
-                portname + "_0": pre_var,
-                portname_with_parent + "_0": pre_var,
-                portname + ".pre": pre_var,
-                portname_with_parent + ".pre": pre_var,
-            }
-            
-            # pre_value = get_z3_value(port, port._name + "_0")
-            # self.cache.z3_port_constraints[port] = pre_var == pre_value  # init condition needs to be set
-            
-        # create entity constraints for all modifiers
-        self.cache.z3_modifier_constraints = {}
-        self.cache.z3_conditionchanged_constraintsets = {}
-        for influence in model.get_all_influences(entity):
-            constraints = self._get_constraints_from_modifier(influence, self.cache.z3_vars, cache=False)
-            self.cache.z3_modifier_constraints[influence] = constraints
-            
-            # TODO: this should be nicer somehow ...
-            # add port and constraint for the influence param
-            z3_src = self.cache.z3_vars[influence_update.source][influence_update.source._name]
-            params = SH.get_param_names(influence_update.function)
-            param_key = params[0] + "_" + str(id(influence_update))
-            z3_param = get_z3_variable(influence_update.source, params[0], str(id(influence_update)))
-            z3_vars[param_key] = {params[0] + "_0": z3_param}
-            
-            conv = Z3ConditionChangeCalculator(self.cache.z3_vars, entity=influence._parent, container=influence, use_integer_and_real=self.use_integer_and_real)
-            self.cache.z3_conditionchanged_constraintsets[influence] = (conv.calculate_constraints(influence.function), z3_src == z3_param )
-            
-        for update in model.get_all_updates(entity):
-            constraints = self._get_constraints_from_modifier(update, self.cache.z3_vars, cache=False)
-            self.cache.z3_modifier_constraints[update] = constraints
-            
-            conv = Z3ConditionChangeCalculator(self.cache.z3_vars, entity=update._parent, container=update, use_integer_and_real=self.use_integer_and_real)
-            self.cache.z3_conditionchanged_constraintsets[update] = (conv.calculate_constraints(update.function), [])
-            
-        for transition in model.get_all_transitions(entity):
-            conv = Z3Converter(self.cache.z3_vars, entity=transition._parent, container=transition, use_integer_and_real=self.use_integer_and_real)
-            guard_constraint = conv.to_z3(transition.guard)
-            self.cache.z3_modifier_constraints[transition] = guard_constraint
-
-        entity._constraint_cache = self.cache
+        if getattr(entity, "_constraint_cache", None) is None:
+            entity._constraint_cache = init_z3_constraints_and_vars(self.entity, self.timeunit, self.use_integer_and_real)
+        self.cache = entity._constraint_cache
 
     def calculate_system(self, entity=None, include_subentities=True):
         logger.debug("FAST: Calculating for all entities")

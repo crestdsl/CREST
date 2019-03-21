@@ -225,9 +225,9 @@ def get_all_following_siblings(ast_node):
     return without_node
 
 
-def get_accessed_ports(function, container, exclude_pre=True):
+def get_accessed_ports(function, container, exclude_pre=True, cache=True):
     # XXX Caching
-    if hasattr(container, "_cached_accessed_ports"):
+    if hasattr(container, "_cached_accessed_ports") and cache:
         if exclude_pre:
             return container._cached_accessed_ports
         else:

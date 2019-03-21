@@ -48,27 +48,22 @@ def _get_datatype_from_list(values, datatype_name):
     return datatype.create()
 
 
-def get_z3_val(valtype, value, name, datatype_name=None):
+def get_z3_val(valtype, value, name, datatype_name=None, ctx=None):
     val = None
     if isinstance(valtype, z3.z3.DatatypeSortRef):  # discrete values datatype
         val = getattr(valtype, value)
     elif valtype is Types.INT:
-        val = z3.BitVecVal(value, 32)
+        val = z3.BitVecVal(value, 32, ctx=ctx)
     elif valtype is Types.INTEGER:
-        try:
-            val = z3.IntVal(value)
-        except:
-            print(value, type(value))
-            pass
-
+        val = z3.IntVal(value, ctx=ctx)
     elif valtype is Types.FLOAT:
-        val = z3.FPVal(value, z3.Float32())
+        val = z3.FPVal(value, z3.Float32(), ctx=ctx)
     elif valtype is Types.REAL:
-        val = z3.RealVal(value)
+        val = z3.RealVal(value, ctx=ctx)
     elif valtype is Types.BOOL:
-        val = z3.BoolVal(value)
+        val = z3.BoolVal(value, ctx=ctx)
     elif valtype is Types.STRING:
-        val = z3.StringVal(value)
+        val = z3.StringVal(value, ctx=ctx)
     elif isinstance(valtype, list):
         datatype = _get_datatype_from_list(valtype, datatype_name)
         val = getattr(datatype, value)
@@ -81,22 +76,22 @@ def get_z3_val(valtype, value, name, datatype_name=None):
     return val
 
 
-def get_z3_var(vartype, name, datatype_name=None):
+def get_z3_var(vartype, name, datatype_name=None, ctx=None):
     var = None
     if isinstance(vartype, z3.z3.DatatypeSortRef):  # discrete values datatype
         var = z3.Const(name, vartype)
     elif vartype is Types.INT:
-        var = z3.BitVec(name, 32)
+        var = z3.BitVec(name, 32, ctx=ctx)
     elif vartype is Types.INTEGER:
-        var = z3.Int(name)
+        var = z3.Int(name, ctx=ctx)
     elif vartype is Types.FLOAT:
-        var = z3.FP(name, z3.Float32())
+        var = z3.FP(name, z3.Float32(), ctx=ctx)
     elif vartype is Types.REAL:
-        var = z3.Real(name)
+        var = z3.Real(name, ctx=ctx)
     elif vartype is Types.BOOL:
-        var = z3.Bool(name)
+        var = z3.Bool(name, ctx=ctx)
     elif vartype is Types.STRING:
-        var = z3.String(name)
+        var = z3.String(name, ctx=ctx)
     elif isinstance(vartype, list):
         datatype = _get_datatype_from_list(vartype, datatype_name)
         var = z3.Const(name, datatype)
