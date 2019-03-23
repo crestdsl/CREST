@@ -24,7 +24,6 @@ except:
 Produces JSON that can be interpreted by the Eclipse Layout Kernel (ELK).
 I tried to use OpenKieler's elkjs.
 """
-UI_DISPLAY_ROUND = 4
 
 def plot(object_to_plot, name='', **kwargs):
     elkgraph = generate_root(object_to_plot, name)

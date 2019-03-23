@@ -73,7 +73,7 @@ class BaseSimulator(object):
         if self.plotter:
             time = self.global_time.to_number() if isinstance(self.global_time, Epsilon) else self.global_time
             title = f"(t = {round(time, config.ui_display_round)})"
-            return self.plotter.plot(entity, name=title, **kwargs)
+            return self.plotter.plot(entity, name=title, time=time, **kwargs)
         else:
             logger.error("No plotter defined!!!")
 

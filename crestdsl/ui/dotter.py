@@ -9,6 +9,7 @@ from crestdsl.simulation import sourcehelper as SH
 from functools import singledispatch
 import random
 
+import numbers
 from crestdsl.config import config
 
 import logging
@@ -89,17 +90,20 @@ def gen_State(obj, name="", parent=None, **kwargs):
 
 @generate.register(Model.Local)
 def gen_Local(obj, name="", parent=None, **kwargs):
-    return f"{id(obj)} [label=\"{name}\n{obj.value} ({obj.resource.unit})\" style=filled fillcolor=\"#d2ceef\" shape=box height=.25]"
+    round_value = round(obj.value, config.ui_display_round) if isinstance(obj.value, numbers.Number) else obj.value
+    return f"{id(obj)} [label=\"{name}\n{round_value} ({obj.resource.unit})\" style=filled fillcolor=\"#d2ceef\" shape=box height=.25]"
 
 
 @generate.register(Model.Input)
 def gen_Input(obj, name="", parent=None, **kwargs):
-    return f"{id(obj)} [label=\"{name}\n{obj.value} ({obj.resource.unit})\" style=filled fillcolor=\"#b5fed9\" height=.35 shape=cds]"
+    round_value = round(obj.value, config.ui_display_round) if isinstance(obj.value, numbers.Number) else obj.value
+    return f"{id(obj)} [label=\"{name}\n{round_value} ({obj.resource.unit})\" style=filled fillcolor=\"#b5fed9\" height=.35 shape=cds]"
 
 
 @generate.register(Model.Output)
 def gen_Output(obj, name="", parent=None, **kwargs):
-    return f"{id(obj)} [label=\"{name}\n{obj.value} ({obj.resource.unit})\" style=filled fillcolor=\"#fcc5b3\" height=.35 shape=cds]"
+    round_value = round(obj.value, config.ui_display_round) if isinstance(obj.value, numbers.Number) else obj.value
+    return f"{id(obj)} [label=\"{name}\n{round_value} ({obj.resource.unit})\" style=filled fillcolor=\"#fcc5b3\" height=.35 shape=cds]"
 
 
 @generate.register(Model.Transition)
