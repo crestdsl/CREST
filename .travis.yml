@@ -12,6 +12,8 @@ services:
 before_install:
  - docker build -t stklik/crest .
 
+install: true  # don't let pip install requirements.txt ... we did that manually in the dockerfile
+
 script:
   # pass travis environment info into the docker container
   - ci_env=`bash <(curl -s https://codecov.io/env)`
