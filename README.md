@@ -37,12 +37,12 @@ You can then create and simulate your own models.
 
 ## Installation
 
-**Recommended:** Currently the only way to install is to download/clone this repository and use the sources.
-The easiest way to run the latest version is to either launch it on Binder (see above),
-or use [`repo2docker`](https://github.com/jupyter/repo2docker).
+**Recommended:** Download/clone this repository and use the sources.
+The easiest way is to use the latest version of CREST is to either launch it on Binder (see above),
+or create a local Docker image (`scripts/docker-build.sh`) and then run it (`scripts/docker-run.sh`).
+Alternatively you can use [`repo2docker`](https://github.com/jupyter/repo2docker).
 
 **Local install:** You can also use CREST locally and install the dependencies manually. See the [Dockerfile](./Dockerfile) for information about the tools and libraries that are used. CREST also requires Microsoft's [Z3Prover](https://github.com/Z3Prover) to be installed (including the Python API).
-
 
 **Soon:** A pip-install is in the pipelines but has been delayed due to publication season :-)
 
