@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class BaseSimulator(object):
 
-    def __init__(self, system, time=0, timeunit=REAL, plotter=config.default_plotter, default_to_integer_real=config.use_integer_and_real, record_traces=config.record_traces, own_context=True):
+    def __init__(self, system, time=0, timeunit=REAL, plotter=config.default_plotter, default_to_integer_real=config.use_integer_and_real, record_traces=config.record_traces, own_context=False):
         self.system = system
         self.timeunit = timeunit
         self.plotter = plotter
