@@ -1,6 +1,6 @@
 
 <p align="center">
-<img src="/docs/crestlogo.svg" />
+<img src="/docs/assets/crestlogo.svg" />
 </p>
 
 # **CREST** - A Continuous REactive SysTems DSL
