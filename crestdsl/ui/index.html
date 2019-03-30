@@ -19,6 +19,11 @@
 
     <!-- import plotting JS -->
 <script type=text/javascript>
+zoomIn_icon = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAw1BMVEUAAAB/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI3xtshnAAAAQHRSTlMAAQIDBAUHCQ4PEhcYGRosLS8wMTI0Njs+XF1fYWJje3x/g4WGi4ylpq+wsrS1t7q+w9na3uDo6evt8/X3+fv9t1zkJwAAASZJREFUOMuFktlaglAUhReCaGYJ2GQ2mg1opU1govK//1N1USIHQtfd+fa/99nDkn5le4NJFE0Gnq3/ZPeW/GnZq5Xj7Yicov1i3E8xlPqF/BQgDFzLcrsjgNSoYUdA4q2fXgJE+T76QNKSBCCplQC9TdxZAZ42gDxguZnWB0bKAxqvUyRJQyAwgS4wyIAp4Co/pVxgkgExYJmABUS7gHjXF1OjSd9sMgBujTFDEwiznGxRneKiFs6OVV+VjtUxjvWVKyC1AQh917LcYATAacEwlDRubLHc5xkwOzBNe7FahxeXtp6B9Nj8xvGH03j2dnfkSGp8A5yrWocpwL1VTZwA8FKvJvoAvDeriQcA5tWE9QrAY3WJ+geGccpqzoGbLYD2nuLr2g/1Ul3l1Ie5ZAAAAABJRU5ErkJggg==";
+zoomOut_icon = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAw1BMVEUAAAB/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI3xtshnAAAAQHRSTlMAAQIDBAUHCQ4PEhcYGRosLS8wMTI0Njs+XF1fYWJje3x/g4WGi4ylpq+wsrS1t7q+w9na3uDo6evt8/X3+fv9t1zkJwAAAR1JREFUOMuFkllbglAQhs8RRLNFwDazssgWsIK2g4nK+/9/VRelMBD63c0z7+yj1K8sN4iNiQPXUv/JGi7503LYqvsPDCWZ/arfyxHKvUp8DhD6jtbOIALIRQ7LAJm7Nt0MMOU+RkDWK+xeBgwL214BbjmlCyyLaT0gkk1NRcgE8CUwAIKNlQCOKk+pHCDeACmgJaABswtId5VIRJOV1frArRgzlEAoYuwV0K8uamHvWPV17Vh9cawvW5wbgNBztHb8CICzysNQ07Sz5eU+z4HZoXzay9Xavbiy1DOQn8gytjdJ0tnb3bGtlOp8A1yoZh3lAPe6mTgF4KXdTIwAeO82Ew8AzJsJ/QrAY3OK9gficerqzoGbLYDae0rHrR80JlXlSHq+OQAAAABJRU5ErkJggg==";
+zoomDefault_icon = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAjVBMVEUAAAB/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI0/GYShAAAALnRSTlMAAQIDBAUGBwgJDhAWHCMnKDA2ODk8UlVZXl9naGxziY6RprXFyMzP2eLo7ff7/VgF5wAAANNJREFUOMu9k2tTgkAYRs/umoKUKJoXKm3zbvX8/5/nB6BAUGZqxvPxnbPzXhfugJ0GsPRLCL1PIPE+zAPB1ILZKoKddhBJKaQqBTaGiW4JGmOcA6yzgHOGeqCN7MEVnDN5ymYiKW0XsrabyQbzb/pxHVtsIY77pKpTVF108XehNQVARfhqEwYvVSH0PsmF1UnSAtZXilybx299AMFno3Dqwej4ADCs1JCvW08A3Sz2dlnkQnp1JXp7KSqf3HPzHH6P1h5uCVsDnfm7v+Dn48wsd+AM5Y05Cyt42pkAAAAASUVORK5CYII=";
+print_icon = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAilBMVEUAAAB/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI1/jI23zaXmAAAALXRSTlMAAQIDBAUJCw4PFBUXHCEiJygpKiwtLzAxRFddcHh5hoiLnaq6vL7P1dze7fewTk3OAAAApUlEQVQ4y73RuRaCMBCF4Rskbow7KipuUdzv+7+ehQ3EJFJ4+Luc+YokA9TqzGrHqDqPaVe0KkCT/dLRfAkHYBH9ADz4Qf65R9sL4twYQ069AABAZg2C3nzlBNvFQAHAnqQTkLx1gTUDgA+FO33tlJBDMAyWAUCSzBoE14uVDTz/wAyvMEjREZGJE2xEJKm/7iQIYucL0xI/OeZPXQJqNLMba/ypN0LNTO2D/cklAAAAAElFTkSuQmCC";
+
 /**
     FIXME: CLEAN UP THIS FILE, IT IS A MESS !!!!
 */
@@ -296,21 +301,17 @@ function plot(elkgraph){
         let getUrl = window.parent.location;
         let baseUrl = getUrl.origin + "/" + getUrl.pathname.split('/')[1];
         let imgUrl = baseUrl + '/CREST/crestdsl/ui/icons/add.png';
-        tb.addItem('Zoom In', baseUrl + '/CREST/crestdsl/ui/icons/zoom_in32.png',function(evt) {
+        tb.addItem('Zoom In', zoomIn_icon,function(evt) {
             graph.zoomIn();
         });
-        tb.addItem('Zoom Out', baseUrl + '/CREST/crestdsl/ui/icons/zoom_out32.png',function(evt) {
+        tb.addItem('Zoom Out', zoomOut_icon,function(evt) {
             graph.zoomOut();
         });
 
-        tb.addItem('Actual Size', baseUrl + '/CREST/crestdsl/ui/icons/view_1_132.png',function(evt) {
+        tb.addItem('Actual Size', zoomDefault_icon,function(evt) {
             adjustSizeOfContainerAndFrame(container, graph);
         });
-        // tb.addItem('Print', baseUrl + '/CREST/crestdsl/ui/icons/print32.png',function(evt) {
-        // var preview = new mxPrintPreview(graph, 1);
-        //     preview.open();
-        // });
-        tb.addItem('Poster Print', baseUrl + '/CREST/crestdsl/ui/icons/press32.png',function(evt) {
+        tb.addItem('Poster Print', print_icon,function(evt) {
         var pageCount = mxUtils.prompt('Enter maximum page count', '1');
         if (pageCount != null) {
             var scale = mxUtils.getScaleForPageCount(pageCount, graph);
@@ -318,6 +319,28 @@ function plot(elkgraph){
             preview.open();
         }
         });
+        // tb.addItem('Zoom In', baseUrl + '/CREST/crestdsl/ui/icons/zoom_in32.png',function(evt) {
+        //     graph.zoomIn();
+        // });
+        // tb.addItem('Zoom Out', baseUrl + '/CREST/crestdsl/ui/icons/zoom_out32.png',function(evt) {
+        //     graph.zoomOut();
+        // });
+        // 
+        // tb.addItem('Actual Size', baseUrl + '/CREST/crestdsl/ui/icons/view_1_132.png',function(evt) {
+        //     adjustSizeOfContainerAndFrame(container, graph);
+        // });
+        // // tb.addItem('Print', baseUrl + '/CREST/crestdsl/ui/icons/print32.png',function(evt) {
+        // // var preview = new mxPrintPreview(graph, 1);
+        // //     preview.open();
+        // // });
+        // tb.addItem('Poster Print', baseUrl + '/CREST/crestdsl/ui/icons/press32.png',function(evt) {
+        // var pageCount = mxUtils.prompt('Enter maximum page count', '1');
+        // if (pageCount != null) {
+        //     var scale = mxUtils.getScaleForPageCount(pageCount, graph);
+        //     var preview = new mxPrintPreview(graph, scale);
+        //     preview.open();
+        // }
+        // });
         wnd = new mxWindow('Tools', toolbarElement, 5, 5, 180, 66, false);
         wnd.setMaximizable(false);
         wnd.setScrollable(false);

@@ -2,4 +2,3 @@ include requirements.txt
 include *.md
 include crestdsl/ui/*.js
 include crestdsl/ui/*.html
-include crestdsl/ui/icons/*
