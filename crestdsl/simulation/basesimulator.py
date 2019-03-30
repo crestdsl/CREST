@@ -416,6 +416,7 @@ class BaseSimulator(object):
     def get_next_transition_time(self):
         """ this function is a convenience for debugging, so we don't have to create a TransitionTimeCalculator manually """
         ntt = self.next_transition_time()
+        logger.warning("Warning. This will really only consider transitions. Not if/else conditions in updates and influences. Are you sure you want to ignore these behaviour changes?")
         if ntt:
             logger.info(f"The next transition to fire is '{ntt[1]._name}' in ntt={to_python(ntt[0])} time steps")
             return (ntt[1]._name, to_python(ntt[0]))

@@ -229,9 +229,9 @@ def get_accessed_ports(function, container, exclude_pre=True, cache=True):
     # XXX Caching
     if hasattr(container, "_cached_accessed_ports") and cache:
         if exclude_pre:
-            return container._cached_accessed_ports
+            return list(set(container._cached_accessed_ports))
         else:
-            return container._cached_accessed_ports + container._cached_accessed_pre_ports
+            return list(set(container._cached_accessed_ports + container._cached_accessed_pre_ports))
     # print(container._name, "in", container._parent._name)
     ast_body = get_ast_body(function)
     varnames = get_used_variable_names(ast_body)

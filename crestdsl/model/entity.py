@@ -16,9 +16,9 @@ logger = logging.getLogger(__name__)
 
 class MetaEntity(type):
     """
-    HC SVNT DRACONES - Here be dragons.
-
     This is a black magic meta-class. Beware of what you do here!
+    
+    HC SVNT DRACONES - Here be dragons.
 
     PS: this should probably be moved to Meta, but the __call__ uses get_entities() which is defined here...
     """
@@ -68,7 +68,13 @@ class MetaEntity(type):
 
 
 class Entity(meta.CrestObject, metaclass=MetaEntity):
-
+    """
+    The base class of all CREST systems and components. It is meant to be subclassed.
+    
+    To create a new entity, create from this class using e.g. `class MyEntity(crest.Entity)`.
+    Note, that you can implement (parameterized) constructors for your entities with `__init__`.
+    """
+    
     def __new__(cls, *args, **kwargs):
         newobj = super().__new__(cls)
         logger.debug(f"creating a {type(newobj)}")
@@ -88,6 +94,8 @@ class Entity(meta.CrestObject, metaclass=MetaEntity):
         # newobj = make_crest_copy(self, newobj)
 
         copied_obj = copy_with_memo(self, newobj, memo)
+        if hasattr(copied_obj, "_constraint_cache"):
+            delattr(copied_obj, "_constraint_cache")  # this is used in the simulator and can cause problems
         return copied_obj  # newobj
 
     def __setattr__(self, name, value):
@@ -111,6 +119,27 @@ class Entity(meta.CrestObject, metaclass=MetaEntity):
 
 
 def copy_with_memo(original_obj, newobj, memo=None):
+    """
+    Create an instance/copy of a CREST Entity.
+    
+    This is a black magic function. It creates an entity based on a form of blueprint.
+    
+    Parameters
+    ----------
+    original_obj : class or object
+        Either an Entity (sub)class or an instance of an Entity (sub)class. Both work fine.
+    newobj : object
+        An instance of original_obj (if original_obj is a class) or an instance of original_obj's class (if original_obj is an object)
+    memo : dict
+        A store of old-object-id to new-object, so we can point objects to the same place.
+        This is similar to deepcopy's memo parameter.
+        
+    Returns
+    -------
+    object
+        The same object that was passed in as newobj. 
+    """
+    
     logger.debug(f"copy_with_memo. original_obj: {original_obj}, newobj: {newobj}, memo: {memo}")
     if memo is None:
         memo = {}

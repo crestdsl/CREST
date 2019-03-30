@@ -8,7 +8,7 @@ from .model import State, Transition, Update, Influence, Action, Dependency
 from .decorators import update, influence, transition, action, dependency
 from .ports import Port, Input, Output, Local
 from .resource import Resource
-from .entity import Entity, LogicalEntity, MetaEntity, \
+from .entity import Entity, LogicalEntity, \
     get_path_to_attribute, \
     get_all_entities, get_all_influences, get_all_updates, get_all_ports, \
     get_all_states, get_all_transitions, get_all_crest_objects, get_all_actions, \
