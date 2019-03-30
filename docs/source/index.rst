@@ -13,8 +13,8 @@ The main focus lies on simplicity.
 
 .. _try-me:
 
-Demo (Try Me!)
------------------
+Try Me! (Browser-Demo)
+----------------------
 
 You can try crestdsl directly in your browser.
 Just click the badge and wait for crestdsl to be loaded into a Jupyter instance inside your browser: |crestdsl-demo|
