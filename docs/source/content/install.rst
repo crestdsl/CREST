@@ -19,16 +19,18 @@ The image is based on Jupyter's docker stacks, so you develop right in your brow
 
 Remember to map the image's port `8888` to one of your host machine's ports (here `8888` too).
 
-.. note:: If you want to your persist files, 
-   you should look into mounting a volume using docker's 
-   `-v directive <https://docs.docker.com/storage/volumes/>`_, like this:
-   
-   .. code-block:: none
-   
-      docker run -p 8888:8888 -v $(pwd):/home/jovyan/my_notebooks crestdsl/release
+**Local file storage**
+
+If you want to your persist files, 
+you should look into mounting a volume using docker's 
+`-v directive <https://docs.docker.com/storage/volumes/>`_, like this:
+
+.. code-block:: none
+
+  docker run -p 8888:8888 -v $(pwd):/home/jovyan/my_notebooks crestdsl/release
 
 
-.. warning::  The docker image is quite large to download (~2GB).
+.. note::  The docker image is quite large to download (~2GB).
     Make sure to have a good internet connection (or go grab a coffee).
 
 
@@ -48,6 +50,9 @@ Alternatively, to install from sources, clone the repository and install locally
    cd CREST
    pip install -e .
 
+.. note::  crestdsl was developed using Python 3.6. 
+   You will certainly have problems using any version of Python 2.
+   For versions < 3.6, you might run into issues, I haven't tested it.
 
 **Required: Patched Z3 Prover**
 
