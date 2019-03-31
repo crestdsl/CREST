@@ -12,7 +12,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="crestdsl",
-    version="0.2",
+    version="0.3",
     author="Stefan Klikovits",
     author_email="crestdsl@klikovits.net",
     description="A Continuous REactive SysTems DSL",

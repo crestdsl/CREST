@@ -3,7 +3,7 @@ Installation
 
 This page describes the several ways of using crestdsl.
 Additionally to the local execution here, you can try crestdsl in your browser
-using Jupyter and Binder, as described on the :ref:`index-page` page.
+using Jupyter and Binder, as described on the :doc:`../index` page.
 
 Docker
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^

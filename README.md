@@ -6,6 +6,7 @@
 # **CREST** - A Continuous REactive SysTems DSL
 
 [![Build Status](https://travis-ci.org/stklik/CREST.svg?branch=master)](https://travis-ci.org/stklik/CREST) 
+[![PyPI](https://img.shields.io/pypi/v/crestdsl.svg?color=blue)](https://pypi.org/project/crestdsl/)
 [![Documentation Status](https://readthedocs.org/projects/crestdsl/badge/?version=latest)](https://crestdsl.readthedocs.io/?badge=latest)
 [![codecov](https://codecov.io/gh/stklik/CREST/branch/master/graph/badge.svg)](https://codecov.io/gh/stklik/CREST)
 (I know, I know, I'm really busy though...)
