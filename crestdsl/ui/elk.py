@@ -7,7 +7,7 @@ from functools import singledispatch
 import crestdsl.model as Model
 from crestdsl.model.entity import MetaEntity as MetaEntity
 
-from crestdsl.simulation import sourcehelper as SH
+from crestdsl import sourcehelper as SH
 from crestdsl.model.meta import PARENT_IDENTIFIER, CURRENT_IDENTIFIER, CrestObject
 import uuid
 

@@ -1,5 +1,5 @@
 from crestdsl import model
-from crestdsl.simulation import sourcehelper as SH
+from crestdsl import sourcehelper as SH
 import ast
 from .to_z3 import Z3Converter, get_z3_variable, get_z3_var, get_z3_value, get_minimum_dt_of_several
 from .z3conditionchangecalculator import Z3ConditionChangeCalculator, get_behaviour_change_dt_from_constraintset

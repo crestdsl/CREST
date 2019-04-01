@@ -1,7 +1,7 @@
 import astor
 import z3
 from .to_z3 import Z3Converter, get_minimum_dt_of_several_anonymous
-from crestdsl.simulation import sourcehelper as SH
+from crestdsl import sourcehelper as SH
 from .epsilon import Epsilon
 
 import logging

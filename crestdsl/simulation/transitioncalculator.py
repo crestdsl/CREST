@@ -1,5 +1,5 @@
 from crestdsl.model import Types, get_all_influences, get_all_updates, Influence, get_all_entities, get_transitions
-from crestdsl.simulation import sourcehelper as SH
+from crestdsl import sourcehelper as SH
 from .to_z3 import Z3Converter, get_z3_var, get_z3_value, get_z3_variable
 import z3
 

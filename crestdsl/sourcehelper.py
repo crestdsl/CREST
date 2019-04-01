@@ -258,6 +258,7 @@ def get_accessed_ports(function, container, exclude_pre=True, cache=True):
     # source_ports = get_sources(container._parent)
     # ports = [s_port for s_port in source_ports if s_port._name in portnames]  # XXX just fixed this to be sources
 
+    assert container._parent is not None, "We cannot access the parents ports if the parent is None"
     entity_ports = get_ports(container._parent, as_dict=True)
     for subentity in get_entities(container._parent):
         child_ports = {f"{subentity._name}.{p._name}": p for p in get_ports(subentity)}

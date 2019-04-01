@@ -5,7 +5,7 @@ import crestdsl.model as Model
 from crestdsl.model.entity import MetaEntity as MetaEntity
 
 import astor
-from crestdsl.simulation import sourcehelper as SH
+from crestdsl import sourcehelper as SH
 from functools import singledispatch
 import random
 

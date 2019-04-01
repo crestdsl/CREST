@@ -1,6 +1,6 @@
 import unittest
 import ast
-from crestdsl.simulation import sourcehelper as SH
+from crestdsl import sourcehelper as SH
 from crestdsl.simulation.to_z3 import *
 
 import logging

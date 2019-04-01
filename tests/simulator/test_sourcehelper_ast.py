@@ -1,7 +1,7 @@
 import unittest
 # import ast
 import astor
-from crestdsl.simulation import sourcehelper as SH
+from crestdsl import sourcehelper as SH
 # from pprint import pprint
 
 import logging

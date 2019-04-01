@@ -2,7 +2,7 @@ import methoddispatch
 
 from crestdsl.config import config
 
-from crestdsl.simulation import sourcehelper as SH
+from crestdsl import sourcehelper as SH
 
 from crestdsl.simulation.epsilon import Epsilon
 from crestdsl.config import to_python

@@ -1,7 +1,7 @@
 # from operator import groupby
 import networkx as nx
 import crestdsl.model as crest
-from crestdsl.simulation import sourcehelper as SH
+from crestdsl import sourcehelper as SH
 
 import logging
 logger = logging.getLogger(__name__)

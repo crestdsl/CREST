@@ -1,5 +1,5 @@
 from crestdsl.model import Influence, get_updates, get_influences, get_transitions
-from crestdsl.simulation import sourcehelper as SH
+from crestdsl import sourcehelper as SH
 import ast
 from .to_z3 import Z3Converter, get_z3_variable, get_minimum_dt_of_several
 from .z3conditionchangecalculator import Z3ConditionChangeCalculator, get_behaviour_change_dt_from_constraintset
