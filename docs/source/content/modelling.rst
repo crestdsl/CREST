@@ -14,7 +14,7 @@ After it's :doc:`content/install` you can simply import it.
 On this page, we will look into the creation of system models,
 so let’s import the ``model`` subpackage.
 
-.. code:: ipython3
+.. code:: python
 
     import crestdsl.model as crest
 
@@ -30,7 +30,7 @@ Resource names are simple ``strings``, value domains can be infinite,
 such as real and integer, or discrete such as ``["on", "off"]``, as shown for the switch below.
 crestdsl provides several resource types such as ``INT``, ``REAL``, ``INTEGER``, ``FLOAT``, etc.
 
-.. code:: ipython3
+.. code:: python
 
     electricity = crest.Resource("Watt", crest.REAL)  # a real-valued resource
     switch = crest.Resource("switch", ["on", "off"])  # a discrete resource
@@ -91,7 +91,7 @@ input and one output port.
    ``Local`` ports and subentities.
    We will see the use of these concepts further below.
 
-.. code:: ipython3
+.. code:: python
 
     class LightElement(crest.Entity):
         """This is a definition of a new Entity type. It derives from CREST's Entity base class."""
@@ -129,7 +129,7 @@ electricity is converted to addtional heat under the lamp. Thus, for
 example, by providing 100 Watt, the temperature underneath the lamp
 grows by 1 degree centigrade.
 
-.. code:: ipython3
+.. code:: python
 
     class HeatElement(crest.Entity):
         """ Ports """
@@ -161,7 +161,7 @@ is then written to the actual target port using an influence.
 We call such entities *logical*, since they don’t have a real-world
 counterpart.
 
-.. code:: ipython3
+.. code:: python
 
     # a logical entity can inherit from LogicalEntity, 
     # to emphasize that it does not relate to the real world
@@ -221,7 +221,7 @@ Below, the ``count_switching_on`` action is used to increase the ``on_count``
 port every time the growing lamp is turned on.
 
 
-.. code:: ipython3
+.. code:: python
 
     class GrowLamp(crest.Entity):
         

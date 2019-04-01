@@ -10,7 +10,7 @@ Simulation allows us to execute the model and see its evolution.
 ``crestdsl``\ ’s simulator is located in the ``simultion`` module. In
 order to use it, we have to import it.
 
-.. code:: ipython3
+.. code:: python
 
     # import the simulator
     from crestdsl.simulation import Simulator
@@ -19,7 +19,7 @@ After the import, we can use a simulator by initialising it with a
 system model. In our case, we will explore the ``GrowLamp`` system that
 we defined above.
 
-.. code:: ipython3
+.. code:: python
 
     gl = GrowLamp()
     sim = Simulator(gl)
@@ -43,7 +43,7 @@ The simulator also has a convenience API ``plot()`` that allows the
 direct plotting of the entity, without having to import and call the
 ``elk`` library.
 
-.. code:: ipython3
+.. code:: python
 
     sim.stabilise()
     sim.plot()
@@ -57,7 +57,7 @@ Below, we show the modification of the growlamp and stabilisation.
 Compare the plot below to the plot above to see that the information has
 been updated.
 
-.. code:: ipython3
+.. code:: python
 
     # modify the growlamp instance's inputs directly, the simulator points to that object and will use it
     gl.electricity_in.value = 500
@@ -78,7 +78,7 @@ the local variable ``on_time``, which sums up the total amount of time
 the automaton has spent in the ``on`` state, has the value of 500 too -
 Just as expected!
 
-.. code:: ipython3
+.. code:: python
 
     sim.advance(500)
     sim.plot()
