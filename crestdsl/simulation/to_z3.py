@@ -3,6 +3,7 @@ from crestdsl.model import Types, INT, FLOAT, STRING, BOOL, REAL, INTEGER, \
     State, Port, get_path_to_attribute
 
 from crestdsl import sourcehelper as SH
+import crestdsl.ml as crestml
 from operator import attrgetter
 
 from methoddispatch import singledispatch, SingleDispatch
@@ -167,6 +168,11 @@ class Z3Converter(SingleDispatch):
     def to_z3(self, obj):
         logger.info(f"\t\tNothing special for (perhaps unknown) node of type {type(obj)}")
         return obj
+    
+    @to_z3.register(crestml.LearnedFunction)
+    def to_z3_crestmlLearner(self, obj):
+        """For functions that were learned using machine learning"""
+        return self.to_z3(obj.learnedfunction)
 
     """ GENERAL TYPES """
     @to_z3.register(list)
