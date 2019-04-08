@@ -12,3 +12,4 @@ astor>=0.6
 plotly>=3.5
 cufflinks>=0.14
 pwlf>=0.3
+importnb

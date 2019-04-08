@@ -2,6 +2,7 @@ import networkx as nx
 import math
 
 import crestdsl.model as model
+import crestdsl.model.api as api
 from crestdsl.simulation.simulator import Simulator
 import crestdsl.simulation.dependencyOrder as DO
 

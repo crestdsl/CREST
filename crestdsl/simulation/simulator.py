@@ -1,6 +1,6 @@
 from crestdsl.config import config, to_python
-from crestdsl.model import get_targets, get_sources, get_inputs, \
-    Influence, Update, Entity, Transition
+from crestdsl.model import get_inputs, Influence, Update, Entity, Transition
+from crestdsl.model.api import get_targets, get_sources
 from .to_z3 import evaluate_to_bool
 from .basesimulator import BaseSimulator
 from crestdsl.simulation import dependencyOrder as DO

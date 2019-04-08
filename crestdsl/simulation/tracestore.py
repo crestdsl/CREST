@@ -38,7 +38,11 @@ class TraceStore(object):
         data.update({entity: entity.current for entity in get_all_entities(root_entity)})
         data.update({port: port.value for port in get_all_ports(root_entity)})
         # print(self.data.shape)
+        # try:
         self._data.append(pd.DataFrame(data, index=[0]))
+        # except:
+        #     breakpoint()
+        #     pass
         # print(self.data.shape)
 
     def plot(self, traces=None):

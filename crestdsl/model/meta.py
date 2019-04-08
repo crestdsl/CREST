@@ -3,7 +3,7 @@ CURRENT_IDENTIFIER = "current"
 NAME_IDENTIFIER = "_name"
 DEPENDENCY_IDENTIFIER = "_dependencies"
 
-from . import api
+import crestdsl.model.api as api
 
 class CrestObject(object):
     def __init__(self, name="", parent=None):

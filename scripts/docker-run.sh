@@ -1,1 +1,1 @@
-docker run --rm -p 8888:8888 -v $(pwd):/home/jovyan/CREST crest
+docker run --rm -p 8888:8888 -v $(pwd):/home/jovyan/CREST -e JUPYTER_ENABLE_LAB=yes crest

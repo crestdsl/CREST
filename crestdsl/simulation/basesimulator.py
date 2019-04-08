@@ -2,7 +2,8 @@ from crestdsl.config import config
 from .tracestore import TraceStore
 from crestdsl.model import get_all_entities, get_all_ports, REAL, \
     get_influences, get_transitions, get_entities, get_updates, get_actions, \
-    get_inputs, get_outputs, get_sources, get_locals
+    get_inputs, get_outputs, get_locals
+from crestdsl.model.api import get_targets, get_sources
 from .transitiontime import TransitionTimeCalculator
 from .conditiontimedchangecalculator import ConditionTimedChangeCalculator
 from .fastconditiontimedchangecalculator import FastConditionTimedChangeCalculator
@@ -11,7 +12,7 @@ from .to_z3 import evaluate_to_bool
 from crestdsl.config import to_python
 from .epsilon import Epsilon
 import random
-
+import math
 
 import logging
 logger = logging.getLogger(__name__)
@@ -19,11 +20,16 @@ logger = logging.getLogger(__name__)
 
 class BaseSimulator(object):
 
-    def __init__(self, system, time=0, timeunit=REAL, plotter=config.default_plotter, default_to_integer_real=config.use_integer_and_real, record_traces=config.record_traces, own_context=False):
+    def __init__(self, system, timeunit=REAL, 
+            plotter=config.default_plotter, default_to_integer_real=config.use_integer_and_real, 
+            record_traces=config.record_traces, own_context=False,
+            max_step_size=math.inf):
         self.system = system
         self.timeunit = timeunit
         self.plotter = plotter
-        self._global_time = time
+        self.max_step_size = max_step_size
+        
+        self._global_time = 0
         self.default_to_integer_real = default_to_integer_real
         self.traces = TraceStore()
         self.record_traces = record_traces
@@ -351,6 +357,10 @@ class BaseSimulator(object):
             # return False
 
     def advance(self, time_to_advance, consider_behaviour_changes=config.consider_behaviour_changes):
+        if time_to_advance > self.max_step_size:
+            logger.debug(f"Time to advance {time_to_advance} is larger than max step size {self.max_step_size}. Splitting")
+            self.advance(self.max_step_size, consider_behaviour_changes=consider_behaviour_changes)
+            self.advance(time_to_advance - self.max_step_size, consider_behaviour_changes=consider_behaviour_changes)
         filter = self.WarningDuplicateFilter()
         for handler in logging.root.handlers:
             handler.addFilter(filter)

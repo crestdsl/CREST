@@ -1,6 +1,7 @@
 # from operator import groupby
 import networkx as nx
 import crestdsl.model as crest
+import crestdsl.model.api as api
 from crestdsl import sourcehelper as SH
 
 import logging
@@ -26,7 +27,7 @@ def entity_modifier_graph(entity):
     logger.debug(f"creating modifier graph for entity {entity._name} ({entity.__class__.__name__})")
     # create a bipartite graph
     DG = nx.DiGraph()
-    portlist = set(crest.get_sources(entity) + crest.get_targets(entity))
+    portlist = set(api.get_sources(entity) + api.get_targets(entity))
     for port in portlist:
         DG.add_node(id(port), port=port)
 
@@ -112,7 +113,7 @@ def get_entity_modifiers_in_dependency_order(entity):
     # create a subgraph_view so that the inactive states are filtered
     def node_filter(node):
         obj = orig_DG.nodes[node]
-        keep = not ("modifier" in obj and isinstance(obj["modifier"], crest.Update) and obj["modifier"].state != crest.get_current(obj["modifier"]._parent))
+        keep = not ("modifier" in obj and isinstance(obj["modifier"], crest.Update) and obj["modifier"].state != api.get_current(obj["modifier"]._parent))
         return keep
 
     DG = nx.graphviews.subgraph_view(orig_DG, filter_node=node_filter)

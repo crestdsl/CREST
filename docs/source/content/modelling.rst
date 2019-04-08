@@ -10,7 +10,7 @@ Modelling
 
 
 crestdsl is shipped as Python library. 
-After it's :doc:`content/install` you can simply import it.
+After it's :doc:`install` you can simply import it.
 On this page, we will look into the creation of system models,
 so let’s import the ``model`` subpackage.
 
@@ -193,7 +193,7 @@ as a subentity in an even bigger system.
 
 
 **Continuous Behaviour**
-The GrowLamp below uses ``Local'' ports to hold data.
+The GrowLamp below uses ``Local`` ports to hold data.
 Local ports behave just as input and output ports, 
 except that they cannot be accessed from outside the entity's scope.
 
@@ -211,7 +211,7 @@ Additionally, influences can also be defined as ``@influence`` decorators for
 entity methods.
 This results that the target port's value is a function of the source port value.
 In the growing lamp this functionality is used to convert the temperature unit 
-from fahrenheit to celsius (see ``celsius_to_fahrenheit``).
+from fahrenheit to celsius (see ``fahrenheit_to_celsius``).
 
 
 **Actions**
@@ -250,7 +250,7 @@ port every time the growing lamp is turned on.
         Since they are called directly with the source-port's value, a self-parameter is not necessary.
         """
         @crest.influence(source=room_temperature_in, target=adder.room_temp_in)
-        def celsius_to_fahrenheit(value):
+        def fahrenheit_to_celsius(value):
             return (value - 32) * 5 / 9
         
         # we can also define updates and influences with lambda functions... 

@@ -1,77 +1,95 @@
-# basic loggingconfig:
-import logging
+import logging  # basic loggingconfig
 logging.basicConfig(level=logging.WARNING)
+logger = logging.getLogger(__name__)
 
 # only export config, by default
 __all__ = ['config']
 
 class ConfigObject(object):
-
-    def __init__(self):
-        """ pretty printing / approximation """
-        self.approx = 100
+    """
+    An object that holds various configuration settings that 
+    are used throughout crestdsl.
+    """
     
+    approx: int = 100
+    """precision for when we have to round z3's fractions to actual numbers"""
+    use_integer_and_real:bool = True
+    """Should we replace Python's int and float with Z3's Integer and Real for simulation?"""
+    epsilon:float = 10 ** -10
+    """ When converting from infinitesimal values to actual float numbers,
+    what value should epsilon take? (Should be very small)"""
+    ui_display_round:int = 4 
+    """When showing numbers in plots, to what precision should they be rounded?"""
+    
+    record_traces:bool = True
+    """Should the simulator record traces by default?
+    (needs a small amount of more performance & memory)"""
+    
+    consider_behaviour_changes: bool = True
+    """This should be True if you're using conditinoal statements
+    in your updates/influences/guards, etc."""
+    
+    remove_epsilon_transition_after: int = 5
+    """If we detect the same transition doing lots of epsilon steps, 
+    we block it after this many detections."""
+        
+    plotformat: str = 'png'
+    """When we're in commandline and plotting graphviz to a file, we'll use this format.
+    Possible output values are listed here: https://www.graphviz.org/doc/info/output.html.
+    """
+    
+    def __init__(self):
+        # z3 Definitions
+        self._default_plotter = None
+        
+
     @property
     def interactive(self):
+        """This value tells us if we're running in Jupyter or not."""
         try:
             __IPYTHON__
             return True
         except NameError:
             return False
-    
-    """ z3 Definitions """
 
-    @property
-    def use_integer_and_real(self):
-        # Whether to use integer and real instead of bitvec and float
-        return True
-    
-    @property
-    def epsilon(self):
-        return 10 ** -10
-    
-    """ User interface rounding """
-    
-    @property 
-    def ui_display_round(self):
-        return 4
-    
     """ simulator """
 
     @property
     def default_plotter(self):
+        """The default plotting library used.
+        
+        What is the default plotting output library. 
+        Currently the choice is between elk and graphviz dot
+        """
+        if self._default_plotter is not None:
+            return self._default_plotter
         if self.interactive:
             from crestdsl.ui import elk
             return elk
         else:
             from crestdsl.ui import dotter
             return dotter
-    
-    @property
-    def record_traces(self):
-        return True
-    
-    @property
-    def consider_behaviour_changes(self):
-        return True
-    
-    @property
-    def remove_epsilon_transition_after(self):
-        return 5
-        
-    @property
-    def plotformat(self):
-        return 'png'
-
-    
+            
+    @default_plotter.setter
+    def set_default_plotter(self, plotter):
+        self._default_plotter = plotter
 
 
-config = ConfigObject()
+config: ConfigObject = ConfigObject()
+"""A global singleton object that allows configuration.
+Import it with ``from crestdsl.config import config`` and to the properties.
+
+.. seealso:: :class:`crestdsl.config.ConfigObject`
+"""
+
+
 
 
 import numbers
-import z3
-
+try:
+    import z3
+except ModuleNotFoundError:
+    logger.warning("There was a problem when importing z3. Please make sure it is correctly installed")
 
 def to_python(some_number):
     if isinstance(some_number, numbers.Number):
