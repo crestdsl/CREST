@@ -487,6 +487,20 @@ def get_equivalent_in_system(original, object_to_find, newsystem):
 
 
 def get_all_entities(entity):
+    """
+    Recursively descends through the entity hierarchy and collects all entities, 
+    including the parameter entity itself.
+    
+    Parameters
+    ----------
+    entity : Entity
+        The root from which to start collecting the entities from.
+
+    Returns
+    -------
+    list of Entity
+        A list of entities within the entity or its children.
+    """
     entities = [entity]
     for name, ent in get_entities(entity, as_dict=True).items():
         entities.extend(get_all_entities(ent))
@@ -494,30 +508,129 @@ def get_all_entities(entity):
 
 
 def get_all_influences(entity):
+    """
+    Recursively descends through the entity hierarchy and collects all influences 
+    defined within the parameter or any of its children.
+    
+    Parameters
+    ----------
+    entity : Entity
+        The root from which to start collecting.
+
+    Returns
+    -------
+    list of Influence
+        A list of influences within the entity or its children.
+    """
     return [inf for e in get_all_entities(entity) for inf in get_influences(e)]
 
 
 def get_all_updates(entity):
+    """
+    Recursively descends through the entity hierarchy and collects all updates 
+    defined within the parameter or any of its children.
+    
+    Parameters
+    ----------
+    entity : Entity
+        The root from which to start collecting.
+
+    Returns
+    -------
+    list of Update
+        A list of updates within the entity or its children.
+    """
     return [up for e in get_all_entities(entity) for up in get_updates(e)]
 
 
 def get_all_ports(entity):
+    """
+    Recursively descends through the entity hierarchy and collects all ports 
+    defined within the parameter or any of its children.
+    
+    Parameters
+    ----------
+    entity : Entity
+        The root from which to start collecting.
+
+    Returns
+    -------
+    list of Port
+        A list of ports within the entity or its children.
+    """
     return [p for e in get_all_entities(entity) for p in get_ports(e)]
 
 
 def get_all_states(entity):
+    """
+    Recursively descends through the entity hierarchy and collects all states
+    defined within the parameter or any of its children.
+    
+    Parameters
+    ----------
+    entity : Entity
+        The root from which to start collecting.
+
+    Returns
+    -------
+    list of State
+        A list of states within the entity or its children.
+    """
     return [s for e in get_all_entities(entity) for s in get_states(e)]
 
 
 def get_all_transitions(entity):
+    """
+    Recursively descends through the entity hierarchy and collects all transitions
+    defined within the parameter or any of its children.
+    
+    Parameters
+    ----------
+    entity : Entity
+        The root from which to start collecting.
+
+    Returns
+    -------
+    list of Transition
+        A list of transitions within the entity or its children.
+    """
     return [s for e in get_all_entities(entity) for s in get_transitions(e)]
 
 
 def get_all_actions(entity):
+    """
+    Recursively descends through the entity hierarchy and collects all actions
+    defined within the parameter or any of its children.
+    
+    Parameters
+    ----------
+    entity : Entity
+        The root from which to start collecting.
+
+    Returns
+    -------
+    list of Action
+        A list of actions within the entity or its children.
+    """
     return [s for e in get_all_entities(entity) for s in get_actions(e)]
 
 
 def get_all_crest_objects(entity):
+    """
+    Recursively descends through the entity hierarchy and collects all crestdsl objects 
+    (states, transitions, entities, etc.)
+    defined within the parameter or any of its children.
+    
+    Parameters
+    ----------
+    entity : Entity
+        The root from which to start collecting.
+
+    Returns
+    -------
+    list of meta.CrestObject
+        A list of crestdsl objects within the entity or its children.
+    """
     return [o for e in get_all_entities(entity) for o in get_crest_objects(e)]
 
 
@@ -525,10 +638,39 @@ def get_all_crest_objects(entity):
 
 
 def get_dependencies(entity):
+    """
+    Returns a set of dependencies defined for an entity.
+    
+    Parameters
+    ----------
+    entity : Entity
+
+    Returns
+    -------
+    list of Dependency
+        The dependencies of the entity.
+    """
     return getattr(entity, meta.DEPENDENCY_IDENTIFIER, None)
 
 
 def get_states(entity, as_dict=False):
+    """
+    Returns the states that were defined for an entity
+    defined within the parameter or any of its children.
+    
+    Parameters
+    ----------
+    entity : Entity
+        The root from which to start collecting.
+    
+    as_dict : bool
+        Whether to return a list or a dict (keys=names)
+
+    Returns
+    -------
+    list of State
+        A list of states within the entity or its children.
+    """
     return get_by_klass(entity, model.State, as_dict)
 
 

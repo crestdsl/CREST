@@ -19,7 +19,7 @@ class Epsilon(numbers.Number):
         elif isinstance(other, numbers.Number):
             return Epsilon(self.numeric + other, self.epsilon)
         else:
-            raise NotImplementedError(f"What?! How come we're calling this with a {type(other)}...")
+            raise NotImplementedError(f"What?! How come we're calling this with a {type(other)}... (The value used >>{other}<<)")
 
     def __sub__(self, other):
         return self + -other
@@ -40,12 +40,14 @@ class Epsilon(numbers.Number):
             return Epsilon(self.numeric, self.epsilon)
 
     def __eq__(self, other):
+        if isinstance(other, str):
+            return False  # Pandas needs this to return a value...
         if isinstance(other, Epsilon):
             return self.numeric == other.numeric and self.epsilon == other.epsilon
         elif isinstance(other, numbers.Number):
             return self.numeric == other and self.epsilon == 0
         else:
-            raise NotImplementedError(f"What?! How come we're calling this with a {type(other)}...")
+            raise NotImplementedError(f"What?! How come we're calling this with a {type(other)}... (The value used >>{other}<<)")
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -60,7 +62,7 @@ class Epsilon(numbers.Number):
         elif isinstance(other, numbers.Number):
             return self < Epsilon(numeric=other)
         else:
-            raise NotImplementedError(f"What?! How come we're calling this with a {type(other)}...")
+            raise NotImplementedError(f"What?! How come we're calling this with a {type(other)}... (The value used >>{other}<<)")
 
     def __le__(self, other):
         return self == other or self < other
