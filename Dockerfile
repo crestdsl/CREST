@@ -32,7 +32,7 @@ RUN pip install --no-cache-dir --upgrade colored
 RUN pip install --no-cache-dir jupyter_contrib_nbextensions
 RUN jupyter contrib nbextension install --system
 
-#RUN jupyter labextension install @jupyterlab/plotly-extension
+RUN jupyter labextension install @jupyterlab/plotly-extension
 RUN jupyter labextension install @jupyter-widgets/jupyterlab-manager
 RUN jupyter labextension install jupyter-matplotlib
 

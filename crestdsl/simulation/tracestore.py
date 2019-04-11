@@ -16,9 +16,18 @@ class TraceStore(object):
     def __init__(self):
         # self.datastore = dict()
         self._data = []
+        self._df = None
 
     @property
     def data(self):
+        as_df = pd.DataFrame(self._data) # merge data into df
+        
+        if self._df is not None:
+            as_df = pd.concat([self._df, as_df], ignore_index=True)
+        self._df = as_df
+        
+        return as_df
+        
         newData = pd.concat(self._data, ignore_index=True)
         self._data = [newData]  # make sure we dont' have to cancat this again
         return newData
@@ -39,7 +48,7 @@ class TraceStore(object):
         data.update({port: port.value for port in get_all_ports(root_entity)})
         # print(self.data.shape)
         # try:
-        self._data.append(pd.DataFrame(data, index=[0]))
+        self._data.append(data)
         # except:
         #     breakpoint()
         #     pass

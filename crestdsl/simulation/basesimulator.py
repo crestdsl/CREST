@@ -1,3 +1,4 @@
+from crestdsl.caching import Cache
 from crestdsl.config import config
 from .tracestore import TraceStore
 from crestdsl.model import get_all_entities, get_all_ports, REAL, \
@@ -357,25 +358,26 @@ class BaseSimulator(object):
             # return False
 
     def advance(self, time_to_advance, consider_behaviour_changes=config.consider_behaviour_changes):
-        if time_to_advance > self.max_step_size:
-            logger.debug(f"Time to advance {time_to_advance} is larger than max step size {self.max_step_size}. Splitting")
-            self.advance(self.max_step_size, consider_behaviour_changes=consider_behaviour_changes)
-            self.advance(time_to_advance - self.max_step_size, consider_behaviour_changes=consider_behaviour_changes)
-        filter = self.WarningDuplicateFilter()
-        for handler in logging.root.handlers:
-            handler.addFilter(filter)
+        with Cache() as c:
+            filter = self.WarningDuplicateFilter()
+            for handler in logging.root.handlers:
+                handler.addFilter(filter)
 
-        retval = self.advance_rec(time_to_advance, consider_behaviour_changes)
+            retval = self.advance_rec(time_to_advance, consider_behaviour_changes)
 
-        for handler in logging.root.handlers:
-            handler.removeFilter(filter)
+            for handler in logging.root.handlers:
+                handler.removeFilter(filter)
 
-        return retval
+            return retval
 
     """ advance """
     def advance_rec(self, time_to_advance, consider_behaviour_changes=config.consider_behaviour_changes):
         self.save_trace()
-
+        if time_to_advance > self.max_step_size:
+            logger.debug(f"Time to advance {time_to_advance} is larger than max step size {self.max_step_size}. Splitting")
+            self.advance_rec(self.max_step_size, consider_behaviour_changes=consider_behaviour_changes)
+            self.advance_rec(time_to_advance - self.max_step_size, consider_behaviour_changes=consider_behaviour_changes)
+            
         logger.info(f"Received instructions to advance {time_to_advance} time steps. (Current global time: {self.global_time})")
         logger.debug(f"starting advance of {time_to_advance} time units. (global time now: {self.global_time})")
         if evaluate_to_bool(time_to_advance <= 0):
