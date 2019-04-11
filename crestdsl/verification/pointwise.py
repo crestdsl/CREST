@@ -8,7 +8,8 @@ from crestdsl.caching import Cache
 from . import checklib
 from .tctl import *  # I know, I know...  but otherwise the formulas become unreadable !!
 from .tctl import AtomicProposition, TCTLFormula  # * in tctl only offers some of the classes, we need all !
-from .statespace import SystemState, plotly_draw
+from .statespace import SystemState
+from crestdsl.ui import plotly_statespace
 from .reachabilitycalculator import ReachabilityCalculator
 
 from crestdsl.simulation.epsilon import eps
