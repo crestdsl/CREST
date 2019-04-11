@@ -108,7 +108,23 @@ def get_entity_modifiers_in_dependency_order(entity):
     Note, that this function is right now non-deterministic, it would be better if we replace the algorithm with a deterministic one.
     """
     # TODO: make deterministic? https://pypi.org/project/toposort/
-    orig_DG = entity_modifier_graph(entity)
+    
+    # access the mod_graph
+    try: 
+        orig_DG = entity._mod_graph
+    except AttributeError as atterr:
+         entity._mod_graph = entity_modifier_graph(entity)
+         orig_DG = entity._mod_graph
+         
+    # NetworkX is slow.
+    # Therefore, we cache if the entire graph is a DAG. 
+    # It usually is, but very rarely it isn't, 
+    # if it isn't we have to check over and over again. (performance loss)
+    try: 
+        is_dag = orig_DG._is_dag
+    except AttributeError:
+        orig_DG._is_dag = nx.is_directed_acyclic_graph(entity._mod_graph)
+        is_dag = orig_DG._is_dag
 
     # create a subgraph_view so that the inactive states are filtered
     def node_filter(node):
@@ -118,8 +134,11 @@ def get_entity_modifiers_in_dependency_order(entity):
 
     DG = nx.graphviews.subgraph_view(orig_DG, filter_node=node_filter)
 
-    if not nx.is_directed_acyclic_graph(DG):
-        for cycle in nx.simple_cycles(DG):
+    # if the entire graph is not a DAG
+    # and the subgraph also isn't a DAG
+    # then find the cycle and inform the user
+    if not is_dag and not nx.is_directed_acyclic_graph(DG): 
+        for cycle in nx.simple_cycles(DG):  # then show us a cycle
             nodes = [[f"{k}: {v._name} ({v._parent._name})" for (k, v) in DG.nodes[n].items()] for n in cycle]
             flat_list = [item for sublist in nodes for item in sublist]
             logger.warning(f"Cycle found: {flat_list}")
