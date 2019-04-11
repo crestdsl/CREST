@@ -7,7 +7,6 @@ from operator import attrgetter
 from functools import lru_cache
 from crestdsl.model.entity import *
 
-
 @lru_cache(maxsize=1024)
 def get_ast_body(function_or_lambda, rewrite_if_else=False):
     if is_lambda(function_or_lambda):
@@ -114,8 +113,15 @@ def add_parent_info(ast_root):
 
 
 def getsource(function):
-    if hasattr(function, "source"):
+    # need to do try catch here, because any exception raised 
+    # inside function.source is caught by hasattr(), thus this is bad 
+    # e.g. if we learn a function and function.source is actually a complex getter!
+    try:
         return function.source
+    except AttributeError as atterr:
+        if str(atterr) != "'function' object has no attribute 'source'":
+            raise atterr  # of course raise it, if it's a different attribute error
+    
     sl = inspect.getsourcelines(function)
     sourcelines = sl[0]
     indentdepth = len(sourcelines[0]) - len(sourcelines[0].lstrip())
@@ -269,9 +275,12 @@ def get_accessed_ports(function, container, exclude_pre=True, cache=True):
     # print(entity_ports)
 
     # print("entityports", entity_ports)
-    ports = [entity_ports[portname] for portname in list(portnames) if portname in portnames]  # XXX just fixed this to be sources
-    preports = [entity_ports[portname] for portname in list(preportnames) if portname in preportnames]  # XXX just fixed this to be sources
+    ports = [entity_ports.get(portname, None) for portname in list(portnames) if portname in portnames]  # XXX just fixed this to be sources
+    preports = [entity_ports.get(portname, None) for portname in list(preportnames) if portname in preportnames]  # XXX just fixed this to be sources
 
+    ports = [p for p in ports if p is not None]
+    preports = [p for p in preports if p is not None]
+    
     # print(f"Container {container._name} reads the following ports: {[port._name for port in ports]}")
     # print("ports", [p._name for p in ports])
     container._cached_accessed_ports = ports

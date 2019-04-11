@@ -1,5 +1,8 @@
 from . import get_name, get_parent
-import crestdsl.model as crest 
+import crestdsl.model as crest
+import crestdsl.model.meta as meta
+
+import operator
 
 def add(entity, name, obj):
     """
@@ -120,3 +123,30 @@ def relay(*port_pairs, **kwargs):
     
     for name, (source, target) in kwargs.items():
         _install_relay(name, source, target)
+        
+def dependencies(*port_pairs):
+    for source, target in port_pairs:
+        _add_dependency(source, target)
+
+        
+def _add_dependency(source, target):
+    
+    if not isinstance(source, crest.Output):
+        raise ValueError(f"Source object '{get_name(source)}' is not an Output port.")
+    if not isinstance(target, crest.Input):
+        raise ValueError(f"Target object '{get_name(target)}' is not an Input port.")
+    
+    source_parent = get_parent(source)
+    target_parent = get_parent(target)
+    if source_parent is None or target_parent is None:
+        raise ValueError("Either the source or the target port are not inside an entity")
+    
+    if source_parent is not target_parent:  # we connect inside the same entity
+        raise ValueError("The source and target need to belong to the same entity.")
+    
+    new_dependency = crest.Dependency(source=source, target=target)
+    
+    if hasattr(source_parent, meta.DEPENDENCY_IDENTIFIER):
+        getattr(source_parent, meta.DEPENDENCY_IDENTIFIER).append(new_dependency)
+    else:
+        setattr(source_parent, meta.DEPENDENCY_IDENTIFIER, [new_dependency])

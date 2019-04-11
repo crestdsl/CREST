@@ -1,5 +1,6 @@
 from . import model
 from . import meta
+from .entity import MetaEntity
 
 def transition(source="", target=""):
     def decorator(guard):
@@ -43,6 +44,18 @@ def action(*args, **kwargs):
         transition = kwargs["transition"]
         target = kwargs["target"]
         return _action
+
+
+def nodependencies(cls):
+    """
+    if there isn't a dependency specifier already, then 
+    """
+    if not isinstance(cls, MetaEntity):
+        raise ValueError(f"Error. You need to call this decorator on an Entity-class.")
+    
+    if not hasattr(cls, meta.DEPENDENCY_IDENTIFIER):
+        setattr(cls, meta.DEPENDENCY_IDENTIFIER, [])
+    return cls
 
 
 class dependency(object):

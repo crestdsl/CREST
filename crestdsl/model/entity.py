@@ -310,6 +310,8 @@ def copy_with_memo(original_obj, newobj, memo=None):
             if newattr == oldattr and isinstance(newattr, meta.CrestObject):
                 setattr(newobj, newobj_attrname, None)
                 logger.debug(f"deleted attribute {newobj_attrname} from entity {newobj}, because it is a direct pointer to the original object's attribute")
+            elif newobj_attrname == meta.DEPENDENCY_IDENTIFIER:
+                pass  # don't delete dependency indentifier
             elif newattr == oldattr and type(newattr) == list and all([isinstance(l, meta.CrestObject) for l in newattr]):
                 setattr(newobj, newobj_attrname, None)
                 logger.debug(f"deleted attribute {newobj_attrname} from entity {newobj}, because it is a direct pointer to the original object's attribute")
