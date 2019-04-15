@@ -50,8 +50,9 @@ RUN jupyter nbextension enable codefolding/main
 # Add Live slideshows with RISE
 RUN conda install -c damianavila82 rise
 
-# copy CREST into the container so we can use it
+# copy CREST and tests into the container so we can use it
 COPY crestdsl ${HOME}/crestdsl/
+COPY tests ${HOME}/tests/
 
 # copy the notebooks, so we have some inital stuff
 COPY *.ipynb ${HOME}/
