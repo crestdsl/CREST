@@ -2,11 +2,20 @@
 # we build upon a jupyter/scipy installation that was extended with z3
 # within this docker only fast things happen (install graphviz, copy files, do pip things)
 
-FROM stklik/scipy-notebook-z3:1.0
+FROM jupyter/scipy-notebook:latest
 
 LABEL maintainer="Stefan Klikovits <crest@klikovits.net>"
 
 USER root
+
+# install (patched) z3
+RUN git clone https://github.com/stklik/z3.git
+WORKDIR z3
+RUN python scripts/mk_make.py --python
+RUN cd build && make
+RUN cd build && make install
+WORKDIR ..
+RUN rm -rf z3   # cleanup
 
 # install graphviz and curl
 RUN mkdir /var/lib/apt/lists/partial && \
@@ -15,17 +24,27 @@ RUN mkdir /var/lib/apt/lists/partial && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# install astor and gaphviz
+# install these through conda
+RUN conda update -n base conda
+RUN conda update numpy
+RUN conda update pandas
+RUN conda update matplotlib
+RUN conda update scipy
+RUN conda update networkx
+RUN conda install -c conda-forge importnb
+
+# let's also update everything while we're at it!
+RUN conda update --all  
+
 RUN pip install --no-cache-dir --upgrade pip
 RUN pip install --no-cache-dir --upgrade importlib_resources
 RUN pip install --no-cache-dir --upgrade methoddispatch
 RUN pip install --no-cache-dir --upgrade plotly
 RUN pip install --no-cache-dir --upgrade cufflinks
-RUN pip install --no-cache-dir --upgrade matplotlib
 RUN pip install --no-cache-dir --upgrade astor
 RUN pip install --no-cache-dir --upgrade pwlf
 RUN pip install --no-cache-dir --upgrade graphviz pygraphviz
-RUN pip install --no-cache-dir --upgrade networkx
+# RUN pip install --no-cache-dir --upgrade networkx
 RUN pip install --no-cache-dir --upgrade colored
 
 # install jupyter extensions
