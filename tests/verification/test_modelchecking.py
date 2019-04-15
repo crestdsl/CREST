@@ -252,6 +252,7 @@ class ModelCheckerIsSatisfiableTest(unittest.TestCase):
         self.assertIn(17, result_trace, "Assert that the future is in the trace")
         self.assertIn(23, result_trace, "Assert that the future is in the trace")
 
+@unittest.skip
 class ModelCheckerIsValid(unittest.TestCase):
 
     def setUp(self):

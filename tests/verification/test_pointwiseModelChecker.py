@@ -107,6 +107,7 @@ class TestSystem(crest.Entity):
         return 10
 
 
+@unittest.skip
 class PointwiseModelCheckerTest(unittest.TestCase):
 
     @classmethod
