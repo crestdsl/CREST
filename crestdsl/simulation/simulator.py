@@ -123,7 +123,7 @@ class Simulator(BaseSimulator):
         logger.info(f"Time: {self.global_time} | Received instructions to advance {t} time steps. (Current global time: {self.global_time})")
         logger.debug(f"Time: {self.global_time} | starting advance of {t} time units.")
         if evaluate_to_bool(t <= 0):
-            logger.warn(f"Time: {self.global_time} | Advancing 0 is not allowed. Use stabilise() instead.")
+            logger.warning(f"Time: {self.global_time} | Advancing 0 is not allowed. Use stabilise() instead.")
             return
 
         if consider_behaviour_changes:

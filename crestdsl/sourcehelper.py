@@ -431,7 +431,7 @@ def get_name_from_target(target):
     previous_frame = inspect.currentframe().f_back
     (filename, line_number, function_name, lines, index) = inspect.getframeinfo(previous_frame)
     stack = inspect.stack()[1]
-    warnings.warn(f"deprecated, use 'get_attribute_string(ast_object)' instead. Called from {stack[3]} ( {stack[1]}: {stack[2]})", DeprecationWarning)
+    warnings.warning(f"deprecated, use 'get_attribute_string(ast_object)' instead. Called from {stack[3]} ( {stack[1]}: {stack[2]})", DeprecationWarning)
     return get_attribute_string(target)
 
 

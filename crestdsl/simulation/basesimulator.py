@@ -381,7 +381,7 @@ class BaseSimulator(object):
         logger.info(f"Received instructions to advance {time_to_advance} time steps. (Current global time: {self.global_time})")
         logger.debug(f"starting advance of {time_to_advance} time units. (global time now: {self.global_time})")
         if evaluate_to_bool(time_to_advance <= 0):
-            logger.warn("Advancing 0 is not allowed. Use stabilise_fp instead.")
+            logger.warning("Advancing or less is not allowed. Use stabilise_fp instead.")
             return
 
         if consider_behaviour_changes:

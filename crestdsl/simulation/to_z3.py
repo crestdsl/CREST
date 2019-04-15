@@ -818,7 +818,7 @@ class TypeResolver(SingleDispatch):
         types = [left, right]
         if op == ast.Mod:
             if left is not Types.INTEGER or right is not Types.INTEGER:
-                logger.warn("Beware, Z3 can only do Integer Modulo operations, we we will cast both of the operands to Integer!")
+                logger.warning("Beware, Z3 can only do Integer Modulo operations, we we will cast both of the operands to Integer!")
             return Types.INTEGER
 
         if left is right:
