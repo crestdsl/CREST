@@ -17,7 +17,6 @@ install: true  # don't let pip install requirements.txt ... we did that manually
 script:
   # pass travis environment info into the docker container
   - ci_env=`bash <(curl -s https://codecov.io/env)`
-  - pwd; ls
   # run the tests inside the docker using coverage, also print coverage
   - docker run $ci_env stklik/crest
-      /bin/bash -c 'pip install coverage;coverage run --source crestdsl --branch -m unittest discover -v;coverage report;bash <(curl -s https://codecov.io/bash)'
+      /bin/bash -c 'pwd;ls;python -m unittest;pip install coverage;coverage run --source crestdsl --branch -m unittest discover -v;coverage report;bash <(curl -s https://codecov.io/bash)'
