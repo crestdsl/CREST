@@ -134,4 +134,5 @@ Technical Report. Software Modeling and Verification Group, University of Geneva
 ---
 
 ### Thanks
+ * to Prof. Didier Buchs and the University of Geneva or enabling me to do this research project
  * to the [Jupyterhub](https://github.com/orgs/jupyterhub/people) and [Binder](https://mybinder.org) teams for providing their amazing service
