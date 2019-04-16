@@ -3,6 +3,7 @@ import types
 
 from crestdsl import sourcehelper as SH
 import crestdsl.model as crest
+import crestdsl.model.api as api
 import crestdsl.ml as crestml
 
 import logging
@@ -60,7 +61,7 @@ class Validator(object):
         """
         all_entities = crest.get_all_entities(self.model)
         for entity in all_entities:
-            is_child_of = [(entity in crest.get_children(ent)) for ent in all_entities]
+            is_child_of = [(entity in api.get_children(ent)) for ent in all_entities]
             assert is_child_of.count(True) <= 1, f"Entity {entity._name} is child of multiple entities"
 
         has_parent = [entity._parent is None for entity in all_entities]
@@ -91,7 +92,7 @@ class Validator(object):
             assert len(inspect.signature(trans.guard).parameters) == 1, "A transition should not have arguments (except self)"
 
             for port in SH.get_read_ports_from_update(trans.guard, trans):
-                assert port in crest.get_sources(trans._parent), f"Transition {trans._name} seems to be reading a port {port._name} ({port}) which is not in the sources of its entity {trans._parent._name} ({trans._parent})"
+                assert port in api.get_sources(trans._parent), f"Transition {trans._name} seems to be reading a port {port._name} ({port}) which is not in the sources of its entity {trans._parent._name} ({trans._parent})"
 
     def check_update_sanity(self):
         for update in crest.get_all_updates(self.model):
@@ -102,7 +103,7 @@ class Validator(object):
             assert update.state in crest.get_states(update._parent), f"Update's state {update.state._name} ({update.state}) is not in the states of entity {update._parent._name} ({update._parent})"
 
             assert isinstance(update.target, crest.Port), f"Update {update._name}'s target is not a crest.Port"
-            assert update.target in crest.get_targets(update._parent), f"Update's target {update.target._name} ({update.target}) is not in the targets of entity {update._parent._name} ({update._parent})"
+            assert update.target in api.get_targets(update._parent), f"Update's target {update.target._name} ({update.target}) is not in the targets of entity {update._parent._name} ({update._parent})"
 
             assert isinstance(update.function, (crestml.LearnedFunction, types.FunctionType)), f"Update {update._name}'s function needs to be of type types.FunctionType or crestdsl.ml.LearnedFunction"
             assert 'dt' in inspect.signature(update.function).parameters, f"Update {update._name}'s function has no dt parameter. entity: {update._parent._name} ({update._parent.__class__.__name__})"
@@ -110,7 +111,7 @@ class Validator(object):
             assert len(inspect.signature(update.function).parameters) == 2, f"An update should have one one argument 'dt' besides 'self'"
 
             for port in SH.get_read_ports_from_update(update.function, update):
-                assert port in crest.get_sources(update._parent), f"Update {update._name} seems to be reading a port {port._name} ({port}) which is not in the sources of its entity {update._parent._name} ({update._parent})"
+                assert port in api.get_sources(update._parent), f"Update {update._name} seems to be reading a port {port._name} ({port}) which is not in the sources of its entity {update._parent._name} ({update._parent})"
 
     def check_action_sanity(self):
         for action in crest.get_all_actions(self.model):
@@ -121,14 +122,14 @@ class Validator(object):
             assert action.state in crest.get_transitions(action._parent), f"Action's transition {action.transition._name} ({action.transition}) is not in the transitions of entity {action._parent._name} ({action._parent})"
 
             assert isinstance(action.target, crest.Port), f"Action {action._name}'s target is not a crest.Port"
-            assert action.target in crest.get_targets(action._parent), f"Action's target {action.target._name} ({action.target}) is not in the targets of entity {action._parent._name} ({action._parent})"
+            assert action.target in api.get_targets(action._parent), f"Action's target {action.target._name} ({action.target}) is not in the targets of entity {action._parent._name} ({action._parent})"
 
             assert isinstance(action.function, (crestml.LearnedFunction, types.FunctionType)), f"Action {action._name}'s function needs to be of type types.FunctionType or crestdsl.ml.LearnedFunction"
             assert 'self' in inspect.signature(action.function).parameters, f"Action {action._name}'s function has no self parameter. entity: {action._parent._name} ({action._parent.__class__.__name__})"
             assert len(inspect.signature(action.function).parameters) == 1, f"An action should have only one one argument 'self'"
 
             for port in SH.get_read_ports_from_update(action.function, action):
-                assert port in crest.get_sources(action._parent), f"Action {action._name} seems to be reading a port {port._name} ({port}) which is not in the sources of its entity {action._parent._name} ({action._parent})"
+                assert port in api.get_sources(action._parent), f"Action {action._name} seems to be reading a port {port._name} ({port}) which is not in the sources of its entity {action._parent._name} ({action._parent})"
 
     def check_influence_sanity(self):
         for influence in crest.get_all_influences(self.model):
@@ -136,10 +137,10 @@ class Validator(object):
             assert influence._name != "", f"There is an Update in {influence._parent._name} ({influence._parent.__class__.__name__}) whose name is empty string"
 
             assert isinstance(influence.source, crest.Port), f"Influence {influence._name}'s source is not a crest.Port"
-            assert influence.source in crest.get_sources(influence._parent), f"Influence's source {influence.source._name} ({influence.source}) is not in the sources of entity {influence._parent._name} ({influence._parent})"
+            assert influence.source in api.get_sources(influence._parent), f"Influence's source {influence.source._name} ({influence.source}) is not in the sources of entity {influence._parent._name} ({influence._parent})"
 
             assert isinstance(influence.target, crest.Port), f"Influence {influence._name}'s target is not a crest.Port"
-            assert influence.target in crest.get_targets(influence._parent), f"Influence's target {influence.target._name} ({influence.target}) is not in the targets of entity {influence._parent._name} ({influence._parent})"
+            assert influence.target in api.get_targets(influence._parent), f"Influence's target {influence.target._name} ({influence.target}) is not in the targets of entity {influence._parent._name} ({influence._parent})"
 
             assert isinstance(influence.function, (crestml.LearnedFunction, types.FunctionType)), f"Influence {influence._name}'s function needs to be of type types.FunctionType or crestdsl.ml.LearnedFunction"
             assert len(inspect.signature(influence.function).parameters) == 1, f"An influence should not have arguments (except the input value)"
