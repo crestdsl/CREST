@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 from pprint import pprint
 
-class Validator(object):
+class SystemCheck(object):
 
     def __init__(self, model):
         if inspect.isclass(model):
