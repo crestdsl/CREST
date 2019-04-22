@@ -13,6 +13,14 @@ import logging
 logger = logging.getLogger(__name__)
 
 class InteractiveSimulator(Simulator):
+    """
+    This is a simulator will stop every time two transitions are enabled 
+    in the same entity at the same time and prompt the user for what to do.
+    
+    Next to choosing a transition,uUsers can perform various actions 
+    (e.g. inspect variables, plot the system or stop the simulation.
+    """
+    
 
     def select_transition_to_trigger(self, entity):
         """ Override the (random) transition selection procedure. This one asks the user for input."""

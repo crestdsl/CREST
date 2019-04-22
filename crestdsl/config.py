@@ -76,8 +76,9 @@ class ConfigObject(object):
 
 
 config: ConfigObject = ConfigObject()
-"""A global singleton object that allows configuration.
-Import it with ``from crestdsl.config import config`` and to the properties.
+"""A global singleton object that holds various settings, 
+e.g. for global choice of the default plotting library or the rounding precision of the output values.
+Import it with ``from crestdsl.config import config`` to access the properties.
 
 .. seealso:: :class:`crestdsl.config.ConfigObject`
 """

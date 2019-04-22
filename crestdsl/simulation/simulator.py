@@ -28,14 +28,16 @@ class Simulator(BaseSimulator):
     and to plot the system.
     
     .. automethod:: __init__
+    .. autoattribute:: system
+    
     .. automethod:: stabilise
+    .. automethod:: stabilize
     .. automethod:: advance
     .. automethod:: advance_to_behaviour_change
     .. automethod:: next_behaviour_change_time
     
-    .. automethod:: trace
-    .. automethod:: global_time
-    .. automethod:: trace
+    .. autoattribute:: trace
+    .. autoattribute:: global_time
     .. automethod:: plot
     """
 
@@ -55,7 +57,12 @@ class Simulator(BaseSimulator):
     def is_enabled(self, transition):
         return self._get_transition_guard_value(transition)
 
-    def stablilize(self):
+    def stabilize(self):
+        """
+        For all the Americans out there.
+        Does the same thing as :func:`~stabilise`.
+        """
+        
         """ allow US spelling """
         return self.stabilise()
 

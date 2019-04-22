@@ -11,49 +11,70 @@ logger = logging.getLogger(__name__)
 
 class PlanSimulator(Simulator):
     """
-    Executes a plan.
-    The execution plan is a heterogeneous list of the following items:
-      - numeric values: (specify time advances)
-      - {port: value} dicts (for setting of input ports)
-      - {entity: transitions} dicts (for resolving conflicts)
+    The PlanSimulator offers the same interface as the usual :doc:`Simulator`.
+    However, it additionally allows the triggering of an execution_plan in the :func:`~run_plan`
+    method.
     
-    The list items will be iteratively consumed.
-    If errors are observed they raise ValueError exceptions.
-    
-    If there is non-determinism, but no dict specifies how to resolve it, then we fall back to randomness.
-    
-    Here's a documented example of a plan:
-    
-    run_plan( [
-        # advance 10 time units:
-        10,
-        
-        # set values:
-        {entity.port : 33, entity.port2: -200},
-        # advance 20 time units and choose these transitions everytime there is a conflict in this period
-        (20, {entity: entity.transition1, entity.subentity: entity.subentity.transition2} ),
-        
-        # advance 33 time units. 
-        # When you hit a conflict, check if the first element is an entity-state dict
-        # if the entity is a key in the first element, then pop it and 
-        # use it to reolve the conflict (otherwise choose randomly)
-        # then continue until anothoer conflict or end of advance 
-        33,
-        {entity: entity.transitionA},
-        {entity: entity.transitionB},
-        {entity: entity.transitionA},
-        
-        # if you have two entities and you don't know which one will be conflicting first 
-        # (because they'll have conflicts at the same time)
-        # you can put them both in a dict and duplicate the dict. 
-        # the first one will pop the first dict, the second one the second dict:
-        444,
-        {entity.subentity1: entity.subentity2.transA, entity.subentity2: entity.subentity2.transB},
-        {entity.subentity1: entity.subentity2.transA, entity.subentity2: entity.subentity2.transB},
-    ])
+    .. automethod:: run_plan
     """
     
+    
     def run_plan(self, execution_plan):
+        """
+        Executes a plan.
+        The execution plan is a heterogeneous list of the following items:
+          - numeric values: (specify time advances)
+          - pairs of (numeric, {entity: transition}-dict): 
+            advance a certain time and choose transition, 
+            everytime non-determinism is encountered in entity
+          - {port: value} dicts (for setting of input ports)
+          - {entity: transitions} dicts (for resolving conflicts)
+        
+        The list items will be iteratively consumed.
+        If errors are observed they raise ValueError exceptions.
+        
+        If there is non-determinism, but no dict specifies how to resolve it, then we fall back to randomness.
+        
+        Here's a documented example of a plan:
+        [
+            # advance 10 time units:
+            10,
+            
+            # set values:
+            {entity.port : 33, entity.port2: -200},
+            # advance 20 time units and choose these transitions everytime there is a conflict in this period
+            (20, {entity: entity.transition1, entity.subentity: entity.subentity.transition2} ),
+            
+            # advance 33 time units. 
+            # When you hit a conflict, check if the first element is an entity-state dict
+            # if the entity is a key in the first element, then pop it and 
+            # use it to reolve the conflict (otherwise choose randomly)
+            # then continue until anothoer conflict or end of advance 
+            33,
+            {entity: entity.transitionA},
+            {entity: entity.transitionB},
+            {entity: entity.transitionA},
+            
+            # if you have two entities and you don't know which one will be conflicting first 
+            # (because they'll have conflicts at the same time)
+            # you can put them both in a dict and duplicate the dict. 
+            # the first one will pop the first dict, the second one the second dict:
+            
+            444,
+            {entity.subentity1: entity.subentity2.transA, entity.subentity2: entity.subentity2.transB},
+            {entity.subentity1: entity.subentity2.transA, entity.subentity2: entity.subentity2.transB},
+        ]
+        
+        Parameters
+        ----------
+        execution_plan: list
+            The list of instructions that should be executed.
+            
+        Raises
+        -------
+        ValueError
+            In case there is something wrongly specified (e.g. take a transition that is not enabled, or so)
+        """
         # some setup
         self.execution_plan = execution_plan  
         self._transition_selection = None

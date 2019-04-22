@@ -40,13 +40,15 @@ The specification of large execution plans can quickly become overwhelming,
 especially for large systems. Usually, execution plans are therefore machine generated, 
 e.g. in combination with a state space exploration or formal verification scenario.
 
+.. note::  This text is based on a part of Stefan Klikovits's PhD Thesis :cite:`Klikovits:PhDThesis:2019`.
 
 .. autoclass:: crestdsl.simulation.Simulator
 
 .. autoclass:: crestdsl.simulation.InteractiveSimulator
+    :show-inheritance:
 
 .. autoclass:: crestdsl.simulation.PlanSimulator
-    
+    :show-inheritance:
 
 
 

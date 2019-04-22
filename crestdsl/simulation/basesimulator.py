@@ -25,7 +25,36 @@ class BaseSimulator(object):
             plotter=config.default_plotter, default_to_integer_real=config.use_integer_and_real, 
             record_traces=config.record_traces, own_context=False,
             max_step_size=math.inf):
-        self.system = system
+        """
+        Create a new simulator object.
+        In most cases you will only need ot declare the first ``system`` parameter.
+        
+        All other parameters are rarely needed.
+        
+        Parameters
+        ----------
+        system: Entity
+            The system/entity whose evlution should be simulated
+        timeunit: crestdsl.model.REAL or crestdsl.model.INT
+            Set this to decide whether the next transition time should be precise or round up to the next integer.
+        plotter: crestdsl.ui.elk or crestdsl.ui.dotter
+            Modify the library that this simulator uses for drawing CREST diagrams.
+        default_to_integer_real: bool
+            Should the SMT solver use INTEGER and REAL theories when encountering int/float datatypes (unless otherwise specified)?
+        record_traces: bool
+            You can deactivate the recording of trace data. 
+            (Slightly more performance/memory friendly, although usually you wouldn't notice.)
+        own_context: bool
+            DON'T USE THIS! 
+            It's a preliminary switch that should enable parallel execution at some point in the future.
+        max_step_size: numeric value
+            This will only ever advance in steps of a certain maximum size.
+            You can use it to increase the amount of trace data.
+            Can also be useful for non-linear systems. 
+            (Although they aren't really supported by crestdsl anyway)
+        """
+        self._system = system
+                
         self.timeunit = timeunit
         self.plotter = plotter
         self.max_step_size = max_step_size
@@ -46,16 +75,27 @@ class BaseSimulator(object):
 
         self._transition_log = list()
 
+    @property
+    def system(self):
+        """A handle to the system that is being simulated. 
+        You can use it to e.g. modify input values"""
+
     def save_trace(self):
         if self.record_traces:
             self.traces.save_entity(self.system, self.global_time)
 
     @property
     def trace(self):
+        """
+        A handle to the :doc:`TraceStore` object that holds the ports values and states.
+        """ 
         return self.traces
 
     @property
     def global_time(self):
+        """
+        Return the global time value (i.e. the sum of all time advances)
+        """ 
         return self._global_time
 
     @global_time.setter
@@ -63,6 +103,21 @@ class BaseSimulator(object):
         self._global_time = value
 
     def plot(self, entity=None, **kwargs):
+        """
+        Create a drawing of the system.
+        Uses the default plotter defined in the :doc:`Config <crestdsl.config>`
+        unless you specified a different library when you initialised.
+        
+        Parameters
+        ----------
+        entity: Entity
+            If you wish to plot something else than the simulator's system.
+            (Why would you, though?!)
+        kwargs: dict
+            Anything defined as keyword argument will be passed on to the plotting library.
+            This way you can parameterise things.
+        """ 
+        
         """
         List of plotter options:
             updates = True
@@ -98,6 +153,15 @@ class BaseSimulator(object):
     """ stabilise """
 
     def stabilise(self, entity=None):
+        """
+        Stabilise the system.
+        This includes propagation of all port values through influences and updates, 
+        then triggering any enabled transitions, then doing propagation again, and transitions, and ...
+        until a fixpoint is reached.
+        
+        .. warning:: This can result in an infinite loop if your system has a cycle of enabled transitions.
+        """ 
+        
         """This one looks nicer in the API"""
         return self._stabilise_fp(entity)
 
@@ -358,6 +422,18 @@ class BaseSimulator(object):
             # return False
 
     def advance(self, time_to_advance, consider_behaviour_changes=config.consider_behaviour_changes):
+        """
+        Advance a certain amount of time in your system.
+        
+        Parameters
+        ----------
+        time_to_advance: numeric
+            The time advance that should be simulated
+        consider_behaviour_changes: bool
+            You usually won't have to modify this (so don't!)
+            Allows you to deactivate searching for if/else condition changes.
+            It will be removed soon anyway!
+        """ 
         with Cache() as c:
             filter = self.WarningDuplicateFilter()
             for handler in logging.root.handlers:
@@ -444,8 +520,25 @@ class BaseSimulator(object):
     """ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - """
 
     def next_behaviour_change_time(self, excludes=None):
+        """
+        Calculates when the next discrete change in behaviour will happen.
+                
+        Parameters
+        ----------
+        excludes: list of objects
+            If you don't care about behaviour changes in certain objects,
+            use excludes to ignore them.
+            Don't use it unless you know what you're doing!
+            
+        Returns
+        -------
+        tuple
+            Returns a tuple of (numeric, object) that states when the next behaviour change will happen (in time units),
+            and in which object it will happen (i.e. a transition, update or influence)
+        """ 
+        
+        
         """Excludes is a list of transitions that we don't consider."""
-
         nbct = self.conditionchangecalculator.get_next_behaviour_change_time(excludes=excludes)
         if nbct is not None:
             logger.info(f"The next behaviour change is {nbct[1]._name} in {to_python(nbct[0])} time steps")
@@ -454,6 +547,17 @@ class BaseSimulator(object):
         return nbct
 
     def advance_to_behaviour_change(self, consider_behaviour_changes=config.consider_behaviour_changes):
+        """
+        Calculates when the next discrete change in behaviour will happen and advance as many time units.
+        Note, this also does the according stabilisation, so you cannot stop "before" the behaviour change.
+                
+        Parameters
+        ----------
+        consider_behaviour_changes: bool
+            You usually won't have to modify this (so don't!)
+            Allows you to deactivate searching for if/else condition changes.
+            It will be removed soon anyway!
+        """ 
         if consider_behaviour_changes:
             nbct = self.next_behaviour_change_time()
         else:
