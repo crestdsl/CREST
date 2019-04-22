@@ -8,3 +8,8 @@ graphviz
 networkx
 methoddispatch
 sklearn
+astor
+colored
+pandas
+numpy
+cufflinks
