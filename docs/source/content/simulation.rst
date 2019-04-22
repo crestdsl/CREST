@@ -3,9 +3,6 @@
 Simulation
 ==========
 
-Simulation
-==========
-
 Simulation allows us to execute the model and see its evolution.
 ``crestdsl``\ ’s simulator is located in the ``simultion`` module. In
 order to use it, we have to import it.

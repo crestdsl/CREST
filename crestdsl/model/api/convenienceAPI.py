@@ -8,7 +8,21 @@ def add(entity, name, obj):
     """
     Adds the object to the entity and register it as the name.
     This function is similar to setattr, but does some string resolving beforehand.
-    That means you can e.g. pass a Transition object where source/target are passed by their string identifiers."""
+    That means you can e.g. pass a Transition object where source/target are passed by their string identifiers.
+    
+    
+    .. note :: This method requires an entity to be initialised aleady.
+        Call this method e.g. from within __init__ and be careful of what you are doing.
+        
+    Parameters
+    ----------
+    entity: Entity
+        The entity that should be extended.
+    name: str
+        The attribute name under which you want to save the object.
+    obj: CrestObject
+        The object that you want to set.
+    """
     def slice_self(attrstring):
         if attrstring.startswith("self."):
             attrstring = attrstring[5:]
@@ -59,10 +73,18 @@ def pullup(*ports, **kwargs):
     
     Use kwargs to assign a specific name.
     
-    .. warning :: This method requires an entity to be initialised aleady.
-       Only call this method from within __init__ and be careful of what you are doing.
-    """
+        
+    .. note :: This method requires an entity to be initialised aleady.
+        Call this method e.g. from within __init__ and be careful of what you are doing.
     
+    Parameters
+    ----------
+    ports: list of Port
+        A list of subentity ports that you want to pull up.
+    kwargs: list of str=Port
+        A list of name=Port pairs, so that name will be the pulled up port's name in this entity.
+    
+    """
     for port in ports:
         portname = get_name(port)
         _pullup(portname, port)
@@ -110,8 +132,16 @@ def relay(*port_pairs, **kwargs):
     
     Use kwargs to assign a specific name.
     
-    .. warning :: This method requires an entity to be initialised aleady.
-       Only call this method from within __init__ and be careful of what you are doing.
+    .. note :: This method requires an entity to be initialised aleady.
+        Call this method e.g. from within __init__ and be careful of what you are doing.
+    
+    Parameters
+    ----------
+    ports: list of (Port,Port)-pairs
+        A list of source and target ports between which an influence should be created.
+    kwargs: list of str=(Port,Port)
+        A list of name=Port pairs, so that string will be used as the influence's name.
+    
     """
     for source, target in port_pairs:
         sourcename = portname = get_name(source)
@@ -125,6 +155,20 @@ def relay(*port_pairs, **kwargs):
         _install_relay(name, source, target)
         
 def dependencies(*port_pairs):
+    """
+    An alternative way to define dependencies for an entity.
+    
+        
+    .. note :: This method requires an entity to be initialised aleady.
+        Call this method e.g. from within __init__ and be careful of what you are doing.
+        
+    Parameters
+    ----------
+    ports: list of (Output,Input)-pairs
+        A list of dependency source (output) and target (input) ports between 
+        which a dependency should be declared.
+    
+    """
     for source, target in port_pairs:
         _add_dependency(source, target)
 

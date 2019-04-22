@@ -20,6 +20,24 @@ def log_if_level(level, message):
         logger.log(level, message)
 
 class Simulator(BaseSimulator):
+    """
+    The vanilla crestdsl simulator. 
+    It offers APIs to stabilise a system and advance time.
+    
+    Additionally, there are shortcuts to get the execution trace
+    and to plot the system.
+    
+    .. automethod:: __init__
+    .. automethod:: stabilise
+    .. automethod:: advance
+    .. automethod:: advance_to_behaviour_change
+    .. automethod:: next_behaviour_change_time
+    
+    .. automethod:: trace
+    .. automethod:: global_time
+    .. automethod:: trace
+    .. automethod:: plot
+    """
 
     def set_values(self, port_value_map):
         self._value_change(port_value_map)

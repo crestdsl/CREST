@@ -1,2 +1,10 @@
 sphinxcontrib-bibtex
 sphinx-autodoc-typehints
+
+z3-solver
+pwlf
+plotly
+graphviz
+networkx
+methoddispatch
+sklearn

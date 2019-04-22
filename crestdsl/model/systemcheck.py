@@ -12,14 +12,44 @@ logger = logging.getLogger(__name__)
 from pprint import pprint
 
 class SystemCheck(object):
+    """
+    Check whether an Entity object satisfies the basic structure (CREST syntax) checks.
+    """
 
     def __init__(self, model):
+        """
+        Parameters
+        ----------
+        model: Entity or entity class
+            An entity object or entity class for which the tests should be performed.
+        """
         if inspect.isclass(model):
             self.model = model()
         else:
             self.model = model
 
     def check_all(self, exit_on_error=False):
+        """
+        Runs a series of system checks on the model and writes eventual errors to the log.
+        
+        Parameters
+        ----------
+        exit_on_error: bool
+            True: checking is aborted with an exception as soon as the first error is found?
+            False: continue until the end, even if an error is found
+        
+        Returns
+        ----------
+        bool
+            True if all checks passed, False otherwise.
+            
+        Raises
+        ------
+        AssertionError
+            If ``exit_on_error`` is True and an error is discovered,
+            the method raises an AssertionError with information about the respective problem.
+        """
+        
         """Returns if all checks passed"""
         checks = [
             self.check_all_objects_have_names,
@@ -51,11 +81,13 @@ class SystemCheck(object):
         return no_problems
 
     def check_all_objects_have_names(self):
+        """Assert that each entity has a name defined. """
         for entity in crest.get_all_crest_objects(self.model):
             assert entity._name is not None, f"Object {entity} has no name"
 
     def test_entity_hierarchy(self):
         """
+        Assert that
         - each entity has only appears once in the children of another entity
         - there is exactly one entity - the root - that has no parent
         """
@@ -68,7 +100,7 @@ class SystemCheck(object):
         assert has_parent.count(True) == 1, "There is more than one entity with no parent (i.e. more than one root)"
 
     def check_current_states(self):
-        """Assert that each entity has a current state that is one of the states of the entity"""
+        """Assert that each entity has a current state that is one of the states of the entity."""
         for entity in crest.get_all_entities(self.model):
             if len(crest.get_states(entity)) > 0:
                 assert entity.current is not None, f"Entity {entity._name} has no current state"
@@ -95,6 +127,10 @@ class SystemCheck(object):
                 assert port in api.get_sources(trans._parent), f"Transition {trans._name} seems to be reading a port {port._name} ({port}) which is not in the sources of its entity {trans._parent._name} ({trans._parent})"
 
     def check_update_sanity(self):
+        """Check that each update is properly named, 
+        has a state and from the same entity and a target port that is in the "targets" of the entity. 
+        Also verifies the signature of the update function.
+        """
         for update in crest.get_all_updates(self.model):
             assert update._name is not None, f"There is an Update in {update._parent._name} ({update._parent.__class__.__name__}) whose name is 'None'"
             assert update._name != "", f"There is an Update in {update._parent._name} ({update._parent.__class__.__name__}) whose name is empty string"
@@ -114,6 +150,10 @@ class SystemCheck(object):
                 assert port in api.get_sources(update._parent), f"Update {update._name} seems to be reading a port {port._name} ({port}) which is not in the sources of its entity {update._parent._name} ({update._parent})"
 
     def check_action_sanity(self):
+        """Check that each action is properly named, 
+        has a transition and from the same entity and a target port that is in the "targets" of the entity. 
+        Also verifies the signature of the action function.
+        """
         for action in crest.get_all_actions(self.model):
             assert action._name is not None, f"There is an Action in {action._parent._name} ({action._parent.__class__.__name__}) whose name is 'None'"
             assert action._name != "", f"There is an Action in {action._parent._name} ({action._parent.__class__.__name__}) whose name is empty string"
@@ -132,6 +172,10 @@ class SystemCheck(object):
                 assert port in api.get_sources(action._parent), f"Action {action._name} seems to be reading a port {port._name} ({port}) which is not in the sources of its entity {action._parent._name} ({action._parent})"
 
     def check_influence_sanity(self):
+        """Check that each influence is properly named, 
+        has a source from the "sources" of an entity and a target port that is in the "targets" of the same entity. 
+        Also verifies the signature of the influence function.
+        """
         for influence in crest.get_all_influences(self.model):
             assert influence._name is not None, f"There is an Influence in {influence._parent._name} ({influence._parent.__class__.__name__}) whose name is 'None'"
             assert influence._name != "", f"There is an Update in {influence._parent._name} ({influence._parent.__class__.__name__}) whose name is empty string"

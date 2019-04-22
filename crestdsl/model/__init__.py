@@ -14,4 +14,4 @@ from .entity import Entity, LogicalEntity, \
     get_updates, get_transitions, get_influences, get_dependencies, \
     get_crest_objects, get_equivalent_in_system
 
-from .validator import Validator
+from .systemcheck import SystemCheck

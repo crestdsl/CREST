@@ -104,7 +104,7 @@ The entity {stylize(str(entity), colored.attr('bold'))} is bound to the variable
 """
         print(longtext)
         while True:
-            prompt = stylize("Your choice: ", colored.fg("green") + colored.attr("bold"))
+            prompt = "Your choice: "
             userinput = input(prompt).strip()  # read input
             if userinput == "p":
                 self.plot()

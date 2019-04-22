@@ -78,9 +78,7 @@ Publications
    content/modelling
    content/simulation
    content/verification
-   
-   content/api
-
+   api/crestdsl
 
 
 .. Indices and tables
