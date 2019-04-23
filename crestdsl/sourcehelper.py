@@ -231,6 +231,11 @@ def get_all_following_siblings(ast_node):
     return without_node
 
 
+def does_access_variable(function, variablename):
+    ast_body = get_ast_body(function)
+    return variablename in get_used_variable_names(ast_body)
+
+
 def get_accessed_ports(function, container, exclude_pre=True, cache=True):
     # XXX Caching
     if hasattr(container, "_cached_accessed_ports") and cache:

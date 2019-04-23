@@ -6,25 +6,38 @@ import math
 import copy
 
 class TCTLFormula(object):
+    """
+    The base class of all TCTL formulas.
+    Don't use it!
+    """
 
     def __init__(self, formula):
+        """
+        Parameters
+        ----------
+        formula: TCTLFormula
+            A TCTL subformula (either another TCTLFormula or a Check)
+        """
         self.phi = formula
-
-    # def simplify(self):
-    #     return self
 
     def __str__(self):
         return f"{self.__class__.__name__}({str(self.phi)})"
 
     def __copy__(self):
         copy_type = type(self)
-        copied = copy_type() #copy.copy(self.phi))
+        copied = copy_type(self.phi)
         return copied
 
     def get_propositions(self):
         if isinstance(self.phi, bool):
             return list()
         return self.phi.get_propositions()
+
+    def get_intervals(self):
+        return self.phi.get_intervals()
+        
+    def eq(self, other):
+        return type(self) is type(other) and self.phi.eq(other.phi)
 
 """
 - - - - - - - - - - - -
@@ -58,43 +71,37 @@ class AtomicProposition(TCTLFormula):
     def get_propositions(self):
         return [self]
 
+    def get_intervals(self):
+        return []
+        
+    def eq(self, other):
+        return self is other
+
+class NamedAtomicProposition(AtomicProposition):
+
+    def __init__(self, name):
+        self.name = name
+
+    def __str__(self):
+        return self.name
+
+    def get_propositions(self):
+        return []
+
 class Not(TCTLFormula):
     pass
 
-class And(TCTLFormula):
-    def __init__(self, *args):
-        self.operands = list(args)
 
-    def get_propositions(self):
-        props = set()
-        for op in self.operands:
-            if isinstance(op, TCTLFormula):
-                props.update(op.get_propositions())
-        return props
-
-    def __str__(self):
-        strs = ",".join([str(op) for op in self.operands])
-        return f"AND({strs})"
-
-class Or(TCTLFormula):
-
-    def __init__(self, *args):
-        self.operands = list(args)
-
-    def get_propositions(self):
-        props = set()
-        for op in self.operands:
-            if isinstance(op, TCTLFormula):
-                props.update(op.get_propositions())
-        return props
-
-    def __str__(self):
-        strs = ",".join([str(op) for op in self.operands])
-        return f"OR({strs})"
-
-class Implies(TCTLFormula):
-
-    def __init__(self, phi, psi, interval=None):
+class BinaryTCTLFormula(TCTLFormula):
+    def __init__(self, phi, psi):
+        """
+        Parameters
+        ----------
+        psi : TCTLFormula
+            A TCTLFormula or Check (state or port check)
+        psi : TCTLFormula
+            A TCTLFormula or Check (state or port check)
+        """
         super().__init__(phi)
         self.psi = psi
 
@@ -107,25 +114,40 @@ class Implies(TCTLFormula):
             psi_props = self.psi.get_propositions()
             props.extend(psi_props)
         return list(set(props))
+
+    def get_intervals(self):
+        intvls = list()
+        if isinstance(self.phi, TCTLFormula):
+            phi_intvls = self.phi.get_intervals()
+            intvls.extend(phi_intvls)
+        if isinstance(self.psi, TCTLFormula):
+            psi_intvls = self.psi.get_intervals()
+            intvls.extend(psi_intvls)
+        return intvls
+    
+    def __copy__(self):
+        copy_type = type(self)
+        copied = copy_type(self.phi, self.psi)
+        return copied
+    
+    def __str__(self):
+        return f"{self.__class__.__name__}({str(self.phi)}, {str(self.psi)})"
+        
+    def eq(self, other):
+        return super().eq(other) and self.psi.eq(other.psi)
+
+class And(BinaryTCTLFormula):
+    pass
+
+class Or(BinaryTCTLFormula):
+    pass
+
+class Implies(TCTLFormula):
 
     def __str__(self):
         return f"{str(self.phi)} ==> {str(self.psi)}"
 
 class Equality(TCTLFormula):
-
-    def __init__(self, phi, psi, interval=None):
-        super().__init__(phi)
-        self.psi = psi
-
-    def get_propositions(self):
-        props = list()
-        if isinstance(self.phi, TCTLFormula):
-            phi_props = self.phi.get_propositions()
-            props.extend(phi_props)
-        if isinstance(self.psi, TCTLFormula):
-            psi_props = self.psi.get_propositions()
-            props.extend(psi_props)
-        return list(set(props))
 
     def __str__(self):
         return f"{str(self.phi)} <==> {str(self.psi)}"
@@ -145,6 +167,14 @@ class E(Quantifier):
 class IntervalFormula(TCTLFormula):
 
     def __init__(self, phi, interval=None):
+        """
+        Parameters
+        ----------
+        psi : TCTLFormula
+            A TCTLFormula or Check (state or port check)
+        interval: Interval
+            The interval of the timed operator
+        """
         super().__init__(phi)
         if interval is None:
             self.interval = Interval()
@@ -161,6 +191,12 @@ class IntervalFormula(TCTLFormula):
     def in_interval(self, value):
         return self.interval.ininterval(value)
 
+    def get_intervals(self):
+        intvls = [self.interval]
+        if isinstance(self.phi, TCTLFormula):
+            intvls.extend(self.phi.get_intervals())
+        return intvls
+
     def __getitem__(self, pos):
         self.interval = pos
         return self
@@ -168,9 +204,21 @@ class IntervalFormula(TCTLFormula):
     def __str__(self):
         return f"{self.__class__.__name__}{str(self.interval)} {{{str(self.phi)}}}"
 
+    def eq(self, other):
+        return super().eq(other) and self.interval == other.interval
 
 class U(IntervalFormula):
     def __init__(self, phi, psi, interval=None):
+        """
+        Parameters
+        ----------
+        psi : TCTLFormula
+            A TCTLFormula or Check (state or port check)
+        psi : TCTLFormula
+            A TCTLFormula or Check (state or port check)
+        interval: Interval
+            The interval of the timed operator
+        """
         super().__init__(phi, interval)
         self.psi = psi
 
@@ -192,9 +240,22 @@ class U(IntervalFormula):
             props.extend(psi_props)
         return list(set(props))
 
-    def __str__(self):
-        return f"{{{self.phi}}} {self.__class__.__name__}{str(self.interval)} {{{str(self.psi)}}}"
+    def get_intervals(self):
+        intvls = [self.interval]
+        if isinstance(self.phi, TCTLFormula):
+            phi_intvls = self.phi.get_intervals()
+            intvls.extend(phi_intvls)
+        if isinstance(self.psi, TCTLFormula):
+            psi_intvls = self.psi.get_intervals()
+            intvls.extend(psi_intvls)
+        return intvls
 
+    def __str__(self):
+        return f"{{ {self.phi} }} {self.__class__.__name__}{str(self.interval)} {{ {str(self.psi)} }}"
+
+    def eq(self, other):
+        return super().eq(other) and self.psi.eq(other.psi)
+        
 class F(IntervalFormula):
     pass
 
@@ -235,7 +296,21 @@ class AG(E, G):
 """
 
 class Interval(object):
+    """ Define an interval for the timed versions of the TCTL operators.
+    
+    Use comparison operators (<, >, <=, >=, ==) to specify the bounds of the interval.
+    Note, that you can only apply one operator at a time.
+    (Use parenthesis!)
+    
+    Examples
+    --------
 
+    >>> intvl = Interval()  # [0, \u221E)
+    >>> intvl2 = Interval() > 33  # (33, \u221E)
+    >>> intvl3 = Interval() <= 42  # [0, 42]
+    >>> invtl4 = Interval() == 100  # [100, 100]
+    >>> invtl5 = (Interval() > 12) < 48  # (12, 48)
+    """
     def __init__(self, start=0, end=math.inf, start_op=operator.ge, end_op=operator.lt):
         self.start = start
         self.end = end
@@ -243,24 +318,73 @@ class Interval(object):
         self.end_operator = end_op
 
     def ininterval(self, value):
+        """Test if a value is inside the interval.
+        
+        Parameters
+        -----------
+        value: numeric
+            The value you want to test.
+        """
         return self.start_operator(value, self.start) and self.end_operator(value, self.end)
 
     def is_before(self, value):
+        """Test if the interval ends before a certain time.
+        
+        Parameters
+        -----------
+        value: numeric
+            The value you want to test.
+        """
         return not self.start_operator(value, self.start)
 
     def is_after(self, value):
+        """Test if the interval starts after a certain time.
+        
+        Parameters
+        -----------
+        value: numeric
+            The value you want to test.
+        """
         return  not self.end_operator(value, self.end)
 
     def ends_before(self, value):
+        """Test if the interval ends before a certain time.
+        
+        Parameters
+        -----------
+        value: numeric
+            The value you want to test.
+        """
         return self.end < value
 
     def starts_after(self, value):
+        """Test if the interval starts after a certain time.
+        
+        Parameters
+        -----------
+        value: numeric
+            The value you want to test.
+        """
         return self.start > value
 
     def starts_at(self, value):
+        """Test if the interval starts at a certain time.
+        
+        Parameters
+        -----------
+        value: numeric
+            The value you want to test.
+        """
         return self.start == value
 
     def starts_at_or_after(self, value):
+        """Test if the interval starts at or after a certain time.
+        
+        Parameters
+        -----------
+        value: numeric
+            The value you want to test.
+        """
         return self.start >= value
 
     def __lt__(self, value):
@@ -321,19 +445,19 @@ class Interval(object):
 
 
     def resolve_infinitesimal(self):
-        """
-        INFINITESIMAL RESOLUTION RULES:
-
-        [0, 5+e) => [0, 5]
-        [0, 5+e] => [0, 5]
-        (3+e, 4] => (3, 4]
-        [3+e, 4] => (3, 4]
-
-        [2, 9-e) => [2, 9)
-        [2, 9-e] => [2, 9)
-        (1-e, 7] => [1, 7]
-        [1-e, 7] => [1, 7]
-        """
+        # """
+        # INFINITESIMAL RESOLUTION RULES:
+        # 
+        # [0, 5+e) => [0, 5]
+        # [0, 5+e] => [0, 5]
+        # (3+e, 4] => (3, 4]
+        # [3+e, 4] => (3, 4]
+        # 
+        # [2, 9-e) => [2, 9)
+        # [2, 9-e] => [2, 9)
+        # (1-e, 7] => [1, 7]
+        # [1-e, 7] => [1, 7]
+        # """
 
         if isinstance(self.start, Epsilon):
             if self.start.epsilon > 0:

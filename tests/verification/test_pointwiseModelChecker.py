@@ -1,6 +1,6 @@
-from crestdsl.verification.statespace import StateSpace
+from crestdsl.verification import tctl, StateSpace
+from crestdsl.verification.tctl import AtomicProposition, NamedAtomicProposition
 from crestdsl.verification.checklib import check
-from crestdsl.verification import tctl
 from crestdsl.verification.pointwise import PointwiseModelChecker
 
 import crestdsl.model as crest
@@ -19,7 +19,7 @@ logging.disable(logging.WARNING)  # shut up unless it's a warning or info
 # resources
 onOff = crest.Resource(unit="onOff", domain=["on", "off"])
 celsius = crest.Resource(unit="Celsius", domain=crest.REAL)
-time = crest.Resource(unit="Time", domain=crest.REAL)
+res_time = crest.Resource(unit="Time", domain=crest.REAL)
 
 class GerminationBox(crest.Entity):
     switch = crest.Input(resource=onOff, value="on")
@@ -38,7 +38,7 @@ class GerminationBox(crest.Entity):
 
 class TestSystem(crest.Entity):
     switch = crest.Input(resource=onOff, value="on")
-    timer = crest.Local(resource=time, value=0)
+    timer = crest.Local(resource=res_time, value=0)
 
     germinationbox_one = GerminationBox()
     germinationbox_two = GerminationBox()
@@ -106,8 +106,6 @@ class TestSystem(crest.Entity):
     def set_timer_ten(self):
         return 10
 
-
-@unittest.skip
 class PointwiseModelCheckerTest(unittest.TestCase):
 
     @classmethod
@@ -115,7 +113,9 @@ class PointwiseModelCheckerTest(unittest.TestCase):
         sys = TestSystem()
         cls.system = sys
         ss = StateSpace(sys)
-        ss.explore(iterations_left=None)  # calculate until the end
+        import time
+        s = time.time()
+        iterations = ss.explore(iterations_left=5)  # calculate until the end
         cls.statespace = ss
 
     def setUp(self):
@@ -221,3 +221,26 @@ class PointwiseModelCheckerTest(unittest.TestCase):
         # print(solution)
         crestKripke = mc.make_CREST_Kripke(formula)
         nodes = mc.is_satisfiable(formula, crestKripke)
+
+
+class PointwiseModelChecker_check_Test(unittest.TestCase):
+    
+    @mock.patch('crestdsl.verification.StateSpace')
+    def test_check_dispatch_with_None_raises_error(self, statespace):
+        formula = None
+        mc = PointwiseModelChecker(statespace)
+
+        with self.assertRaises(ValueError) as context:
+            mc.check(formula)
+            
+        self.assertEqual(str(context.exception), "Don't know how to check formula None of type <class 'NoneType'>")
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        

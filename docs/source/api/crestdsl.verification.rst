@@ -1,84 +1,79 @@
 crestdsl.verification package
 =============================
 
-.. automodule:: crestdsl.verification
+.. contents::
+   :local:
+
+Verifiable Properties (Checks) 
+-------------------------------
+
+.. autofunction:: crestdsl.verification.check
+
+
+Convenience API 
+-----------------
+
+.. autofunction:: crestdsl.verification.after
+
+.. autofunction:: crestdsl.verification.before
+
+
+
+.. autofunction:: crestdsl.verification.is_possible
+
+.. autofunction:: crestdsl.verification.always
+
+.. autofunction:: crestdsl.verification.always_possible
+
+.. autofunction:: crestdsl.verification.never
+
+.. autofunction:: crestdsl.verification.forever
+
+
+
+.. autoclass:: crestdsl.verification.Verifier
     :members:
-    :undoc-members:
-    :show-inheritance:
 
-Submodules
-----------
 
-crestdsl.verification.checklib module
--------------------------------------
+Expert Model Checking API 
+--------------------------
 
-.. automodule:: crestdsl.verification.checklib
+.. autoclass:: crestdsl.verification.StateSpace
     :members:
-    :undoc-members:
-    :show-inheritance:
 
-crestdsl.verification.continuous module
----------------------------------------
+.. autoclass:: crestdsl.verification.ModelChecker
 
-.. automodule:: crestdsl.verification.continuous
+TCTL API 
+~~~~~~~~~
+
+.. autoclass:: crestdsl.verification.tctl.Interval
     :members:
-    :undoc-members:
-    :show-inheritance:
 
-crestdsl.verification.modelchecker module
------------------------------------------
+.. autoclass:: crestdsl.verification.tctl.TCTLFormula
 
-.. automodule:: crestdsl.verification.modelchecker
-    :members:
-    :undoc-members:
-    :show-inheritance:
+.. autoclass:: crestdsl.verification.tctl.Not
+    :members: __init__
+.. autoclass:: crestdsl.verification.tctl.And
+    :members: __init__
+.. autoclass:: crestdsl.verification.tctl.Or
+    :members: __init__
+.. autoclass:: crestdsl.verification.tctl.Implies
+    :members: __init__
+.. autoclass:: crestdsl.verification.tctl.Equality
+    :members: __init__
 
-crestdsl.verification.normalform module
----------------------------------------
 
-.. automodule:: crestdsl.verification.normalform
-    :members:
-    :undoc-members:
-    :show-inheritance:
+.. autoclass:: crestdsl.verification.tctl.EU
+    :members: __init__
+.. autoclass:: crestdsl.verification.tctl.EF
+    :members: __init__
+.. autoclass:: crestdsl.verification.tctl.EG
+    :members: __init__
 
-crestdsl.verification.pointwise module
---------------------------------------
-
-.. automodule:: crestdsl.verification.pointwise
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-crestdsl.verification.reachabilitycalculator module
----------------------------------------------------
-
-.. automodule:: crestdsl.verification.reachabilitycalculator
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-crestdsl.verification.statespace module
----------------------------------------
-
-.. automodule:: crestdsl.verification.statespace
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-crestdsl.verification.tctl module
----------------------------------
-
-.. automodule:: crestdsl.verification.tctl
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-crestdsl.verification.verifier module
--------------------------------------
-
-.. automodule:: crestdsl.verification.verifier
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
+.. autoclass:: crestdsl.verification.tctl.AU
+    :members: __init__
+.. autoclass:: crestdsl.verification.tctl.AF
+    :members: __init__
+.. autoclass:: crestdsl.verification.tctl.AG
+    :members: __init__
 

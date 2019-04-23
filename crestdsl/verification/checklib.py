@@ -14,6 +14,48 @@ logger = logging.getLogger(__name__)
 
 @functools.singledispatch
 def check(arg):
+    """
+    Use this function to create a ``Check`` object.
+    Checks are the basic form of verifiable properties.
+    There are two types of checks, state checks and port checks.
+    State checks assert that an entity is in a given state, 
+    port checks compare the value of a port to a constant or another port.
+    
+    Use ``check(entity) == entity.stateA`` to create a state check, for instance.
+    
+    Port checks are created using ``check(entity.port) <= 33`` or ```check(entity.port) != another.port``
+    
+    
+    You can also combine these atomic checks to larger ones. 
+    The operators are:
+    - conjunction (and): &
+    - disjunction (or): |
+    - negation (not): -
+    
+    Parameters
+    ----------
+    
+    arg: Entity or Port
+        If you pass an entity, a StateCheck will be returned.
+        If you pass in a Port, the function will create a PortCheck.
+        
+    Returns
+    ----------
+    
+    StateCheck or PortCheck
+        depending on what you put in, you will receive either a StateCheck or a PortCheck
+        
+    
+    Examples
+    --------
+
+    >>> state_chk = check(entity) == entity.my_state
+    >>> port_chk = check(entity.port) == 33
+    >>> and_chk = state_chk & port_chk
+    >>> or_chk = state_chk | port_chk
+    >>> not_chk = -state_chk
+        
+    """
     logger.error("Don't know how to check objects of type {type(arg)}")
 
 @check.register(crest.Entity)
@@ -89,6 +131,10 @@ class StateCheck(Check):
         copied.operator = self.operator
         copied.comparator = self.comparator
         return copied
+    
+    def get_atomic_checks(self):
+        return {self}
+
 
 class PortCheck(Check):
 
@@ -152,6 +198,9 @@ class PortCheck(Check):
         copied.operator = self.operator
         copied.comparator = self.comparator
         return copied
+    
+    def get_atomic_checks(self):
+        return {self}
 
 class OrCheck(Check):
     def __init__(self, *args):
@@ -179,6 +228,11 @@ class OrCheck(Check):
         copy_type = type(self)
         copied = copy_type(*self.operands)
         return copied
+        
+        
+    def get_atomic_checks(self):
+        return set().union(*[chk.get_atomic_checks() for chk in self.operands])
+
 
 class AndCheck(Check):
     def __init__(self, *args):
@@ -208,6 +262,9 @@ class AndCheck(Check):
         copy_type = type(self)
         copied = copy_type(*self.operands)
         return copied
+        
+    def get_atomic_checks(self):
+        return set().union(*[chk.get_atomic_checks() for chk in self.operands])
 
 class NotCheck(Check):
     def __init__(self, arg):
@@ -234,6 +291,9 @@ class NotCheck(Check):
         copy_type = type(self)
         copied = copy_type(self.operand)
         return copied
+        
+    def get_atomic_checks(self):
+        return self.operand.get_atomic_checks()
 
 def symbol(op):
     return {

@@ -1,9 +1,10 @@
 from crestdsl.model import Influence, get_updates, get_influences, get_transitions
+import crestdsl.model.api as api
 from crestdsl import sourcehelper as SH
 import ast
 from .to_z3 import Z3Converter, get_z3_variable, get_minimum_dt_of_several
 from .z3conditionchangecalculator import Z3ConditionChangeCalculator, get_behaviour_change_dt_from_constraintset
-from .z3calculator import Z3Calculator
+from .z3calculator import Z3Calculator, uses_dt_variable
 import z3
 from crestdsl.config import to_python
 from .epsilon import Epsilon, eps_string
@@ -125,6 +126,18 @@ class ConditionTimedChangeCalculator(Z3Calculator):
         solver.add(z3var_constraints)
         # NOTE: we do not add a "dt >= 0" or "dt == 0" constraint here, because it would break the solving
 
+        # check if there are actually any timed behaviour changes
+        any_modifier_uses_dt = False
+        for port, modifiers in modifier_map.items():
+            for modifier in modifiers:
+                if modifier != influence_update:  # skip the one we're actually analysing, this should be already done in the modifier-map creation...
+                    any_modifier_uses_dt = any_modifier_uses_dt or uses_dt_variable(modifier)
+
+        influence_update_uses_dt = uses_dt_variable(influence_update)
+        if not influence_update_uses_dt and not any_modifier_uses_dt:
+            return None  # nobody uses dt, no point in trying to find out when things will change...
+
+
         # create the constraints for updates and influences
         for port, modifiers in modifier_map.items():
             for modifier in modifiers:
@@ -180,6 +193,16 @@ class ConditionTimedChangeCalculator(Z3Calculator):
         z3var_constraints, z3_vars = self.get_z3_vars(modifier_map)
         solver.add(z3var_constraints)
         solver.add(z3_vars['dt'] >= 0)
+
+        # check if there are actually any timed behaviour changes
+        any_modifier_uses_dt = False
+        for port, modifiers in modifier_map.items():
+            for modifier in modifiers:
+                any_modifier_uses_dt = any_modifier_uses_dt or uses_dt_variable(modifier)
+                
+        if not any_modifier_uses_dt:
+            currently_enabled = transition.guard(api.get_parent(transition))
+            return (0, transition) if currently_enabled else None
 
         # create the constraints for updates and influences
         for port, modifiers in modifier_map.items():

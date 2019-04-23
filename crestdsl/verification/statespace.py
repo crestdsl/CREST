@@ -1,5 +1,12 @@
 import networkx as nx
 import math
+import operator
+
+from datetime import datetime
+import os
+import queue
+import copy
+import threading
 
 import crestdsl.model as model
 import crestdsl.model.api as api
@@ -10,20 +17,31 @@ from crestdsl.caching import Cache
 
 import logging
 logger = logging.getLogger(__name__)
+# logger = multiprocessing.log_to_stderr()
+# logger.setLevel(multiprocessing.SUBDEBUG)
 
 EXPLORED = "explored"
-
-
-def explored_leaves(graph):
-    return
-
 
 class StateSpace(nx.DiGraph):
     """
     Creates a graph of initial node + stabilised nodes.
-    Graph elements are StateSpaceNodes  """
+    Graph elements are SystemState objects.
+    
+    This class is based on networkx.DiGraph.
+    See networkx documentation for more info.
+    """
 
     def __init__(self, system=None, *args, **kwargs):
+        """
+        Parameters
+        ----------
+        system: Entity
+            A crestdsl entity that will serve as the system to explore.
+        *args:
+            Arguments that are passed on to the underlying networkx structure.
+        **kwargs: 
+            Arguments that are passed on to the underlying networkx structure.
+        """
         super().__init__(*args, **kwargs)
         if system:
             self.graph["system"] = system
@@ -33,8 +51,13 @@ class StateSpace(nx.DiGraph):
 
     def explore_until_time(self, time):
         """
-        Asserts that the graph is expanded so all paths are at least a certain time long,
+        Asserts that the graph is expanded so all paths have a minimum length
         i.e. the length to the leaves is at least a amount
+        
+        Parameters
+        ----------
+        time: numeric
+            The minimum length of all paths between root and the nodes
         """
         # save state for later
         current_system_state_backup = SystemState(self.graph["system"]).save()
@@ -57,56 +80,194 @@ class StateSpace(nx.DiGraph):
         # revert system back to original state
         current_system_state_backup.apply()
 
-    def explore(self, iterations_left=1, iteration_counter=1):
+    def explore(self, iterations_left=1, iteration_counter=1, parallel=False):
+        """
+        Asserts that the graph is expanded so all paths have a minimum length
+        i.e. the length to the leaves is at least a amount
+        
+        Parameters
+        ----------
+        iterations_left: int
+            How many iterations of exploration should be done (or None for "inifitely many")
+        iteration_counter: int
+            Don't specify it. It's for logging purposes only.
+        parallel: bool
+            Unstable. Don't use it!
+        """
         # save state for later
         current_system_state_backup = SystemState(self.graph["system"]).save()
 
         with Cache() as c:
-            self._explore(iterations_left, iteration_counter)
+            final_counter = self._explore(iterations_left, iteration_counter, parallel=parallel)
 
         # reset system state
         current_system_state_backup.apply()
+        logger.info(f"Total size of statespace: {len(self)} nodes")
+        return final_counter  # say how many iterations we did
 
-
-    def _explore(self, iterations_left=1, iteration_counter=1):
+    def _explore(self, iterations_left=1, iteration_counter=1, parallel=False):
         if iterations_left is None:
             iterations_left = math.inf
 
-        logger.info(f"Expanding. (Current iteration: #{iteration_counter}, Iterations left: {iterations_left})")
-        if iterations_left > 0 and self.calculate_successors():  # returns if we should reiterate
-            self._explore(iterations_left=iterations_left - 1, iteration_counter=iteration_counter+1)
+        logger.info(f"Expanding. (Current iteration: #{iteration_counter}, Iterations left: {iterations_left}) (Time now: {datetime.now().strftime('%H:%M:%S')})")
+        if iterations_left > 0 and self.calculate_successors(parallel):  # returns if we should reiterate
+            return self._explore(iterations_left=iterations_left - 1, iteration_counter=iteration_counter+1, parallel=parallel)
         else:
             logger.info(f"Nothing more to expand. Stop now. Exploration cycles left: {iterations_left}")
+            return iteration_counter
 
-    def calculate_successors(self):
+    def calculate_successors(self, parallel=False):
+        if parallel:  # go parallel if necessary
+            return self.calculate_successors_parallel()
         """ Returns True if new leaf nodes were added """
-
-        # unexplored_leaves = [ssn for ssn in getleafnodes(self) if not self.nodes.data('explored', default=False)[ssn]]
-
-        # print(111, self.nodes().data('explored'))
         unexplored = [n for (n, exp) in self.nodes(data=EXPLORED, default=False) if not exp]
         logger.info(f"Calculating successors of {len(unexplored)} unexplored nodes")
-        # assert len(unexplored_leaves) == len(unexplored), f"{unexplored_leaves} \n {unexplored}"
 
+        system = self.graph["system"]
+        
         continue_exploration = False
         for ssnode in unexplored:
             logger.debug(f"calculating successors of node {ssnode}")
+            
             successors_transitions, dt = self.calculate_successors_for_node(ssnode)
+            self.nodes[ssnode][EXPLORED] = True
             # logger.debug(f"successors are: {successors}, after {ssnode.max_dt}")
             for successor, transitions in successors_transitions:
+                transitions = [operator.attrgetter(trans)(system) for trans in transitions]
+                successor = successor.deserialize(system)
                 self.add_edge(ssnode, successor, weight=dt, transitions=transitions)
                 continue_exploration = True  # successors found, meaning that we should continue exploring
         return continue_exploration
 
-    def calculate_successors_for_node(self, node):
-        logger.debug(f"Calculating successors of node {node}")
-        node.apply()  # this is a problem, we can't work in parallel
-        ssc = StateSpaceCalculator(self.graph["system"])
-
+    def calculate_successors_for_node(self, ssnode):
+        """ CAREFUL!! this is the one where we only do one at a time! 
+        BUT: it's faster than executing the parallel one on one thread"""
+        logger.debug(f"Calculating successors of node {ssnode}")
+        if getattr(self, "_ssc_cache", None) is None:
+            self._ssc_cache = StateSpaceCalculator(ssnode.system, own_context=False)
+        ssc = self._ssc_cache
+        ssnode.apply()
         successor_transitions, dt = ssc.advance_to_nbct()
-        self.nodes[node][EXPLORED] = True
         return successor_transitions, dt
+    
+    def calculate_successors_parallel(self):  
+        system = self.graph["system"]  
+        unexplored = [n for (n, exp) in self.nodes(data=EXPLORED, default=False) if not exp]
+        logger.info(f"Calculating successors of {len(unexplored)} unexplored nodes")
 
+        NUM_theads = 1  #min(1, len(unexplored))
+        # q = queue.Queue(maxsize=0)
+        # [q.put(n) for n in unexplored]
+        
+        logger.info(f"Launching {NUM_theads} thread(s) to find the successors")
+        
+        job_queue = queue.Queue()
+        for unex in unexplored:
+            job_queue.put(unex)
+        
+        results = []
+        thread_workers = []
+        for i in range(NUM_theads):
+            thread_worker = CrawlerThread(job_queue, results, system)
+            # thread_worker = threading.Thread(target=thread_crawler, args=(job_queue, results, system))
+            thread_workers.append(thread_worker)
+            thread_worker.setDaemon(True)
+            thread_worker.start()
+        
+        job_queue.join()
+        
+        # stop all threads, so they don't run infinitely long
+        for tw in thread_workers:
+            tw.stop()
+            
+        logger.info(f"Done, the results are in!")
+        # print(results)
+        # DEAL WITH RESULTS !!
+        continue_exploration = False
+        for (ssnode, successors_transitions, dt) in results:
+            self.nodes[ssnode][EXPLORED] = True
+            
+            for successor, transitions in successors_transitions:
+                transitions = [operator.attrgetter(trans)(system) for trans in transitions]
+                successor_node = successor.deserialize(system)
+                self.add_edge(ssnode, successor_node, weight=dt, transitions=transitions)
+                continue_exploration = True  # successors found, meaning that we should continue exploring
+        return continue_exploration
+    
+    def calculate_successors_parallel_process(self):
+        PROCESSORS = len(os.sched_getaffinity(0))  #os.cpu_count()  # how many CPUs can we use?
+        
+        unexplored = [n for (n, exp) in self.nodes(data=EXPLORED, default=False) if not exp]
+        logger.info(f"Calculating successors of {len(unexplored)} unexplored nodes")
+        
+        continue_exploration = False
+        with multiprocessing.Pool(PROCESSORS) as pool:
+            systempickle = pickle.dumps(self.graph["system"])
+            mapresult = pool.map_async(parallel_calc, [(u.serialize(), systempickle) for u in unexplored])
+            listof_succ_transitions_pairs = mapresult.get()
+            pool.close()
+            pool.join()
+            print("Result:", listof_succ_transitions_pairs)
+            for successors_transitions in listof_succ_transitions_pairs:
+                for successor, transitions in successors_transitions:
+                    self.add_edge(ssnode, successor, weight=dt, transitions=transitions)
+                    continue_exploration = True  # successors found, meaning that we should continue exploring
+        return continue_exploration
+
+def run_in_thread(ssnode, results):
+    system_copy = ssnode.create()  # creates a copy of the system with the encoded state
+    system_copy._constraint_cache = None
+    ssc = StateSpaceCalculator(system_copy, own_context=False)  # returns serialized stuff
+    successor_transitions, dt = ssc.advance_to_nbct()
+    results.append( (ssnode, successor_transitions, dt) )
+    return True
+
+class CrawlerThread(threading.Thread):
+    
+    def __init__(self, job_queue, results, system, timeout=3):
+        super().__init__()
+        self._run = True
+        
+        self.job_queue = job_queue
+        self.results = results
+        self.system = system
+        self.timeout = timeout
+    
+    def run(self):
+        system_copy = copy.deepcopy(self.system)
+        system_copy._constraint_cache = None
+        ssc = StateSpaceCalculator(system_copy, own_context=True)  # returns serialized stuff
+
+        while self._run:
+            try:
+                ssnode = self.job_queue.get(timeout=self.timeout) #fetch new work from the Queue, wait at most 1 second
+                ssnode.serialize().deserialize(system_copy)  # creates a copy of the system with the encoded state
+                successor_transitions, dt = ssc.advance_to_nbct()
+                self.results.append( (ssnode, successor_transitions, dt) )
+                self.job_queue.task_done()
+            except queue.Empty as e:
+                logger.debug(f"Nothing new for {self.timeout} seconds. I'm stopping thread now.")
+                return True
+        return True
+        
+    def stop(self):
+        self._run = False
+    
+
+def thread_crawler(job_queue, results, system):
+    system_copy = copy.deepcopy(system)
+    system_copy._constraint_cache = None
+    ssc = StateSpaceCalculator(system_copy, own_context=False)  # returns serialized stuff
+
+    while True:
+        ssnode = job_queue.get() #fetch new work from the Queue
+        logger.debug(f"Calculating successors of node {ssnode}")
+        ssnode.serialize().deserialize(system_copy)  # creates a copy of the system with the encoded state
+        successor_transitions, dt = ssc.advance_to_nbct()
+        results.append( (ssnode, successor_transitions, dt) )
+        
+        job_queue.task_done()
+    return True
 
 def as_dataframe(statespace):
     node_vals = []
@@ -126,7 +287,6 @@ class SystemState(object):
     """ An encoding of the system. Stores current state, current port values and pre port values"""
 
     def __init__(self, system):
-        assert isinstance(system, model.Entity)
         self.system = system
         self.states = {}
         self.ports = {}
@@ -208,50 +368,59 @@ class SystemState(object):
         ports = [(port, value, other.ports.get(port, None)) for port, value in self.ports.items() if value != other.ports.get(port, None)]
         pre = [(port, value, other.pre.get(port, None)) for port, value in self.pre.items() if value is not other.pre.get(port, None)]
         return states, ports, pre
-
-# class NoTransitionCalculator(Simulator):
-#     """
-#     This calculator is INCORRECT.
-#     It advances a certain time, but does not execute transitions.
-#     We can however use it to create an upper bounds on the continuous variables (ports).
-#     This is useful for state space exploration, because we can quickly check
-#     if a value is between start and end of a continuous evolution.
-#     Note however, that in many cases, the system state produced by ignoring the transitions can NEVER be reached.
-#     Meaning: We still have to verify if it's possible !
-#     """
-#
-#     def __init__(self, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-#         self.record_traces = False  # don't do logging here, we don't need it
-#
-#     def transition(self, entity):
-#         return False
-#
-#     def advance_to_nbct(self):
-#         nbct = self.next_behaviour_change_time()
-#         if nbct is None:  # no behaviour change and no next transition through time advance
-#             return
-#
-#         dt = to_python(nbct[0])
-#         if dt > 0:
-#             succ_states = self.advance(dt)
-#         return dt
+    
+    def serialize(self):
+        if len(self.states) == 0:  # this means we haven't saved yet
+            self.save()
+        
+        ss = SystemState(None)
+        ss.states = {model.get_path_to_attribute(self.system, entity): model.get_path_to_attribute(self.system, state) for entity, state in self.states.items()}
+        ss.ports = {model.get_path_to_attribute(self.system, port): value for port, value in self.ports.items()}
+        ss.pre = {model.get_path_to_attribute(self.system, port): value for port, value in self.pre.items()}
+        
+        return ss
+        
+    def deserialize(self, system):
+        for entity, state in self.states.items():
+            if entity == "":
+                system.current = operator.attrgetter(state)(system)
+            else:
+                operator.attrgetter(entity)(system).current = operator.attrgetter(state)(system)
+        
+        for port, value in self.ports.items():
+            operator.attrgetter(port)(system).value = value
+        
+        for port, value in self.pre.items():
+            operator.attrgetter(port)(system).value = value
+        
+        return SystemState(system).save()
+        
 
 class StateSpaceCalculator(Simulator):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.record_traces = False  # don't do logging here, we don't need it
+        self.dependencyOrder_cache = {}
 
+    def get_DO_cached(self, entity):
+        if entity not in self.dependencyOrder_cache:
+            self.dependencyOrder_cache[entity] = {}
+        if entity.current not in self.dependencyOrder_cache[entity]:
+            # the dependency order is defined by the state we're in. Nothing else.
+            self.dependencyOrder_cache[entity][entity.current] = DO.get_entity_modifiers_in_dependency_order(entity)
+            
+        return self.dependencyOrder_cache[entity][entity.current]
+    
     def advance_and_stabilise(self, entity, time):
         """ saves the transitions in a list """
         # logger.debug(f"Time: {self.global_time} | Advancing {time} and stabilising entity {entity._name} ({entity.__class__.__name__})")
-        for port in model.get_targets(entity):  # + get_targets(entity):
+        for port in api.get_targets(entity):  # + api.get_targets(entity):
             port.pre = port.value
 
         systemstates = [ (SystemState(self.system).save(), []) ]
 
-        for mod in DO.get_entity_modifiers_in_dependency_order(entity):
+        for mod in self.get_DO_cached(entity):  #DO.get_entity_modifiers_in_dependency_order(entity):
             if isinstance(mod, model.Influence):
                 # logger.debug(f"Time: {self.global_time} | Triggering influence {mod._name} in entity {entity._name} ({entity.__class__.__name__})")
                 for (sysstate, transitions) in systemstates:
@@ -285,7 +454,7 @@ class StateSpaceCalculator(Simulator):
         for (sysstate, transitions) in systemstates:
             sysstate.apply()
             # set pre again, for the actions that are triggered after the transitions
-            for port in model.get_targets(entity):  # + get_targets(entity):
+            for port in api.get_targets(entity):  # + api.get_targets(entity):
                 port.pre = port.value
             sysstate.update()
 
@@ -336,8 +505,9 @@ class StateSpaceCalculator(Simulator):
         # logger.debug(f"finished transitions in entity {entity._name} ({entity.__class__.__name__}): Created {len(states_after)} new states!")
         return states_after
 
-
     def advance_to_nbct(self):
+        saved_state = SystemState(self.system).save()  # save system state so we can reset it
+        
         nbct = self.next_behaviour_change_time()
         if nbct is None:  # no behaviour change and no next transition through time advance
             return [], None
@@ -347,6 +517,17 @@ class StateSpaceCalculator(Simulator):
             succ_states_and_transitions = self.advance(dt)
         else:
             succ_states_and_transitions = self.stabilise()
-
+            
         # succ_states = {s for s, ts in succ_states_and_transitions}  # reduce to set
-        return succ_states_and_transitions, dt
+        serialized = []
+        for succ_state, transitions in succ_states_and_transitions:
+            ser_succ_state = succ_state.serialize()
+            ser_transitions = [model.get_path_to_attribute(self.system, trans) for trans in transitions]
+            serialized.append( (ser_succ_state, ser_transitions) )
+        
+        # print(serialized)
+        
+        saved_state.apply()  # reset system state
+        return serialized, dt
+        
+

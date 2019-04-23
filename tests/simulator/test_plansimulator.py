@@ -4,13 +4,6 @@ import crestdsl.model as crest
 import crestdsl.simulation as sim
 import copy
 
-import logging
-logging.basicConfig(level=logging.DEBUG)
-# logging.getLogger('crestdsl.simulation.simulator').setLevel(logging.DEBUG)
-# logging.getLogger('crestdsl.simulation.basesimulator').setLevel(logging.DEBUG)
-logging.getLogger('crestdsl.simulation.plansimulator').setLevel(logging.DEBUG)
-
-
 class PlanSimulatorTest(unittest.TestCase):
     
     def setUp(self):
@@ -137,7 +130,6 @@ class PlanSimulatorTest(unittest.TestCase):
         
         
     def test_select_transition_to_trigger_iterative_selection(self):
-        logging.getLogger().error("****"*50)
         entity = self.testentity
         psim = sim.PlanSimulator(self.testentity)
         

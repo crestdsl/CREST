@@ -129,6 +129,12 @@ def get_modifier_map(root_entity, port_list, cache=True):
                             modifier_map[read_port] = list()  # add an empty list, the next iteration will try to fill it
     logger.debug(f"the modifier map looks like this: \n{pformat(prettify_modifier_map(modifier_map))}")
     return modifier_map
+    
+def uses_dt_variable(modifier):
+    if hasattr(modifier, "_cached_dt_use"):
+        return modifier._cached_dt_use
+    modifier._cached_dt_use = SH.does_access_variable(modifier.function, "dt")
+    return modifier._cached_dt_use
 
 def get_constraints_from_modifier(modifier, z3_vars, use_integer_and_real, cache=True):
     """Convert a modifier into a set of constraints"""
@@ -170,7 +176,12 @@ def get_constraints_from_modifier(modifier, z3_vars, use_integer_and_real, cache
     if SH.is_lambda(modifier.function):
         # equation for lambda result
         tgt = conv.z3_vars[modifier.target][modifier.target._name]
-        constraints.append(tgt == modifierconstraints)
+        try:
+            constraints.append(tgt == modifierconstraints)
+        except z3.Z3Exception as z3ex:
+            logger.error(f"Error during working of modifier {modifier._name}.")
+            breakpoint()
+            raise ex
     else:
         constraints.extend(modifierconstraints)  # it's a list here
 

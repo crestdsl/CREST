@@ -1,7 +1,7 @@
 import crestdsl.model as crest
 import unittest
 
-from crestdsl.verification.checklib import check
+from crestdsl.verification import check
 
 class TestEntity(crest.Entity):
     res = crest.Resource("float-resource", crest.Types.REAL)
@@ -116,3 +116,46 @@ class TestPortCheck(unittest.TestCase):
         assert c.check()
         c = check(entity.port2) != "TWO"
         self.assertFalse(c.check())
+
+
+class GetAtomicChecksTest(unittest.TestCase):
+    
+    def test_port_check(self):
+        entity = TestEntity()
+        c = check(entity.port2) == "TWO"
+        
+        self.assertSetEqual(c.get_atomic_checks(), {c})
+        
+    def test_state_check(self):
+        entity = TestEntity()
+        c = check(entity) == entity.state
+        
+        self.assertSetEqual(c.get_atomic_checks(), {c})
+        
+    def test_and_check(self):
+        entity = TestEntity()
+        c1 = check(entity.port2) == "TWO"
+        c2 = check(entity) == entity.state
+        c = c1 & c2
+        self.assertSetEqual(c.get_atomic_checks(), {c1,c2})
+        
+    def test_or_check(self):
+        entity = TestEntity()
+        c1 = check(entity.port2) == "TWO"
+        c2 = check(entity) == entity.state
+        c = c1 | c2
+        self.assertSetEqual(c.get_atomic_checks(), {c1,c2})
+        
+    def test_not_check(self):
+        entity = TestEntity()
+        c1 = check(entity.port2) == "TWO"
+        c2 = check(entity) == entity.state
+        c = -(c1 | c2)
+        self.assertSetEqual(c.get_atomic_checks(), {c1,c2})
+        
+    def test_duplicate_check(self):
+        entity = TestEntity()
+        c1 = check(entity.port2) == "TWO"
+        c2 = check(entity) == entity.state
+        c = -(c1 | c2) & c2
+        self.assertSetEqual(c.get_atomic_checks(), {c1,c2})

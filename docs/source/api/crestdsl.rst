@@ -7,11 +7,10 @@ For example, the ``model`` package contains all APIs required for the creation o
 the ``simulation`` package provides various Simulator classes, and the ``ui`` package can be used to 
 plot a CREST diagram of a model.
 
-.. automodule:: crestdsl.config
-    :members:
-    :noindex:
-    :undoc-members:
-    :show-inheritance:
+
+.. warning:: This documentation is (unfortunately) not complete yet.
+    Please bear with me. I will gradually extend it.
+
 
 .. toctree::
     :name: Subpackages

@@ -79,6 +79,7 @@ class BaseSimulator(object):
     def system(self):
         """A handle to the system that is being simulated. 
         You can use it to e.g. modify input values"""
+        return self._system
 
     def save_trace(self):
         if self.record_traces:

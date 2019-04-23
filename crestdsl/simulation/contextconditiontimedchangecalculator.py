@@ -120,10 +120,10 @@ def init_z3_constraints_and_vars(entity, timeunit, use_integer_and_real):
         # TODO: this should be nicer somehow ...
         # add port and constraint for the influence param
         z3_src = cache.z3_vars[influence.source][influence.source._name]
-        params = SH.get_param_names(influence_update.function)
-        param_key = params[0] + "_" + str(id(influence_update))
+        params = SH.get_param_names(influence.function)
+        param_key = params[0] + "_" + str(id(influence))
         z3_param = get_z3_variable(influence.source, params[0], str(id(influence)))
-        z3_vars[param_key] = {params[0] + "_0": z3_param}
+        cache.z3_vars[param_key] = {params[0] + "_0": z3_param}
         
         conv = Z3ConditionChangeCalculator(cache.z3_vars, entity=influence._parent, container=influence, use_integer_and_real=use_integer_and_real)
         cache.z3_conditionchanged_constraintsets[influence] = (conv.calculate_constraints(influence.function), z3_src == z3_param )

@@ -1,13 +1,16 @@
 import methoddispatch
+import time
 import math
+import copy
 import itertools
 import networkx as nx
 
+from functools import reduce, lru_cache, wraps
 from crestdsl.caching import Cache
 
 from . import checklib
 from .tctl import *  # I know, I know...  but otherwise the formulas become unreadable !!
-from .tctl import AtomicProposition, TCTLFormula  # * in tctl only offers some of the classes, we need all !
+from .tctl import NamedAtomicProposition, TCTLFormula  # * in tctl only offers some of the classes, we need all !
 from .statespace import SystemState
 from crestdsl.ui import plotly_statespace
 from .reachabilitycalculator import ReachabilityCalculator
@@ -19,16 +22,27 @@ import logging
 logger = logging.getLogger(__name__)
 
 import operator  # for ordering operators
-order = { operator.eq : 0, operator.ne : 0, operator.le : 1, operator.ge : 1, operator.lt : 2, operator.gt : 2}
+order = {operator.eq: 0, operator.ne: 0, operator.le: 1, operator.ge: 1, operator.lt: 2, operator.gt: 2, None: 100}
+
 
 def mc_tracing(func):
+    """
+    This decorator is used below and logs certain statistics about the formula evaluation.
+    It measures execution time, and how many nodes are found that statisfy each subformula.
+    """
+    @wraps(func)
     def wrapper(*args):
         formula = args[1]
+        start = time.time()
         logger.debug(f"{func.__name__} for formula {str(formula)}")
         retval = func(*args)
-        logger.debug(f"{func.__name__} found {len(retval)} nodes for formula {str(formula)}")
+        logger.debug(f"{func.__name__} found {len(retval)} nodes (in {time.time() - start} seconds) for formula {str(formula)}")
+        # assert isinstance(retval, (set, list, nx.classes.reportviews.NodeView)), f"{func.__name__} did not return a set, list or nx.NodeView, but a {type(retval)}"
         return retval
     return wrapper
+
+
+CREST_PROPS = "crest_props"
 
 
 class PointwiseModelChecker(methoddispatch.SingleDispatch):
@@ -47,17 +61,45 @@ class PointwiseModelChecker(methoddispatch.SingleDispatch):
     """
 
     def __init__(self, statespace=None):
+        """
+        Parameters
+        ----------
+        statespace: StateSpace
+            The statespace (timed Kripke structure) that will be explored.
+        """
         self.statespace = statespace.copy()  # operate on a copy of the state space
 
-    def make_CREST_kripke(self, formula):
-        crestKripke = self.statespace.copy()  # operate on a copy of the state space
+    def has_zero_cycles(self, Graph, values=None):
+        if values is None:
+            values = [0]
+        zero_edges = [(u, v) for (u, v, w) in Graph.edges(data='weight') if w in values]
+        zero_graph = Graph.edge_subgraph(zero_edges)
+        return not nx.is_directed_acyclic_graph(zero_graph)
+
+    def make_CREST_Kripke(self, formula, crestKripke=None):
+        """ Optional parameter allows manual modification before copying """
+        if crestKripke is None:
+            crestKripke = self.statespace.copy()  # operate on a copy of the state space
+
+        # in CREST Kripke structures we do not allow any cycles of zero transitions
+        # thus, if we only consider zero-transitions, it has to be acyclic :-)
+
+        assert not self.has_zero_cycles(crestKripke), "The CREST Kripke structure (statespace) provided has cycles with only zero-transitions. This means there is Zeno behviour. We don't support that."
+        if self.has_zero_cycles(crestKripke, [eps]):
+            logger.warning("CREST Kripke has \u03B5 cycles")
+        if self.has_zero_cycles(crestKripke, [0, eps]):
+            logger.warning("CREST Kripke has zero & \u03B5 cycles")
+
+        if formula is None:  # early exit, e.g. if we only want to test mechanisms without splitting
+            return crestKripke
 
         with Cache() as c:
             props = formula.get_propositions()
             filtered_props = [prop for prop in props if not isinstance(prop, checklib.StateCheck)]  # remove statechecks, they're fine already
-            sorted_props = sorted(props, key=lambda x:order.get(x.operator, 100))
+            sorted_props = sorted(props, key=lambda x: order.get(getattr(x, "operator", None), 100))
 
             logger.debug(f"Adapting the CREST Kripke structure for properties in formula:\n {formula}")
+            logger.debug("crestKripke is split in this prop order: " + ", ".join([str(sp)for sp in sorted_props]))
             for prop in sorted_props:
                 # logger.debug(f"Expanding for {prop}")
                 stack_of_nodes = list(crestKripke.nodes)
@@ -72,9 +114,9 @@ class PointwiseModelChecker(methoddispatch.SingleDispatch):
                     # logger.debug(f"Prop value for node {id(node)} is {current_prop_value}")
 
                     # annotate node with current state
-                    if "crest_props" not in crestKripke.nodes[node]:
-                        crestKripke.nodes[node]["crest_props"] = dict()
-                    crestKripke.nodes[node]["crest_props"][prop] = current_prop_value
+                    if CREST_PROPS not in crestKripke.nodes[node]:
+                        crestKripke.nodes[node][CREST_PROPS] = dict()
+                    crestKripke.nodes[node][CREST_PROPS][prop] = current_prop_value
 
                     node_successors = list(crestKripke.neighbors(node))
                     if len(node_successors) <= 0:  # skip because we didn't find any successors
@@ -89,7 +131,7 @@ class PointwiseModelChecker(methoddispatch.SingleDispatch):
                     interval = Interval()
                     interval < max_dt
 
-                    if current_prop_value == False:
+                    if current_prop_value is False:
                         reachable = rc.isreachable(prop, interval)
                     else:
                         reachable = rc.isreachable(checklib.NotCheck(prop), interval)
@@ -116,28 +158,26 @@ class PointwiseModelChecker(methoddispatch.SingleDispatch):
                         # put new node up for exploration
                         stack_of_nodes.append(newnode)
 
-        # INFO: What to do with leaf nodes (that advance infinitely, but properties don't change)
-        # We should add a self-loop to indicate that time advances
-        # Thoughts:
-        # --> self-loops work, because in the end they kinda return to the state where all properties remain the same
-        # --> since we operate on Propositions and not the actual states, this should work nicely
-        # --> we do not change the state space after all, only the crestKripke for the analysis
-        # --> we create a Strongly Connected Component with one state where all properties remain the same
-        # --> but what is the transition time? It should not be 0, because the formal semantics exclude zeno behaviour.
-        # --> maybe we should do Epsilon, to show that time advances?
-        # --> the algorithm really doesn't care much, I think. Let's test it!
-
-        for node in [n for n in crestKripke.nodes() if crestKripke.out_degree(n)==0]:  # iterate over leaves
-            crestKripke.add_edge(node, node, weight=eps)
-
-
-        logger.debug(f"finished analysing all nodes")
+        logger.debug(f"finished analysing all nodes. CREST Kripke structure has {len(crestKripke)} states and {len(crestKripke.edges())}")
         return crestKripke
 
     @methoddispatch.singledispatch
     def check(self, formula, systemstate=None):
+        """ Trigger the model checking implementation.
+        
+        Parameters
+        ----------
+        formula: TCTLFormula
+            A tctl formula object that specifies the property that should be checked.
+        systemstate: SystemState
+            In case you want to execute the formula on a different state than the statespace's root.
+            
+        Returns
+        -------
+        bool
+            The result of the model checking. I.e. if the formula is satisfied.
+        """
         msg = f"Don't know how to check formula {formula} of type {type(formula)}"
-        logger.error(msg)
         raise ValueError(msg)
 
     @check.register(bool)
@@ -146,14 +186,29 @@ class PointwiseModelChecker(methoddispatch.SingleDispatch):
 
     @check.register(TCTLFormula)
     def check_tctl(self, formula, systemstate=None):
-        crestKripke = self.make_CREST_kripke(formula)
-        sat_set = self.is_satisfiable(formula, crestKripke)
-
+        # crestKripke = self.make_CREST_Kripke(formula)
+        # sat_set = self.is_satisfiable(formula, crestKripke)
+        sat_set, crestKripke = self.get_satisfying_nodes(formula)
+        
         if systemstate is None:
             systemstate = crestKripke.graph["root"]
-
+        
         logger.info(f"Found {len(sat_set)} nodes that satisfy formula {str(formula)}.\n The state we're interested in is among them -> {(systemstate in sat_set)}")
         return systemstate in sat_set
+
+    def get_satisfying_nodes(self, formula):
+        crestKripke = self.make_CREST_Kripke(formula)
+        sat_set = self.is_satisfiable(formula, crestKripke)
+        return sat_set, crestKripke
+
+    def draw(self, formula, systemstate=None):
+        # crestKripke is an optional parameter. if it's provided, we use it, otherwise it's fine
+        # crestKripke = self.make_CREST_Kripke(formula, crestKripke)
+        # sat_set = self.is_satisfiable(formula, crestKripke)
+
+        sat_set, crestKripke = self.get_satisfying_nodes(formula)
+
+        plotly_statespace(crestKripke, highlight=sat_set)
 
     """ - - - - - - - - - - - - - - """
     """ S A T I S F I A B I L I T Y """
@@ -166,6 +221,7 @@ class PointwiseModelChecker(methoddispatch.SingleDispatch):
         raise ValueError(msg)
 
     @is_satisfiable.register(bool)
+    # @lru_cache(maxsize=None, typed=True)
     @mc_tracing
     def issatisfiable_boolean(self, formula, crestKripke):
         if formula:
@@ -174,44 +230,61 @@ class PointwiseModelChecker(methoddispatch.SingleDispatch):
             retval = set()  # 4.1 shortcut for Not(true)
         return retval
 
-    @is_satisfiable.register(AtomicProposition)
+    @is_satisfiable.register(checklib.Check)
+    # @lru_cache(maxsize=None, typed=True)
     @mc_tracing
-    def issatisfiable_check_atomic(self, formula, crestKripke):
-        """ This one is a check on one particular state, I guess it's not gonna be used often"""
+    def issatisfiable_check_check(self, formula, crestKripke):
         retval = list()
-        for node in crestKripke.nodes:
-            node.apply()
-            if formula.check():
+        for node, props in crestKripke.nodes(data=CREST_PROPS):
+            if formula in props:  # check if we assigned it to the propositions (we should have...)
+                if props[formula]:
+                    retval.append(node)
+            else:
+                logger.warning(f"Couldn't find AtomicProposition value for AP: {formula} in node. Checking manually.")
+                node.apply()
+                if formula.check():
+                    retval.append(node)
+        return set(retval)
+
+    @is_satisfiable.register(NamedAtomicProposition)
+    # @lru_cache(maxsize=None, typed=True)
+    @mc_tracing
+    def issatisfiable_NamedAP(self, formula, crestKripke):
+        retval = list()
+        for node, props in crestKripke.nodes(data=CREST_PROPS):
+            if props.get(formula, False):  # check if we assigned it and it's True, then add the node
                 retval.append(node)
+
         return set(retval)
 
     @is_satisfiable.register(Not)
+    # @lru_cache(maxsize=None, typed=True)
     @mc_tracing
     def issatisfiable_tctlNot(self, formula, crestKripke):
         retval = self.is_satisfiable(True, crestKripke) - self.is_satisfiable(formula.phi, crestKripke)
         return retval
 
     @is_satisfiable.register(And)
+    # @lru_cache(maxsize=None, typed=True)
     @mc_tracing
     def issatisfiable_tctlAnd(self, formula, crestKripke):
-        subexpressions = []
-        for op in formula.operands:
-            sat_set = self.is_satisfiable(op, crestKripke)
-            logger.debug(f"issatisfiable_tctlAnd: subexpression {str(op)} is satisfiable by {len(sat_set)} nodes")
-            subexpressions.append(sat_set)
-        retval = set.intersection(*subexpressions)
+        phi_res = self.is_satisfiable(formula.phi, crestKripke)
+        psi_res = self.is_satisfiable(formula.psi, crestKripke)
+        retval = set.intersection(set(phi_res), set(psi_res))
+        # import pdb; pdb.set_trace()
         return retval
 
     @is_satisfiable.register(Or)
+    # @lru_cache(maxsize=None, typed=True)
     @mc_tracing
     def issatisfiable_tctlOr(self, formula, crestKripke):
         # shortcut for 4.2 Not(And(Not(form1), Not(form2))
-        subexpressions = []
-        for op in formula.operands:
-            subexpressions.append(self.is_satisfiable(op, crestKripke))
-        return set.union(*subexpressions)
+        phi_res = self.is_satisfiable(formula.phi, crestKripke)
+        psi_res = self.is_satisfiable(formula.psi, crestKripke)
+        return set.union(set(phi_res), set(psi_res))
 
     @is_satisfiable.register(Implies)
+    # @lru_cache(maxsize=None, typed=True)
     @mc_tracing
     def issatisfiable_tctlImplies(self, formula, crestKripke):
         # 4.3 rewrite implies
@@ -219,6 +292,7 @@ class PointwiseModelChecker(methoddispatch.SingleDispatch):
         return self.is_satisfiable(new_formula, crestKripke)
 
     @is_satisfiable.register(Equality)
+    # @lru_cache(maxsize=None, typed=True)
     @mc_tracing
     def issatisfiable_tctlEquality(self, formula, crestKripke):
         # 4.4 rewrite equality
@@ -228,6 +302,7 @@ class PointwiseModelChecker(methoddispatch.SingleDispatch):
         return self.is_satisfiable(new_formula, crestKripke)
 
     @is_satisfiable.register(EF)
+    # @lru_cache(maxsize=None, typed=True)
     @mc_tracing
     def issatisfiable_tctlEF(self, formula, crestKripke):
         # 4.5 rewrite EF_I
@@ -235,6 +310,7 @@ class PointwiseModelChecker(methoddispatch.SingleDispatch):
         return self.is_satisfiable(new_formula, crestKripke)
 
     @is_satisfiable.register(AF)
+    # @lru_cache(maxsize=None, typed=True)
     @mc_tracing
     def issatisfiable_tctlAF(self, formula, crestKripke):
         # 4.6 rewrite AF_I
@@ -242,6 +318,7 @@ class PointwiseModelChecker(methoddispatch.SingleDispatch):
         return self.is_satisfiable(new_formula, crestKripke)
 
     @is_satisfiable.register(EG)
+    # @lru_cache(maxsize=None, typed=True)
     @mc_tracing
     def issatisfiable_tctlEG(self, formula, crestKripke):
         intvl = formula.interval
@@ -250,13 +327,13 @@ class PointwiseModelChecker(methoddispatch.SingleDispatch):
 
         # 4.7 rewrite EG<=b
         if intvl.start_operator == operator.ge and a == 0 and \
-            intvl.end_operator == operator.le and b != math.inf:
+           intvl.end_operator == operator.le and b != math.inf:
             new_formula = EU(formula.phi, True, interval=Interval() > intvl.end)
             return self.is_satisfiable(new_formula, crestKripke)
 
         # 4.8 rewrite EG<b
         if intvl.start_operator == operator.ge and a == 0 and \
-            intvl.end_operator == operator.lt and b != math.inf:
+           intvl.end_operator == operator.lt and b != math.inf:
             new_formula = EU(formula.phi, True, interval=Interval() >= intvl.end)
             return self.is_satisfiable(new_formula, crestKripke)
 
@@ -265,45 +342,48 @@ class PointwiseModelChecker(methoddispatch.SingleDispatch):
             new_formula = Not(AF(Not(formula.phi), interval=formula.interval))
             return self.is_satisfiable(new_formula, crestKripke)
 
+        # classic form, no interval boundaries [0, inf):
+        if formula.interval.compare(Interval()):
+            return self.Sat_EG(formula, crestKripke)
+
         raise ValueError("I cannot transform an EG-formula because the interval is invalid. Formula \n {str(formula)}")
 
     @is_satisfiable.register(AG)
+    # @lru_cache(maxsize=None, typed=True)
     @mc_tracing
     def issatisfiable_tctlAG(self, formula, crestKripke):
         # 4.10 rewrite AG_I
         new_formula = Not(EF(Not(formula.phi), interval=formula.interval))
         return self.is_satisfiable(new_formula, crestKripke)
 
-
     @is_satisfiable.register(EU)
+    @lru_cache(maxsize=None, typed=True)
     @mc_tracing
     def issatisfiable_tctlEU(self, formula, crestKripke):
+        """ Procedure 2 - selection """
         if formula.interval.start == 0 and formula.interval.start_operator == operator.ge and \
            formula.interval.end == math.inf:
-           return self.Sat_EU(formula, crestKripke)
+            return self.Sat_EU(formula, crestKripke)
 
         if formula.interval.start == 0 and formula.interval.start_operator == operator.ge and \
            formula.interval.end != math.inf:
-           return self.Sat_EUb(formula, crestKripke)
+            return self.Sat_EUb(formula, crestKripke)
 
         if formula.interval.start > 0 and \
            formula.interval.end == math.inf:
-           return self.Sat_EUa(formula, crestKripke)
+            return self.Sat_EUa(formula, crestKripke)
 
         if formula.interval.start > 0 and \
            formula.interval.end != math.inf:
-           return self.Sat_EUab(formula, crestKripke)
+            return self.Sat_EUab(formula, crestKripke)
 
         raise AttributeError(f"Don't know which procedure to choose for formula {formula}")
 
-    @is_satisfiable.register(EG)
-    @mc_tracing
-    def issatisfiable_tctlEG(self, formula, crestKripke):
-        return self.Sat_EG(formula, crestKripke)
-
     @is_satisfiable.register(AU)
+    # @lru_cache(maxsize=None, typed=True)
     @mc_tracing
     def issatisfiable_tctlAU(self, formula, crestKripke):
+        """ Procedure 2 - selection """
         intvl = formula.interval
         a = formula.interval.start
         b = formula.interval.end
@@ -323,84 +403,85 @@ class PointwiseModelChecker(methoddispatch.SingleDispatch):
             new_formula = And(p1, p2)
             return self.is_satisfiable(new_formula, crestKripke)
 
-        # 4.12
+        # 4.12 <= b
         if intvl.start_operator == operator.ge and a == 0 and \
-            intvl.end_operator == operator.le and b != math.inf:
-            p1 = Not(EG(Not(psi), Interval() <= b))
+           intvl.end_operator == operator.le and b != math.inf:
+            p1 = Not(EG(Not(psi), interval=Interval() <= b))
             p2 = Not(EU(Not(psi), And(Not(phi), Not(psi))))
             new_formula = And(p1, p2)
-            self.is_satisfiable(new_formula, crestKripke)
+            return self.is_satisfiable(new_formula, crestKripke)
 
-        # 4.13
+        # 4.13  < b
         if intvl.start_operator == operator.ge and a == 0 and \
-            intvl.end_operator == operator.lt and b != math.inf:
-            p1 = Not(EG(Not(psi), Interval() < b))
+           intvl.end_operator == operator.lt and b != math.inf:
+            p1 = Not(EG(Not(psi), interval=Interval() < b))
             p2 = Not(EU(Not(psi), And(Not(phi), Not(psi))))
             new_formula = And(p1, p2)
-            self.is_satisfiable(new_formula, crestKripke)
+            return self.is_satisfiable(new_formula, crestKripke)
 
-        # 4.14
+        # 4.14  >= a
         if intvl.start_operator == operator.ge and a != 0 and \
-            intvl.end_operator == operator.lt and b == math.inf:
+           b == math.inf:
             p2 = AU(phi, psi, interval= Interval() > 0)
             new_formula = AG(And(phi, p2), interval=Interval() < a)
-            self.is_satisfiable(new_formula, crestKripke)
+            return self.is_satisfiable(new_formula, crestKripke)
 
-        # 4.15
+        # 4.15  > a
         if intvl.start_operator == operator.gt and a != 0 and \
-            intvl.end_operator == operator.lt and b == math.inf:
+           b == math.inf:
             p2 = AU(phi, psi, interval= Interval() > 0)
             new_formula = AG(And(phi, p2), interval=Interval() <= a)
-            self.is_satisfiable(new_formula, crestKripke)
+            return self.is_satisfiable(new_formula, crestKripke)
 
-        # 4.16
+        # 4.16  [a, b]    a != 0
         if intvl.start_operator == operator.ge and a != 0 and \
-            intvl.end_operator == operator.le and b != math.inf:
+           intvl.end_operator == operator.le and b != math.inf:
             p1 = Not(EF(EU(And(phi, Not(psi)), And(Not(phi), Not(psi))), interval=Interval() == a))
             p2 = Not(EF(EU(Not(psi), True, interval=Interval() > (b-a)) ,interval=Interval() == a))
             p3 = Not(EF(Not(phi), interval=Interval() < a))
             new_formula = And(p1, p2, p3)
-            self.is_satisfiable(new_formula, crestKripke)
+            return self.is_satisfiable(new_formula, crestKripke)
 
-        # 4.17
+        # 4.17  [a, b)    a != 0, b != inf
         if intvl.start_operator == operator.ge and a != 0 and \
-            intvl.end_operator == operator.le and b != math.inf:
+           intvl.end_operator == operator.le and b != math.inf:
             p1 = Not(EF(EU(And(phi, Not(psi)), And(Not(phi), Not(psi))), interval=Interval() == a))
             p2 = Not(EF(EU(Not(psi), True, interval=Interval() >= (b - a)), interval=Interval() == a))
             p3 = Not(EF(Not(phi), interval=Interval() < a))
             new_formula = And(p1, p2, p3)
-            self.is_satisfiable(new_formula, crestKripke)
+            return self.is_satisfiable(new_formula, crestKripke)
 
-        # 4.18
+        # 4.18 (a, b]    b != inf
         if intvl.start_operator == operator.gt and a != 0 and \
-            intvl.end_operator == operator.lt and b != math.inf:
-            a = AF( AU( phi, psi, interval=Interval() > 0 <= (b-a)), interval=Interval() == a)
+           intvl.end_operator == operator.lt and b != math.inf:
+            a = AF( AU( phi, psi, interval=(Interval() > 0) <= (b-a)), interval=Interval() == a)
             b = AG(phi, interval=Interval() <= a)
             new_formula = And(a, b)
-            self.is_satisfiable(new_formula, crestKripke)
+            return self.is_satisfiable(new_formula, crestKripke)
 
-        # 4.19
+        # 4.19  (a, b)    b != inf
         if intvl.start_operator == operator.gt and a != 0 and \
-            intvl.end_operator == operator.lt and b != math.inf:
-            a = AF( AU( phi, psi, interval=Interval() > 0 < (b-a)), interval=Interval() == a)
+           intvl.end_operator == operator.lt and b != math.inf:
+            a = AF( AU( phi, psi, interval=(Interval() > 0) < (b-a)), interval=Interval() == a)
             b = AG(phi, interval=Interval() <= a)
             new_formula = And(a, b)
-            self.is_satisfiable(new_formula, crestKripke)
+            return self.is_satisfiable(new_formula, crestKripke)
 
-        raise AttributeError(f"Don't know what to do with formula {str(formula)}")
+        raise ValueError(f"Don't know what to do with formula {str(formula)}")
 
+    """ P R O C E D U R E S """
 
     # procedure 3
-    def Sat_EU(self, formula, crestKripke):
-        Q1 = self.is_satisfiable(formula.phi, crestKripke)
-        Q = self.is_satisfiable(formula.psi, crestKripke)
+    def Sat_EU(self, formula, crestKripke, phi_set=None, psi_set=None):
+        Q1 = phi_set if (phi_set is not None) else self.is_satisfiable(formula.phi, crestKripke)
+        Q2 = psi_set if (psi_set is not None) else self.is_satisfiable(formula.psi, crestKripke)
 
-        Q_pre = set.union( *[(set(crestKripke.predecessors(s)) & Q1) - Q for s in Q] )
+        Q2_pre = set().union(*[crestKripke.predecessors(s) for s in Q2]) & set(Q1)  # phi nodes who are predecessors of Q2
 
-        while len(Q_pre) > 0:
-            Q = set.union(Q, Q_pre)
-            Q_pre = set.union( *[(set(crestKripke.predecessors(s)) & Q1) - Q for s in Q] )
-        return Q
+        Q1_view = crestKripke.subgraph(Q1)  # only phi nodes
+        Q2_pre_pre = set().union(*[nx.ancestors(Q1_view, p) for p in Q2_pre])  # all phi-ancestors of Q2_pre nodes
+
+        return set().union(Q2, Q2_pre, Q2_pre_pre)
 
     # procedure 4
     def Sat_EG(self, formula, crestKripke):
@@ -413,16 +494,16 @@ class PointwiseModelChecker(methoddispatch.SingleDispatch):
         Q1_view = nx.graphviews.subgraph_view(crestKripke, filter_node=(lambda x: x in Q1))
 
         Q = set.union(*[comp for comp in nx.strongly_connected_components(Q1_view) if not is_trivial(comp)])
-        Q_pre = set.union( *[(set(crestKripke.predecessors(s)) & Q1) - Q for s in Q] )
+        Q_pre = set().union(*[(set(crestKripke.predecessors(s)) & Q1) - Q for s in Q])
 
         while len(Q_pre) > 0:
             Q = set.union(Q, Q_pre)
-            Q_pre = set.union( *[(set(crestKripke.predecessors(s)) & Q1) - Q for s in Q] )
+            Q_pre = set().union(*[(set(crestKripke.predecessors(s)) & Q1) - Q for s in Q])
 
         alt_Q = set.union(*[comp for comp in nx.strongly_connected_components(Q1_view) if not is_trivial(comp)])
-        alt_Q_pre = set.union(*[nx.ancestors(Q1_view, node) for node in Q])
+        alt_Q_pre = set().union(*[nx.ancestors(Q1_view, node) for node in Q])
 
-        assert altQ | alt_Q_pre == Q, "New way and old way are equal"
+        assert alt_Q | alt_Q_pre == Q, "New way and old way are equal"
 
         return Q
 
@@ -430,17 +511,15 @@ class PointwiseModelChecker(methoddispatch.SingleDispatch):
     def Sat_EUb(self, formula, crestKripke):
         Q1 = self.is_satisfiable(formula.phi, crestKripke)
         Q2 = self.is_satisfiable(formula.psi, crestKripke)
-        # TODO: improvement -- pass Q1 and Q2 into Sat_EU below (since this will have to compute them anyway for here...)
-        Qu = self.Sat_EU(formula, crestKripke)  # this is a shortcut, we use Sat_EU directly instead of adapting the formula and calling generic is_satisfiable
+        Qu = self.Sat_EU(formula, crestKripke, phi_set=Q1, psi_set=Q2)  # this is a shortcut, we use Sat_EU directly instead of adapting the formula and calling generic is_satisfiable
         # print("Qu")
-        # plotly_draw(crestKripke, highlight=Qu)
+        # plotly_statespace(crestKripke, highlight=Qu)
 
         # # subgraph only with edges between nodes that satisfy the untimed formula
         # TR = [ e for e in crestKripke.subgraph(Qu).edges() if e[0] not in Q1 - Q2]
         # edge_subgraph = crestKripke.edge_subgraph(TR)
         # print("edge_subgraph")
-        # plotly_draw(crestKripke, highlight=edge_subgraph.nodes())
-
+        # plotly_statespace(crestKripke, highlight=edge_subgraph.nodes())
         limit = formula.interval.end
         shortest_paths = nx.all_pairs_dijkstra_path_length(crestKripke.subgraph(Qu), cutoff=limit)
 
@@ -448,8 +527,7 @@ class PointwiseModelChecker(methoddispatch.SingleDispatch):
         for (source, target_lengths) in shortest_paths:
             for target, length in target_lengths.items():
                 if formula.interval.ininterval(length) and target in Q2:
-                    filtered_paths.append( (source, target, length) )
-
+                    filtered_paths.append((source, target, length))
         # for (source, target, length) in filtered_paths:
         #     assert source in Q1 | Q2, "source is either a Phi or a Psi node"
         #     assert target in Q2, "Target is a Psi node"
@@ -466,67 +544,67 @@ class PointwiseModelChecker(methoddispatch.SingleDispatch):
         def path_weight(G, path):
             return sum(G[path[i]][path[i+1]]['weight'] for i in range(len(path)-1))
 
-
         Q1 = self.is_satisfiable(formula.phi, crestKripke)
-        Qu = self.Sat_EU(formula, crestKripke)  # this is a shortcut, we use Sat_EU directly instead of adapting the formula and calling generic is_satisfiable
+        Q2 = self.is_satisfiable(formula.psi, crestKripke)
 
-        # a)
+        Qu = self.Sat_EU(formula, crestKripke, phi_set=Q1, psi_set=Q2)  # this is a shortcut, we use Sat_EU directly instead of adapting the formula and calling generic is_satisfiable
+
+        # a) states in SSCs that are also solutions
         Q1_view = nx.graphviews.subgraph_view(crestKripke, filter_node=(lambda x: x in Q1)) # subgraph with only Q1 nodes
         Qssc = set.union(*[comp for comp in nx.strongly_connected_components(Q1_view) if not is_trivial(comp)]) # states in strongly connected components in Q1
 
         Q = Qu & Qssc  # states that where EU(phi, psi) is valid and that are in a strongly connected component (thus satisfy the formula)
-        Q_pre = set.union(*[nx.ancestors(Q1_view, node) for node in Q]) # the ancestors of all nodes in Q (i.e. the ones leading to the )
+        Q_pre = set.union(*[nx.ancestors(Q1_view, node) for node in Q]) # the ancestors of all nodes in Q (i.e. the ones leading to the SCC-Q states)
         Q = Q | Q_pre  # extend Q by the predecessors Q_pre
 
-        # b)  # FIXME: there must be something more efficient than this !!!
-        Q_DAG = Qu - Q # all states that can reach Qu but are not yet in Q
+        # b)
+        Q_DAG = Qu - Q  # all states that can reach Qu but are not yet in Q
         Q_DAG_view = crestKripke.subgraph(Q_DAG)  # the subgraph induced by those states
 
-        paths = []  # (source, target, length)
-        Q2 = self.is_satisfiable(formula.psi, crestKripke)
 
-        # for phi_node in Q_DAG:  # for all nodes in Q_DAG
-        #     for psi_node in Q2 & Q_DAG: # iterate over all psi-nodes in Q_DAG
-        #         all_path_weights = [path_weight(crestKripke, path) for path in nx.all_simple_paths(Q_DAG_view, phi_node, psi_node)]
-        #         if len(all_path_weights) > 0:
-        #             heaviest_path_weight = max(all_path_weights)
-        #             if formula.interval.ininterval(heaviest_path_weight):
-        #                 paths.append( (phi_node, psi_node, heaviest_path_weight))
+        paths = []  # (source, target, length) for paths that are longer than minimum
+        logger.debug(f"Todo list len {len(Q_DAG)}")
+        logger.debug(f"Q2 & Q_DAG len {len(Q2 & Q_DAG)}")
+        for idx, phi in enumerate(Q_DAG):
+            logger.debug(f"beat {idx}")
+            for psi in (Q2 & Q_DAG):
+                max_weight = max([path_weight(crestKripke, path) for path in nx.all_simple_paths(Q_DAG_view, phi, psi)], default=False)
+                if max_weight is not False and formula.interval.ininterval(max_weight):
+                    paths.append(phi)
+                    break  # break inner loop, go to next psi node
 
-        paths = []
-        for (phi, psi) in itertools.product(Q_DAG, Q2 & Q_DAG):
-            max_weight = max([path_weight(crestKripke, path) for path in nx.all_simple_paths(Q_DAG_view, phi, psi)], default=False)
-            if max_weight is not False and formula.interval.ininterval(max_weight):
-                paths.append( (phi, psi, max_weight))
-
-        return Q | {p[0] for p in paths}
+        return Q | set(paths)
 
     # procedure 7
     def Sat_EUab(self, formula, crestKripke):
         intvl = formula.interval
         Q1 = self.is_satisfiable(formula.phi, crestKripke)
         Q2 = self.is_satisfiable(formula.psi, crestKripke)
-        # TODO: improvement -- pass Q1 and Q2 into Sat_EU below (since this will have to compute them anyway for here...)
-        Qu = self.Sat_EU(formula, crestKripke)  # this is a shortcut, we use Sat_EU directly instead of adapting the formula and calling generic is_satisfiable
+        Qu = self.Sat_EU(formula, crestKripke, phi_set=Q1, psi_set=Q2)  # this is a shortcut, we use Sat_EU directly instead of adapting the formula and calling generic is_satisfiable
 
         Qu_view = crestKripke.subgraph(Qu)
-        Qu_view = Qu_view.edge_subgraph([e for e in Qu_view.edges() if e[0] in Q1])
+        TR = [edge for edge in Qu_view.edges() if e[0] in Q1]  # the edges in Qu where the start is a Q1 node
 
-        Q = []
-        Tv = []
-        T = [(s, 0) for s in Q2]
+        Q = set()  # the nodes that we already found
+        Tv = set()  # visited configs
+        T = [(s, 0) for s in Q2]  # configurations we still have to try
         while len(T) > 0:
-            (s, tau) = T.pop()
-            Tv.append( (s, tau) )
-            Tpre = [ (sp, tau + taup) for sp, s, taup in Qu_view.in_edges(s, data="weight") if intvl.end_operator(tau+taup, intvl.end) and sp in Q1]
-            T.extend([t for t in Tpre if t not in Tv])
+            (s, tau) = T.pop()  # take one of the todo list
+            Tv.add( (s, tau) )  # remember that we visited this one already
+
+            Tpre = set()   # the predecessors of the current config
+            for pre, s, tau_pre in Qu_view.in_edges(s, data="weight"):
+                if intvl.end_operator(tau + tau_pre, intvl.end) and pre in Q1:
+                    Tpre.add( (pre, tau + tau_pre))
+            T.extend(Tpre - Tv)  # add the new predecessors to the todo list, if we  haven't visited yet
+
             if intvl.ininterval(tau):
-                Q.append(s)
+                Q.add(s)
         return Q
 
     # procedure 8
     def Sat_AU0(self, formula, crestKripke):
-        formula_I_0 = formula.copy()
+        formula_I_0 = copy.copy(formula)
         formula_I_0.interval >= 0
 
         Q1 = self.is_satisfiable(formula.phi, crestKripke)
@@ -543,4 +621,4 @@ class PointwiseModelChecker(methoddispatch.SingleDispatch):
                 if length == 0 and target in Q:  # the ones that can reach Q in 0
                     Qpre.append(source)
 
-        return Qu - (Q | Qpre)  # subtract the ones that reach in 0 time from the ones for I_0
+        return Qu - (Q | set(Qpre))  # subtract the ones that reach in 0 time from the ones for I_0
