@@ -20,3 +20,12 @@ script:
   # run the tests inside the docker using coverage, also print coverage
   - docker run $ci_env stklik/crest
       /bin/bash -c 'pwd;ls;python -m unittest;pip install coverage;coverage run --source crestdsl --branch -m unittest discover -v;coverage report;bash <(curl -s https://codecov.io/bash)'
+
+deploy:
+  provider: pypi
+  user: "$PYPI_USER"
+  password: "$PYPI_PASSWORD"
+  server: https://test.pypi.org/legacy/
+  distributions: "sdist bdist_wheel"
+  on:
+    tags: true
