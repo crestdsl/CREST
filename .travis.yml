@@ -25,7 +25,6 @@ deploy:
   provider: pypi
   user: $PYPI_USER
   password: $PYPI_PASSWORD
-  server: https://test.pypi.org/legacy/
   distributions: "sdist bdist_wheel"
   on:
     tags: true
