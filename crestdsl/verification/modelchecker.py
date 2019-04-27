@@ -125,10 +125,10 @@ class ModelChecker(ContinuousModelChecker):
 
         # a) states in SSCs that are also solutions
         Q1_view = nx.graphviews.subgraph_view(crestKripke, filter_node=(lambda x: x in Q1)) # subgraph with only Q1 nodes
-        Qssc = set.union(*[comp for comp in nx.strongly_connected_components(Q1_view) if not is_trivial(comp)]) # states in strongly connected components in Q1
+        Qssc = set().union(*[comp for comp in nx.strongly_connected_components(Q1_view) if not is_trivial(comp)]) # states in strongly connected components in Q1
 
         Q = Qu & Qssc  # states that where EU(phi, psi) is valid and that are in a strongly connected component (thus satisfy the formula)
-        Q_pre = set.union(*[nx.ancestors(Q1_view, node) for node in Q]) # the ancestors of all nodes in Q (i.e. the ones leading to the SCC-Q states)
+        Q_pre = set().union(*[nx.ancestors(Q1_view, node) for node in Q]) # the ancestors of all nodes in Q (i.e. the ones leading to the SCC-Q states)
         Q = Q | Q_pre  # extend Q by the predecessors Q_pre
 
         # b)

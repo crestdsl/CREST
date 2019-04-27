@@ -583,7 +583,7 @@ class PointwiseModelChecker(methoddispatch.SingleDispatch):
         Qu = self.Sat_EU(formula, crestKripke, phi_set=Q1, psi_set=Q2)  # this is a shortcut, we use Sat_EU directly instead of adapting the formula and calling generic is_satisfiable
 
         Qu_view = crestKripke.subgraph(Qu)
-        TR = [edge for edge in Qu_view.edges() if e[0] in Q1]  # the edges in Qu where the start is a Q1 node
+        TR = [edge for edge in Qu_view.edges() if edge[0] in Q1]  # the edges in Qu where the start is a Q1 node
 
         Q = set()  # the nodes that we already found
         Tv = set()  # visited configs

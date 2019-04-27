@@ -59,12 +59,19 @@ class StateSpace(nx.DiGraph):
         time: numeric
             The minimum length of all paths between root and the nodes
         """
+        system = self.graph["system"]
+
         # save state for later
-        current_system_state_backup = SystemState(self.graph["system"]).save()
+        current_system_state_backup = SystemState(system).save()
 
         logger.info(f"Expanding until all leaves have a minimum path of more than {time} time units.")
         leaves = [v for v, d in self.out_degree() if d == 0]
+        i = 0
         while len(leaves) > 0:
+            i += 1
+            if i % 100 == 0:
+                logger.info(f"There are {len(leaves)} leaf nodes left to explore. (State space size: {len(self)} nodes)")
+            
             leaf = leaves.pop()
             if self.out_degree(leaf) == 0 and not self.nodes(data=EXPLORED, default=False)[leaf]:
                 try:
@@ -72,11 +79,14 @@ class StateSpace(nx.DiGraph):
                     logger.debug(f"Leaf {leaf} reachable in {length} time units. Calculating successors.")
                     successors_transitions, dt = self.calculate_successors_for_node(leaf)
                     for successor, transitions in successors_transitions:
+                        transitions = [operator.attrgetter(trans)(system) for trans in transitions]
+                        successor = successor.deserialize(system)
                         self.add_edge(leaf, successor, weight=dt, transitions=transitions)
                         leaves.append(successor)
                 except nx.NetworkXNoPath:
                     logger.debug(f"No path to node {leaf} within {time} time units. That's okay.")
 
+        logger.info(f"Total size of statespace: {len(self)} nodes")
         # revert system back to original state
         current_system_state_backup.apply()
 
@@ -312,7 +322,11 @@ class SystemState(object):
     def apply(self, system=None):
         """Applies the stored state to the stored system"""
         for entity, state in self.states.items():
-            entity.current = state
+            try:
+                entity.current = state
+            except:
+                print(entity)
+                breakpoint()
 
         for port, value in self.ports.items():
             port.value = value
