@@ -25,17 +25,24 @@ Produces JSON that can be interpreted by the Eclipse Layout Kernel (ELK).
 I tried to use OpenKieler's elkjs.
 """
 
+def show_json(object_to_plot, name='', **kwargs):
+    elkgraph = generate_root(object_to_plot, name)
+    return elkgraph
+
 def plot(object_to_plot, name='', **kwargs):
     elkgraph = generate_root(object_to_plot, name)
     elkgraph = str(elkgraph)
     
+    level = kwargs.get("level", '1')
     htmlcontent = read_text("crestdsl.ui", "index.html")
     # with open("crestdsl/ui/index.html", 'r') as htmlfile:
     #     htmlcontent = htmlfile.read()
-    full = htmlcontent.replace('ELKGRAPH', str(elkgraph))
+    replaceGraph = htmlcontent.replace('ELKGRAPH', str(elkgraph))
+    #set the embedding level
+    full = replaceGraph.replace('LEVEL', str(level))
     quot_replaced = full.replace("\"", "&quot;")
     inIframe = """
-    <iframe id="iframe_IFRAME_ID" style="border:none;padding:0px;" width="100%" height="25px" id="map" srcdoc="
+    <iframe id="iframe_IFRAME_ID" style="padding:0px;" width="100%" height="100%" id="map" srcdoc="
     PAGE
     " />
     """.replace("PAGE", quot_replaced).replace("IFRAME_ID", str(uuid.uuid4()))

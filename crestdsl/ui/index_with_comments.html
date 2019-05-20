@@ -39,13 +39,13 @@
         let plot_icon = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQH/wAALCAAKABABAREA/8QAFwAAAwEAAAAAAAAAAAAAAAAAAAQICv/EACIQAAAGAgICAwAAAAAAAAAAAAECAwQFBgcIABIRExQVIv/aAAgBAQAAPwDX3O7IZSYrndVvS/Yy61fsItZ6NlsC12SkGwD+HrWl3jMlYtjdBYoexFCYjYmUEhi+6OQOPTicbsFnK9n+mo+n+YaNJOQFE1sz7MYoptJrwnDqMg8Z0rJOQrpZPi+falEwVfTLInIVspNRKSovkbB4c//Z";
         let exitPlot_icon = "data:image/gif;base64,R0lGODlhDAAMAIAAAP///0RERCH5BAAAAAAALAAAAAAMAAwAAAIdjI8Hy23w2JtR1bQiVDlIvnVIt3llqKFm4yRuUAAAOw==";
         let exportImage_icon = "data:image/gif;base64,R0lGODlhEAAQAPZCAABeAwBgBQ9tGwtxKBh3LTB2LzJ2MF0+HmZLLG9XOnFYPF98TXheRGF9T3pmTHxqUzyeZm6DWHCPcDS80TvB1Ee4pkC7uXidlX6knHG/qUC+zEfH1V3LyljT22jLxWjXzWXa3HPYyHPc1Xbd4nXh3Hzl4oBoT4NtVIVzXYt5ZZB7ZpWBbJqGc7W7ZP63HfO4J8myS//DHunENoOpn4Wroqabjq+mm7GonrWtpL64sp7Rm4ff44js2IPl5Izy5pXl6Zn769XV1dXV1QAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACH5BAEAAEIALAAAAAAQABAAAAf+gEJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCNSgoKCgoKCgoKSkrKCgoKykIDw8PDw8oKCkoKA8PCQgpDxMTGR4dHSMlPT8+IxcIKQ8TMC4vISQeHyQkPTsXCikPGy8uMTokJSUeJCU7MwwpDxMtLjIkJD4+Pj0lO4A0DykPFBseICQ+PkA8ISQ9NCcqDxQWFRUfIhACAAABBBInKQ8DAAAAAQEBAQEBAQENJykOAQEBAAEAAQEBAQEADQ8pDgYGBQUGBgYGBgYFBREOKQcHBwgKJigrLCwsKicMCTk2NjY3Nzg4ODg4ODg4NzdCQkJCQkJCQkJCQkIGgEJCQkKBADs="
-        let xInitCoord = null;
-        let yInitCoord = null;
-        let parents = [];
-        let level = null;
-        let enterGroupFlag = false;
-        let outlineWnd;
-        let lastRemovedOnUpdate = {};
+        let xInitCoord = null;        //for moving the graph to its initial position
+        let yInitCoord = null;        // -- //
+        let parents = [];             //for storing parents plots when diving into embedded graphs
+        let level = null;             //level for embedded graphs
+        let enterGroupFlag = false;   //for showing the "enter group" option only when it's necessary
+        let outlineWnd;               //global in order to hide the outline between plots
+        let lastRemovedOnUpdate = {}; //for finding the object that was moved in order to redraw/move edges
         const numberOfPointsForRedrawingEdges = 3;
 
         const objToArray = (obj) => {
@@ -239,6 +239,7 @@
             menu.addSeparator();
         };
 
+        //adding the flow effect for current states
         const setClassForCurrentState = (graph, cells, onChanges) => {
             if (typeof cells === "undefined") {
                 return;
@@ -246,6 +247,7 @@
             let tempStr = "";
             let tempView;
             objToArray(cells).forEach((cell) => {
+                //if something on the graph has been moved or changed
                 if (onChanges === true) {
                     tempStr = "" + cell.style;
                     if (tempStr.split(";")[0] === "update" && cell.source.style === "currentstate") {
@@ -254,6 +256,8 @@
                             tempView.shape.node.getElementsByTagName('path')[1].setAttribute('class', 'flow');
                         }
                     }
+
+                    //if it's the first render of the graph
                 } else if (onChanges === false) {
                     if (cell.style === "update" && cell.source.style === "currentstate") {
                         tempView = graph.view.getState(cell);
@@ -387,6 +391,7 @@
             });
         };
 
+        //called on the frist rendering and when actual size button is clicked
         const fitAndCenterGraph = (container, graph) => {
             let iframeWidth = iframe.getBoundingClientRect().width;
             let graphbounds = graph.getGraphBounds();
@@ -401,10 +406,12 @@
             graph.center();
             iframe.style.height = (wantedContainerHeight + 10) + 'px';
 
+            //stores the init coords after fitting the graph
             if (xInitCoord === null && yInitCoord === null) {
                 xInitCoord = graph.getGraphBounds().x;
                 yInitCoord = graph.getGraphBounds().y;
             } else {
+                //moves the graph to its init position when actualSize is clicked
                 graph.view.setTranslate(xInitCoord, yInitCoord);
             }
         }
@@ -421,6 +428,7 @@
             return new Point((a.x + b.x) / 2, (a.y + b.y) / 2);
         }
 
+        //calculates the coordinates of bend points when redrawing edges
         const calcPoints = (left, right, source, target, pointsNewEdge) => {
             if (left === right) {
                 return;
@@ -431,16 +439,30 @@
             calcPoints(middle + 1, right, pointsNewEdge[middle], target, pointsNewEdge);
         }
 
+        //used when just moving the end of the edge and not redrawing it
         const keepEdgeAndMoveTarget = (edge, sourcePoint, targetPoint, length) => {
+            //length = number of bendpoints for an edge (edge.geometry.points.length)
+            //the y of the last bend point = the y of the target point
             edge.geometry.points[length - 1].y = targetPoint.y;
+            //if we have more than one bend points
             if (length > 1) {
+                //the x of the last bend point is at the middle between the x of the target and the 
+                //x of the second last bend point
                 edge.geometry.points[length - 1].x = (targetPoint.x + edge.geometry.points[length - 2].x) / 2;
             } else {
+                //if we have only a bend point, then the x of this point is 
+                //at the middle between the x of the target and the x of the source
                 edge.geometry.points[length - 1].x = (targetPoint.x + sourcePoint.x) / 2;
             }
         }
 
         const removeAndRedrawEdge = (graph, oldEdge, source, target, targetPoint, sourcePoint, numberOfPoints) => {
+            //source - the source element (basically an mxCell)
+            //target - //-- //
+            //targetPoint - is of type Point (my class)
+            //sourcePoint - //--//
+            //the sourcePoint and the targetPoint are used for calculating the Points for the new mxPoints
+            //first of all I calculated the coordinates for bend points and then added the mxPoints
             let newEdge = oldEdge;
             let cells = [];
             cells.push(oldEdge);
@@ -458,16 +480,20 @@
         const calcTargetPoint = (edge, target) => {
             let targetX;
             let targetY;
+            //if the input or output are directly on the first entity
             if (edge.target.parent.parent.style === "root") {
                 targetX = edge.target.geometry.x;
                 targetY = edge.target.geometry.y + (target.geometry.height / 2);
             } else {
+                //else we calculate the point using the parent (for example a heatElement)
+                //and the position of inputs and outputs which is relative to this parent
                 targetX = edge.target.parent.geometry.x + edge.target.geometry.x;
                 targetY = edge.target.parent.geometry.y + edge.target.geometry.y + (target.geometry.height / 2);
             }
             return new Point(targetX, targetY);
         }
 
+        //just as when calculating the target point
         const calcSourcePoint = (edge, source) => {
             let sourceX;
             let sourceY;
@@ -482,7 +508,8 @@
         }
         /////
 
-        //standardizeSVG
+        //replace foreignObjects with text objects for svg
+        //function that builds an svg element based on an object with attributes
         const makeSVG = (tag, attrs) => {
             let el = document.createElementNS('http://www.w3.org/2000/svg', tag);
             for (let k in attrs)
@@ -494,11 +521,11 @@
             const svg = document.getElementsByTagName("svg")[0];
             let customSvg = document.createElementNS('http://www.w3.org/2000/svg', "svg");
             let foreignObjects = null;
-            let stringOnLines = null;
+            let stringOnLines = null; //if we have text on many lines of one cell
             let textElement = null;
             customSvg.setAttribute('style', svg.style.cssText);
             customSvg.innerHTML = svg.innerHTML;
-            if (forSvg === true) {
+            if (forSvg === true) { //if we save as an SVG we replace the foreign objects
                 foreignObjects = customSvg.getElementsByTagName("foreignObject");
                 for (let i = foreignObjects.length - 1; i >= 0; i--) {
                     if (foreignObjects[i].children[0].innerHTML.indexOf("<br>") != -1) {
@@ -525,6 +552,13 @@
                     foreignObjects[i].parentNode.removeChild(foreignObjects[i]);
                 }
             }
+            //whether we save as an SVG or as a PNG we have to replace (only for embedded graphs i have noticed this) the string 
+            //"url(about:srcdoc#mx-gradient-c3d9ff-1-ffffff-1-s-0" with the color #c3d9ff; 
+            //this string is put on SVG (by the mxgraph) for embedded graphs and a <linearGradient> is added at the end  of the graph, 
+            //but the string should be automatically  replaced by the color. 
+            //This is not always happening so i did it manually. 
+            //For some svg renderers the string was replaced, but for others, including here google and mozilla and some converters 
+            //it was not replaced. If the string is not replaced the embedded graphs will be black on SVG or PNG.
             let newInnerHTML = customSvg.innerHTML.replace(/url\(about:srcdoc#mx-gradient-c3d9ff-1-ffffff-1-s-0\)/g, "#c3d9ff");
             customSvg.innerHTML = newInnerHTML;
             return customSvg;
@@ -566,14 +600,19 @@
                 toolbar = new mxToolbar(toolbarContainer);
                 toolbar.addItem('Zoom In', zoomIn_icon, function (evt) {
                     graph.zoomIn();
+                    //if you want to add the effect for current states every time zoom in is clicked 
+                    //uncomment the below line; this will slow your movement
+                    //the effect is again added when you simply click on the graph
                     //setClassForCurrentState(graph, graph.getModel().cells, true);
                 });
                 toolbar.addItem('Zoom Out', zoomOut_icon, function (evt) {
                     graph.zoomOut();
+                    //just as for the zoomIn
                     //setClassForCurrentState(graph, graph.getModel().cells, true);
                 });
                 toolbar.addItem('Actual Size', zoomDefault_icon, function (evt) {
                     fitAndCenterGraph(container, graph);
+                    //the effect added for current states after the actual size button is clicked
                     setClassForCurrentState(graph, graph.getModel().cells, true);
                 });
                 toolbar.addItem('Poster Print', print_icon, function (evt) {
@@ -594,6 +633,8 @@
                 });
                 toolbar.addItem('Export Graph as SVG', exportImage_icon, function (evt) {
                     let svgElement = standardizeSvg(true);
+                    //console.log("svgElement");
+                    //console.log(svgElement);
                     let data = new XMLSerializer().serializeToString(svgElement);
                     let imgData = 'data:image/svg+xml;base64,' + window.btoa(data);
                     let a = document.createElement("a");
@@ -604,7 +645,7 @@
                     a.click();
                     document.body.removeChild(a);
                 });
-                if (navigator.userAgent.indexOf("Chrome") === -1) {
+                if (navigator.userAgent.indexOf("Chrome") === -1) { //if we are not on a Chrome
                     toolbar.addItem('Export Graph as PNG', exportImage_icon, function (evt) {
                         let svgElement = standardizeSvg(false);
                         let canvas = document.createElement('canvas');
@@ -656,14 +697,20 @@
                 let highlightable = ["state", "currentstate", "transition", "local", "input", "output"];
                 let movable = ["state", "currentstate", "local", "input", "output", "entity", "embeddedGraph"];
 
+                // highlight the outgoing and incoming edges on node selection
                 graph.getSelectionModel().addListener(mxEvent.CHANGE, function (sender, evt) {
                     graph.getModel().beginUpdate();
                     evt.consume();
                     try {
                         let remove = evt.properties.added;
                         if (typeof remove != "undefined") {
+                            //logs the element that was moved
+                            //console.log("lastRemovedon update second time");
+                            //console.log(lastRemovedOnUpdate);
                             for (let i = 0; i < remove.length; i++) {
                                 let rem = remove[i];
+                                console.log("rem");
+                                console.log(rem);
                                 if ((Object.entries(lastRemovedOnUpdate).length != 0 && lastRemovedOnUpdate.id === rem.id)
                                     && (lastRemovedOnUpdate.x != rem.geometry.x || lastRemovedOnUpdate.y != rem.geometry.y)) {
                                     let target; //mxCell
@@ -686,13 +733,51 @@
                                                     targetPoint = calcTargetPoint(edge, target);
                                                     sourcePoint = calcSourcePoint(edge, source);
                                                     let len = children[j].edges[k].geometry.points.length;
+
+                                                    //if the last bend point of the edge is in front of the input or if the
+                                                    //first bend point of the edge is behind the output; in this case we redraw the edge
                                                     if ((edge.geometry.points[len - 1].x > targetPoint.x && target.style === "input")
                                                         || (edge.geometry.points[0].x < sourcePoint.x && source.style === "output")) {
+                                                        console.log("REDRAW");
                                                         removeAndRedrawEdge(graph, edge, source, target, targetPoint, sourcePoint, numberOfPointsForRedrawingEdges);
                                                     } else {
+                                                        console.log("MOVE");
                                                         keepEdgeAndMoveTarget(edge, sourcePoint, targetPoint, len);
                                                     }
                                                 }
+                                            }
+                                        }
+                                    } else {
+                                        if (typeof rem.edges != "undefined") {
+                                            //if an element different from embedded graph or entity was moved
+                                            for (let k = 0; k < rem.edges.length; k++) {
+                                                edge = rem.edges[k];
+                                                target = graph.getModel().getCell(edge.target.id);
+                                                source = graph.getModel().getCell(edge.source.id);
+                                                if (target.style === "output" || target.style === "input") {
+                                                    targetPoint = calcTargetPoint(edge, target);
+                                                } else {
+                                                    targetPoint = new Point(edge.target.geometry.x, edge.target.geometry.y);
+                                                }
+
+                                                if (source.style === "output" || source.style === "input") {
+                                                    sourcePoint = calcSourcePoint(edge, source);
+                                                } else {
+                                                    sourcePoint = new Point(edge.source.geometry.x, edge.source.geometry.y);
+                                                }
+                                                let len = edge.geometry.points.length;
+                                                //the logic is the same as for the embeddedGraphs or Entities but i suggest you
+                                                //to use the default behaviour for states or locals; 
+                                                //plus that i have not treated the case when the source point is an edge for example (i saw this
+                                                //on the grow lamp example) 
+                                                //if ((edge.geometry.points[len - 1].x > targetPoint.x)
+                                                //   || (edge.geometry.points[len -1].x < sourcePoint.x)) {
+                                                //    console.log("REDRAW");
+                                                //    removeAndRedrawEdge(graph, edge, source, target, targetPoint, sourcePoint, 1);
+                                                //} else {
+                                                //    console.log("MOVE");
+                                                //    keepEdgeAndMoveTarget(edge, sourcePoint, targetPoint, len);
+                                                //}
                                             }
                                         }
                                     }
@@ -717,6 +802,8 @@
                                 lastRemovedOnUpdate.id = added[0].id;
                                 lastRemovedOnUpdate.x = added[0].geometry.x;
                                 lastRemovedOnUpdate.y = added[0].geometry.y;
+                                //console.log("lastRemovedon update first time");
+                                //console.log(lastRemovedOnUpdate);
                             }
                             for (let i = 0; i < added.length; i++) {
                                 let add = added[i];
@@ -744,6 +831,7 @@
                         console.log(err);
                     }
                     finally {
+                        console.log("IN THE FIRST FINALLY FOR END UPDATE --GRAPH: ");
                         graph.getModel().endUpdate();
                         graph.refresh();
                         setClassForCurrentState(graph, graph.getModel().cells, true);
@@ -791,7 +879,11 @@
                     addRecursively(graph, parent, elkgraph);
                 }
                 finally {
+                    // Updates the display
+                    console.log("IN THE SECOND FINALLY FOR END UPDATE");
                     graph.getModel().endUpdate();
+                    //fit and center the graph + adds the flow effect for current states 
+                    //on the first rendering of the graph
                     fitAndCenterGraph(container, graph);
                     setClassForCurrentState(graph, graph.getModel().cells, false);
                 }
@@ -832,6 +924,7 @@
             // and that we also need to displace all x coordinates by that much
             let vertex = graph.insertVertex(parent, elknode.id, elknode.label, elknode.x, elknode.y, elknode.width, elknode.height, style);
             if (elknode.cresttype === "embeddedGraph") {
+                //storing the children graph and the parent graph on the embedded graph element
                 vertex.childrenGraph = elknode.childrenGraph;
                 vertex.parentGraph = elknode.parentGraph;
             }
@@ -879,9 +972,7 @@
                 this.cresttype = 'embeddedGraph';
                 this.childrenGraph = childrenGraph;
                 this.parentGraph = parentGraph;
-                console.log("XXX", id, childrenGraph, parentGraph);
-                // this.label = { 'label': childrenGraph.label, 'text': '' };
-                this.label = childrenGraph.label;
+                this.label = { 'label': 'EmbeddedGraph', 'text': '' };
             }
             let childrenOfFirstEntity = elkgraph.children[0].children;
             let ports = null;
@@ -897,6 +988,9 @@
                                         ports = thirdLevelChildrens[j].ports;
                                         height = ports.length;
                                     }
+                                    //I have used a SHA256 for embeddedGraphs's id; 
+                                    //the id is derived from the children's id;
+                                    //the CryptoJS file is from the internet so be careful to have this working
                                     let template = new templateForEmbeddedGraph(CryptoJS.SHA256(thirdLevelChildrens[j].id).toString(), thirdLevelChildrens[j], elkgraph, (height * 100) / 2);
                                     thirdLevelChildrens[j] = {};
                                     thirdLevelChildrens[j] = template;
@@ -928,9 +1022,16 @@
                     }
                 }
             }
+            //console.log("elkgraph final");
+            //console.log(elkgraph);
+            //console.time("beforeELK");
             elk.layout(elkgraph)
                 .then(function (g) {
+                    //console.timeEnd("beforeELK");
+                    //console.log(g);
+                    //console.time("calculatePlotTime");
                     plot(g);
+                    //console.timeEnd("calculatePlotTime");
                 });
         }
     </script>
@@ -939,6 +1040,7 @@
         main = function () {
             elkgraph = ELKGRAPH;
             level = LEVEL;
+            //console.log(elkgraph);
             mxgraph_main(elkgraph);
         };
     </script>
