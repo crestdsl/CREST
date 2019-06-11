@@ -1,3 +1,6 @@
+from .datatypes import Types
+import z3
+import numbers
 
 """ Resources """
 
@@ -15,6 +18,27 @@ class Resource(object):
     def __init__(self, unit, domain):
         self.unit = unit
         self.domain = domain
+        
+    def check_value(self, val):
+        assert val is not None, f"Setting a port's value to None is not allowed"
+
+        # check that we only assign correct values to the ports
+        if isinstance(self.domain, list):
+            return val in self.domain
+        elif self.domain is Types.INTEGER:
+            return isinstance(val, int) or z3.is_int_value(val) or z3.is_int(val)
+        elif self.domain is Types.REAL:  # z3 types
+            return isinstance(val, numbers.Number) or z3.is_real(val)
+        elif self.domain is Types.INT: # TODO: check also for these types
+            return isinstance(val, int)
+        elif self.domain is Types.FLOAT: # TODO: check also for these types
+            return isinstance(val, numbers.Number)
+        elif self.domain is Types.STRING: # TODO: check also for these types
+            return isinstance(val, str)
+        elif self.domain is Types.BOOL: # TODO: check also for these types
+            return isinstance(val, bool)
+        else:
+            return False
 
     def __getattr__(self, attr):
         if attr.startswith("__"):
