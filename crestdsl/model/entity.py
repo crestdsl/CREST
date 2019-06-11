@@ -104,6 +104,13 @@ class Entity(meta.CrestObject, metaclass=MetaEntity):
         if isinstance(value, meta.CrestObject) and name not in [meta.PARENT_IDENTIFIER, meta.CURRENT_IDENTIFIER]:
             value._parent = self
             value._name = name
+        
+        # this prevents from accidentally overriding a crest object with a variable
+        current_value = getattr(self, name, None)
+        if current_value is not None and isinstance(current_value, ports.Port):
+            assert isinstance(value, meta.CrestObject), f"Cannot reassign port {name}. Check if you forgot the '.value' or reassign with a CrestObject as value." 
+        elif current_value is not None and isinstance(current_value, meta.CrestObject):
+            assert isinstance(value, meta.CrestObject), f"Property {name} is a of type {type(current_value)}. You can only override it with a different CrestObject (e.g. Port, State, ...)"
 
         super().__setattr__(name, value)
 

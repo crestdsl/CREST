@@ -76,3 +76,26 @@ class TestEntityCreationTests_instance(EntityCreationTests, unittest.TestCase):
 class TestEntityCreationTests_deepcopy(EntityCreationTests, unittest.TestCase):
     def instance(self):
         return copy.deepcopy(self.testclass())
+
+
+class TestReassignPort(unittest.TestCase):
+    
+    def setUp(self):
+        class Test(crest.Entity):
+            A = current = crest.State()
+            port = crest.Input(crest.Resource("watt", crest.REAL), 3.14)
+        self.instance = Test()
+        
+    def test_reassign_entity_port_value(self):
+        obj = self.instance
+        obj.port.value = 1234
+        
+    def test_reassign_entity_port_with_value__raises_error(self):
+        obj = self.instance
+        with self.assertRaises(AssertionError):
+            obj.port = 33
+            
+    def test_override_entity_port_with_port(self):
+        obj = self.instance
+        obj.port = crest.Input(crest.Resource("other res", crest.INT), 11)
+
