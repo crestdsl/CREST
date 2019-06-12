@@ -20,6 +20,9 @@ try:
 except:
     from importlib_resources import read_text
 
+import logging
+logger = logging.getLogger(__name__)
+
 """
 Produces JSON that can be interpreted by the Eclipse Layout Kernel (ELK).
 I tried to use OpenKieler's elkjs.
@@ -30,6 +33,14 @@ def show_json(object_to_plot, name='', **kwargs):
     return elkgraph
 
 def plot(object_to_plot, name='', **kwargs):
+    if isinstance(object_to_plot, MetaEntity):
+        logger.warning("You called 'plot' on an Entity type instead of an entity. Will instantiate and plot the instance instead.")
+        object_to_plot = object_to_plot()
+    elif isinstance(object_to_plot, Model.Entity):
+        pass  # this is the good case
+    else:
+        raise ValueError("Cannot plot object of type {type(object_to_plot)}. Make sure to call it with an instance of Entity.")
+    
     elkgraph = generate_root(object_to_plot, name)
     elkgraph = str(elkgraph)
     
