@@ -54,17 +54,35 @@ def get_z3_val(valtype, value, name, datatype_name=None, ctx=None):
     if isinstance(valtype, z3.z3.DatatypeSortRef):  # discrete values datatype
         val = getattr(valtype, value)
     elif valtype is Types.INT:
-        val = z3.BitVecVal(value, 32, ctx=ctx)
+        try:
+            val = z3.BitVecVal(value, 32, ctx=ctx)
+        except Exception as exc:
+            raise ValueError(f"Error during INT conversion. Cannot convert value: {value}, type: {type(value)}, name: {name}")
     elif valtype is Types.INTEGER:
-        val = z3.IntVal(value, ctx=ctx)
+        try:
+            val = z3.IntVal(value, ctx=ctx)
+        except Exception as exc:
+            raise ValueError(f"Error during INTEGER conversion. Cannot convert value: {value}, type: {type(value)}, name: {name}")
     elif valtype is Types.FLOAT:
-        val = z3.FPVal(value, z3.Float32(), ctx=ctx)
+        try:
+            val = z3.FPVal(value, z3.Float32(), ctx=ctx)
+        except Exception as exc:
+            raise ValueError(f"Error during FLOAT conversion. Cannot convert value: {value}, type: {type(value)}, name: {name}")
     elif valtype is Types.REAL:
-        val = z3.RealVal(value, ctx=ctx)
+        try:
+            val = z3.RealVal(value, ctx=ctx)
+        except Exception as exc:
+            raise ValueError(f"Error during REAL conversion. Cannot convert value: {value}, type: {type(value)}, name: {name}")
     elif valtype is Types.BOOL:
-        val = z3.BoolVal(value, ctx=ctx)
+        try:
+            val = z3.BoolVal(value, ctx=ctx)
+        except Exception as exc:
+            raise ValueError(f"Error during BOOL conversion of value to INT. value: {value}, type: {type(value)}, name: {name}")
     elif valtype is Types.STRING:
-        val = z3.StringVal(value, ctx=ctx)
+        try:
+            val = z3.StringVal(value, ctx=ctx)
+        except Exception as exc:
+            raise ValueError(f"Error during STRING conversion of value to INT. value: {value}, type: {type(value)}, name: {name}")
     elif isinstance(valtype, list):
         datatype = _get_datatype_from_list(valtype, datatype_name)
         val = getattr(datatype, value)
