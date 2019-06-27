@@ -7,6 +7,8 @@ from crestdsl import sourcehelper as SH
 import logging
 logger = logging.getLogger(__name__)
 
+MODIFIER = "modifier"
+
 def entity_modifier_graph(entity):
     """
     Creates a bipartite, directed graph using [networkx](https://networkx.github.io/).
@@ -91,7 +93,7 @@ def plot_modifier_graph(entity, labels=True):
     node_labels = {}
     if labels:
         for node in graph.nodes():
-            if "modifier" in graph.node[node]:
+            if MODIFIER in graph.node[node]:
                 node_labels[node] = f"{graph.node[node]['modifier']._parent._name}.{graph.node[node]['modifier']._name}"
             else:
                 node_labels[node] = f"{graph.node[node]['port']._parent._name}.{graph.node[node]['port']._name}"
@@ -129,7 +131,7 @@ def get_entity_modifiers_in_dependency_order(entity):
     # create a subgraph_view so that the inactive states are filtered
     def node_filter(node):
         obj = orig_DG.nodes[node]
-        keep = not ("modifier" in obj and isinstance(obj["modifier"], crest.Update) and obj["modifier"].state != api.get_current(obj["modifier"]._parent))
+        keep = not (MODIFIER in obj and isinstance(obj[MODIFIER], crest.Update) and obj[MODIFIER].state != api.get_current(obj[MODIFIER]._parent))
         return keep
 
     DG = nx.graphviews.subgraph_view(orig_DG, filter_node=node_filter)
@@ -138,11 +140,17 @@ def get_entity_modifiers_in_dependency_order(entity):
     # and the subgraph also isn't a DAG
     # then find the cycle and inform the user
     if not is_dag and not nx.is_directed_acyclic_graph(DG): 
+        def get_text(nodetype, modifier_or_port):
+            description = "Port" if nodetype != MODIFIER else "Entity" if isinstance(modifier_or_port, crest.Entity) else modifier_or_port.__class__.__name__
+            return f"{description}: {api.get_name(modifier_or_port)} ({api.get_name(api.get_parent(modifier_or_port))})"
+        
         for cycle in nx.simple_cycles(DG):  # then show us a cycle
-            nodes = [[f"{k}: {v._name} ({v._parent._name})" for (k, v) in DG.nodes[n].items()] for n in cycle]
-            flat_list = [item for sublist in nodes for item in sublist]
-            logger.warning(f"Cycle found: {flat_list}")
-        raise AssertionError("The dependency graph is not acyclic!")
+            nodes = []
+            for cycle_index, node in enumerate(cycle):
+                nodes.append("".join([get_text(nodetype, mod_or_port) for nodetype, mod_or_port in DG.nodes[node].items()]))
+            as_text = " --> ".join(nodes[-1:]+nodes)
+            logger.error(f"Cycle found: {as_text}")
+        raise AssertionError("Cyclic dependencies discovered. This is not allowed in CREST.")
 
     topo_list = list(nx.topological_sort(DG))
     # topo_port_list = [DG.node[node]['port'] for node in topo_list]
@@ -150,8 +158,8 @@ def get_entity_modifiers_in_dependency_order(entity):
 
     ordered_modifier_list = []
     for node in topo_list:
-        if "modifier" in DG.node[node]:
-            mod = DG.nodes[node]["modifier"]
+        if MODIFIER in DG.node[node]:
+            mod = DG.nodes[node][MODIFIER]
             ordered_modifier_list.append(mod)
 
     return ordered_modifier_list

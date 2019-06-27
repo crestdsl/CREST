@@ -57,6 +57,10 @@ def plot(object_to_plot, name='', **kwargs):
     PAGE
     " />
     """.replace("PAGE", quot_replaced).replace("IFRAME_ID", str(uuid.uuid4()))
+    
+    if kwargs.get("suppress_output", False):  # e.g. for test purposes
+        return
+    
     if config.interactive:
         display(HTML(inIframe))
     else:

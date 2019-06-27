@@ -13,7 +13,7 @@ class TestReassignPort(unittest.TestCase):
         self.testclass = Test
         
     def test_plot_entity(self):
-        elk.plot(self.testclass())  # hope for no error here
+        elk.plot(self.testclass(), suppress_output=True)  # hope for no error here
     
     def test_plot_entity_type(self):
         # with self.assertLogs(logger="crestdsl.ui.elk", level='WARNING') as cm:
@@ -22,13 +22,13 @@ class TestReassignPort(unittest.TestCase):
         
         """The above code is not working. I don't know why. 
            For now, just make sure that this doesn't throw an exception"""
-        elk.plot(self.testclass)
+        elk.plot(self.testclass, suppress_output=True)
 
     
     def test_plot_int(self):
         with self.assertRaises(ValueError):
-            elk.plot(1234)  # hope for no error here
+            elk.plot(1234, suppress_output=True)
             
     def test_plot_None(self):
         with self.assertRaises(ValueError):
-            elk.plot(None)  # hope for no error here
+            elk.plot(None, suppress_output=True)
