@@ -20,11 +20,16 @@
    
    
 crestdsl is an implementation of the CREST modelling language in Python.
-It is an internal domain-specific language and shipped as Python module.
+CREST is a formalism for hybrid systems modelling.
+It supports hierarchical component compositiion,
+synchronous communication, automaton-based discrete behaviour and a formal semantics.
 
-crestdsl supports various use cases that involve model definition and plotting,
+crestdsl is an internal domain-specific language (DSL) and shipped as Python package.
+This means you can run it on pretty much any operating system!
+
+crestdsl supports various use cases that include model creation and plotting,
 simulation and verification (using TCTL model checking).
-The main focus lies on simplicity.
+The main focus lies on simplicity and ease of use.
 
 
 .. _try-me:
@@ -58,6 +63,7 @@ To run crestdsl on your machine, use the pre-built Docker image:
 For installation of crestdsl on your local machine and a description of dependencies, refer to :doc:`content/install`.
 
 
+
 Publications 
 -------------
 
@@ -78,6 +84,7 @@ Publications
    content/modelling
    content/simulation
    content/verification
+   content/contact
    api/crestdsl
 
 
