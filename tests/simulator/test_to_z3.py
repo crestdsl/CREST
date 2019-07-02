@@ -482,5 +482,4 @@ class TestZ3Conversion(unittest.TestCase):
             f"(= port_{id(instance.port)} (ite (>= var_1_{update_id} var2_1_{update_id}) var_1_{update_id} var2_1_{update_id}))"
         ], sexprs)
 
-if __name__ == '__main__':
-    unittest.main()
+

@@ -47,6 +47,19 @@ class MetaEntity(type):
             if isinstance(value, meta.CrestObject):
                 value._parent = new_entity
                 value._name = key
+
+        # make sure that the current state is not called "current", but the real name
+        value_to_key_map = dict()
+        for key, value in attributedict.copy().items():
+            if isinstance(value, meta.CrestObject):
+                if key != meta.CURRENT_IDENTIFIER:
+                    value_to_key_map[value] = key
+
+        # rename current state properly, if it's a state (it might also be a string):
+        if meta.CURRENT_IDENTIFIER in attributedict and isinstance(attributedict[meta.CURRENT_IDENTIFIER], model.State):
+            statename = value_to_key_map[attributedict[meta.CURRENT_IDENTIFIER]]
+            attributedict[meta.CURRENT_IDENTIFIER]._name = statename
+
         return new_entity
 
     def __call__(cls, *args, **kwargs):
@@ -160,6 +173,7 @@ def copy_with_memo(original_obj, newobj, memo=None):
             return copy.deepcopy(original_attribute, memo)
         else:
             new_attribute = copy.copy(original_attribute)
+            print("adding ",type(original_attribute), id(original_attribute))
             memo[id(original_attribute)] = new_attribute  # store in memo
             return new_attribute
 
@@ -183,10 +197,21 @@ def copy_with_memo(original_obj, newobj, memo=None):
     """ copy states (deep copy) """
     logger.debug(f"copying STATES {pprint.pformat(get_states(original_obj, as_dict=True))}")
     for name, state in get_states(original_obj, as_dict=True).items():
-        logger.debug(f"copying {name}")
-        newstate = copy.deepcopy(state, memo)  # deepcopy should copy reference to parent and the name too
-        newstate._parent = newobj
-        setattr(newobj, name, newstate)
+        if name != meta.CURRENT_IDENTIFIER:
+            logger.debug(f"copying {name}")
+            newstate = copy.deepcopy(state, memo)  # deepcopy should copy reference to parent and the name too
+            newstate._parent = newobj
+            setattr(newobj, name, newstate)
+        
+    logger.debug(f"fixing current state")
+    if hasattr(original_obj, meta.CURRENT_IDENTIFIER):
+        # this means, we overrode it, try to set it
+        if isinstance(original_obj.current, str):
+            newobj.current = getattr(newobj, original_obj.current)
+        elif isinstance(original_obj.current, model.State):
+            newobj.current = getattr(newobj, original_obj.current._name)
+        else:
+            raise ValueError("The original object's current state is neither defined as string nor State object. Instead it's a {type(original_obj.current)}")
 
     """ copy Entities (deep copy) """
     logger.debug(f"copying SUBENTITIES {pprint.pformat(get_entities(original_obj, as_dict=True))}")
@@ -209,6 +234,13 @@ def copy_with_memo(original_obj, newobj, memo=None):
 
         transitions = []
         for (source, target) in itertools.product(sources, targets):
+
+            # this fixes issues with overwritten states in subtypes
+            if source._parent != newobj:
+                source = getattr(newobj, source._name)
+            if target._parent != newobj:
+                target = getattr(newobj, target._name)
+            
             # FIXME: something is wrong here, I'm sure
             if trans.source == "/" and source == target:  # no self loops, must specify them explicitly
                 continue
@@ -247,6 +279,8 @@ def copy_with_memo(original_obj, newobj, memo=None):
     logger.debug("copying updates")
     for name, update in get_updates(original_obj, as_dict=True).items():
         state = get_local_attribute(update.state)
+        if state._parent != newobj:
+            state = getattr(newobj, state._name)
         assert isinstance(state, model.State)
 
         target = get_local_attribute(update.target)
@@ -265,15 +299,24 @@ def copy_with_memo(original_obj, newobj, memo=None):
 
         transitions = get_local_attribute(action.transition)
         actions = []
-        for trans in transitions:  # the memo will produce a list (because we could theoretically link to many transitions)
-            assert isinstance(trans, model.Transition)
 
-            newaction = model.Action(transition=trans, function=action.function, target=target)
+        if isinstance(transitions, model.Transition):
+            newaction = model.Action(transition=transitions, function=action.function, target=target)
             newaction._parent = newobj
-            newaction._name = f"{name}_{trans._name}"
-            actions.append(newaction)
+            newaction._name = name
             setattr(newobj, name, newaction)
-        memo[id(action)] = actions
+            memo[id(action)] = action
+        
+        if isinstance(transitions, list):
+            for trans in transitions:  # the memo will produce a list (because we could theoretically link to many transitions)
+                assert isinstance(trans, model.Transition)
+
+                newaction = model.Action(transition=trans, function=action.function, target=target)
+                newaction._parent = newobj
+                newaction._name = f"{name}_{trans._name}"
+                actions.append(newaction)
+                setattr(newobj, name, newaction)
+            memo[id(action)] = actions
     # TODO delete all lists of updates that end in "__X" where X is a number
 
     """ get influences and adapt them """
