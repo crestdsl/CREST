@@ -267,13 +267,6 @@ def copy_with_memo(original_obj, newobj, memo=None):
         #     setattr(newobj, name, "Nonexistent")
         # print("111", name, getattr(newobj, name))
         memo[id(trans)] = transitions
-    # print("old")
-    # pprint.pprint(get_transitions(original_obj, as_dict=True))
-    # print("new")
-    # pprint.pprint(get_transitions(newobj, as_dict=True))
-    # print("dir")
-    # pprint.pprint(dir(newobj))
-
 
     """ get updates and adapt them """
     logger.debug("copying updates")
@@ -283,7 +276,16 @@ def copy_with_memo(original_obj, newobj, memo=None):
             state = getattr(newobj, state._name)
         assert isinstance(state, model.State)
 
-        target = get_local_attribute(update.target)
+        if isinstance(update.target, str):
+            target = operator.attrgetter(update.target)(newobj)
+        elif update.target._parent == update._parent:
+            target = getattr(newobj, update.target._name)
+        elif update.target._parent._parent == update._parent:
+            subentity_name = update.target._parent._name
+            target = operator.attrgetter(subentity_name + "." + update.target._name)(newobj)
+        else:
+            raise ValueError("The previous conditions should have caught this.")
+            target = get_local_attribute(update.target)
         assert isinstance(target, ports.Port)
 
         newupdate = model.Update(state=state, function=update.function, target=target)
@@ -294,20 +296,41 @@ def copy_with_memo(original_obj, newobj, memo=None):
 
     logger.debug("copying actions")
     for name, action in get_actions(original_obj, as_dict=True).items():
-        target = get_local_attribute(action.target)
+        if isinstance(action.target, str):
+            target = operator.attrgetter(action.target)(newobj)
+        elif action.target._parent == action._parent:
+            target = getattr(newobj, action.target._name)
+        elif action.target._parent._parent == action._parent:
+            subentity_name = action.target._parent._name
+            target = operator.attrgetter(subentity_name + "." + action.target._name)(newobj)
+        else:
+            raise ValueError("The previous conditions should have caught this.")
+            target = get_local_attribute(action.target)
         assert isinstance(target, ports.Port)
 
-        transitions = get_local_attribute(action.transition)
+        # get the list of local transitions, by looking at the name. They should be in memo already.
+        transname = None
+        if isinstance(action.transition, model.Transition):
+            transname = action.transition._name
+        elif isinstance(action.transition, str):
+            transname = action.transition
+        else:
+            raise AssertionError(f"The action {name} was neither specified with a transiton nor a transition name. Don't know what to do here.")
+
+        # the transitions are in memo already, so just find it
+        transitions = memo[id(getattr(original_obj, transname))]
         actions = []
 
         if isinstance(transitions, model.Transition):
+            # actually, I think we shouldn't be here...
+            raise AttributeError("Error during Action creation. Memo should always store a list of transitions.")
             newaction = model.Action(transition=transitions, function=action.function, target=target)
             newaction._parent = newobj
             newaction._name = name
             setattr(newobj, name, newaction)
-            memo[id(action)] = action
-        
-        if isinstance(transitions, list):
+            memo[id(action)] = newaction
+
+        elif isinstance(transitions, list):
             for trans in transitions:  # the memo will produce a list (because we could theoretically link to many transitions)
                 assert isinstance(trans, model.Transition)
 
@@ -317,13 +340,35 @@ def copy_with_memo(original_obj, newobj, memo=None):
                 actions.append(newaction)
                 setattr(newobj, name, newaction)
             memo[id(action)] = actions
+        else:
+            raise ValueError(f"Error during Action creation. Memo should be a list of Transitions, but it is a {type(transitions)}.")
     # TODO delete all lists of updates that end in "__X" where X is a number
 
     """ get influences and adapt them """
     logger.debug("copying influences")
     for name, influence in get_influences(original_obj, as_dict=True).items():
-        source = get_local_attribute(influence.source)
-        target = get_local_attribute(influence.target)
+        if isinstance(influence.source, str):
+            source = operator.attrgetter(influence.source)(newobj)
+        elif influence.source._parent == influence._parent:
+            source = getattr(newobj, influence.source._name)
+        elif influence.source._parent._parent == influence._parent:
+            subentity_name = influence.source._parent._name
+            source = operator.attrgetter(subentity_name + "." + influence.source._name)(newobj)
+        else:
+            raise ValueError("The previous conditions should have caught this.")
+            source = get_local_attribute(influence.source)
+
+        if isinstance(influence.target, str):
+            target = operator.attrgetter(influence.target)(newobj)
+        elif influence.target._parent == influence._parent:
+            target = getattr(newobj, influence.target._name)
+        elif influence.target._parent._parent == influence._parent:
+            subentity_name = influence.target._parent._name
+            target = operator.attrgetter(subentity_name + "." + influence.target._name)(newobj)
+        else:
+            raise ValueError("The previous conditions should have caught this.")
+            target = get_local_attribute(influence.target)
+
         newinfluence = model.Influence(source=source, target=target, function=influence.function)
         newinfluence._parent = newobj
         newinfluence._name = name
@@ -358,7 +403,11 @@ def copy_with_memo(original_obj, newobj, memo=None):
             oldattr = getattr(original_obj, newobj_attrname)
             # print(newobj_attrname, newattr, oldattr, newattr == oldattr)
             if newattr == oldattr and isinstance(newattr, meta.CrestObject):
-                setattr(newobj, newobj_attrname, None)
+                try:
+                    setattr(newobj, newobj_attrname, None)
+                except:
+                    breakpoint()
+                    pass
                 logger.debug(f"deleted attribute {newobj_attrname} from entity {newobj}, because it is a direct pointer to the original object's attribute")
             elif newobj_attrname == meta.DEPENDENCY_IDENTIFIER:
                 pass  # don't delete dependency indentifier
