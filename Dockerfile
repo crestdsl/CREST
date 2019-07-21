@@ -34,7 +34,7 @@ RUN conda update networkx
 RUN conda install -c conda-forge importnb
 
 # let's also update everything while we're at it!
-RUN conda update --all  
+# RUN conda update --all  
 
 RUN pip install --no-cache-dir --upgrade pip
 RUN pip install --no-cache-dir --upgrade importlib_resources
@@ -51,8 +51,11 @@ RUN pip install --no-cache-dir --upgrade colored
 RUN pip install --no-cache-dir jupyter_contrib_nbextensions
 RUN jupyter contrib nbextension install --system
 
-RUN jupyter labextension install @jupyterlab/plotly-extension
+RUN jupyter labextension update @jupyterlab/hub-extension
 RUN jupyter labextension install @jupyter-widgets/jupyterlab-manager
+RUN jupyter labextension update jupyterlab_bokeh
+
+RUN jupyter labextension install @jupyterlab/plotly-extension
 RUN jupyter labextension install jupyter-matplotlib
 
 RUN jupyter nbextension enable init_cell/main
