@@ -28,11 +28,11 @@ class Resource(object):
         elif self.domain is Types.INTEGER:
             return isinstance(val, int) or z3.is_int_value(val) or z3.is_int(val)
         elif self.domain is Types.REAL:  # z3 types
-            return isinstance(val, numbers.Number) or z3.is_real(val)
+            return (isinstance(val, numbers.Number) and not isinstance(val, bool)) or z3.is_real(val)
         elif self.domain is Types.INT: # TODO: check also for these types
             return isinstance(val, int)
         elif self.domain is Types.FLOAT: # TODO: check also for these types
-            return isinstance(val, numbers.Number)
+            return (isinstance(val, numbers.Number) and not isinstance(val, bool))
         elif self.domain is Types.STRING: # TODO: check also for these types
             return isinstance(val, str)
         elif self.domain is Types.BOOL: # TODO: check also for these types

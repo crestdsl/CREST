@@ -82,11 +82,11 @@ class PlanSimulator(Simulator):
         while len(self.execution_plan) > 0:
             next_action = self.execution_plan.pop(0)
             logger.debug(f"Next action is {repr(next_action)}")
-            if isinstance(next_action, numbers.Number):
+            if isinstance(next_action, numbers.Number) and not isinstance(next_action, bool):
                 logger.info(f"Consuming command: advance {next_action} time units")
                 self.advance(next_action)
             elif isinstance(next_action, tuple):
-                assert isinstance(next_action[0], numbers.Number), "List entry have a numeric value first"
+                assert isinstance(next_action[0], numbers.Number) and not isinstance(next_action, bool), "List entry have a numeric value first"
                 assert isinstance(next_action[1], dict), "List entry must have a dict value second"
                 
                 # do some checks

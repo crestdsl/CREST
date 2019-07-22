@@ -176,7 +176,7 @@ def gen_State(obj, name="", parent=None, **kwargs):
 @generate.register(Model.Port)
 def gen_Port(obj, name='', parent=None, **kwargs):
     value = obj.value if obj.value is not None else "???"
-    round_value = round(value, config.ui_display_round) if isinstance(value, numbers.Number) else value
+    round_value = round(value, config.ui_display_round) if isinstance(value, numbers.Number) and not isinstance(value, bool) else value
 
     unit = obj.resource.unit if obj.resource is not None else "???"
 

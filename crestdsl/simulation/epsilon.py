@@ -10,13 +10,13 @@ class Epsilon(numbers.Number):
     def __init__(self, numeric=0, epsilon=0):
         self.numeric = to_python(numeric)
         self.epsilon = to_python(epsilon)
-        assert isinstance(self.numeric, numbers.Number)
-        assert isinstance(self.epsilon, numbers.Number)
+        assert isinstance(self.numeric, numbers.Number) and not isinstance(self.numeric, bool)
+        assert isinstance(self.epsilon, numbers.Number) and not isinstance(self.epsilon, bool)
 
     def __add__(self, other):
         if isinstance(other, Epsilon):
             return Epsilon(self.numeric + other.numeric, self.epsilon + other.epsilon)
-        elif isinstance(other, numbers.Number):
+        elif isinstance(other, numbers.Number) and not isinstance(other, bool):
             return Epsilon(self.numeric + other, self.epsilon)
         else:
             raise NotImplementedError(f"What?! How come we're calling this with a {type(other)}... (The value used >>{other}<<)")
@@ -44,7 +44,7 @@ class Epsilon(numbers.Number):
             return False  # Pandas needs this to return a value...
         if isinstance(other, Epsilon):
             return self.numeric == other.numeric and self.epsilon == other.epsilon
-        elif isinstance(other, numbers.Number):
+        elif isinstance(other, numbers.Number) and not isinstance(other, bool):
             return self.numeric == other and self.epsilon == 0
         else:
             raise NotImplementedError(f"What?! How come we're calling this with a {type(other)}... (The value used >>{other}<<)")
@@ -59,7 +59,7 @@ class Epsilon(numbers.Number):
             if self.numeric < other.numeric:
                 return True
             return False  # numeric is greater
-        elif isinstance(other, numbers.Number):
+        elif isinstance(other, numbers.Number) and not isinstance(other, bool):
             return self < Epsilon(numeric=other)
         else:
             raise NotImplementedError(f"What?! How come we're calling this with a {type(other)}... (The value used >>{other}<<)")
