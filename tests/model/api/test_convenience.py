@@ -6,7 +6,7 @@ import copy
 class ConvenienceAPI_AddTest(unittest.TestCase):
     
     """ 
-    The following tests are related to issue #15 https://github.com/stklik/CREST/issues/15 
+    The following tests are related to issue #15 https://github.com/crestdsl/CREST/issues/15 
     It's about overriding crest objects that are already used in transitions, updates, influences, etc.
     This is not allowed ! Therefore we check that the errors are thrown
     """

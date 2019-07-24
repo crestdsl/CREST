@@ -46,7 +46,7 @@ Alternatively, to install from sources, clone the repository and install locally
 
 .. code-block:: none
 
-   git clone https://github.com/stklik/CREST.git
+   git clone https://github.com/crestdsl/CREST.git
    cd CREST
    pip install -e .
 
@@ -66,7 +66,7 @@ If you have all these dependencies, you can run the following  code to automatic
 
 .. code-block:: none
 
-   bash <(curl -fsSL http://github.com/stklik/CREST)
+   bash <(curl -fsSL http://github.com/crestdsl/CREST)
 
 
 **Optional: Jupyter**

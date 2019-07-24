@@ -4,7 +4,7 @@ Get in Touch!
 We are very proud of crestdsl, but we'd also like to hear from you.
 
 If you think that there is something we should improve, 
-please leave an issue on `Github <https://github.com/stklik/CREST>`_.
+please leave an issue on `Github <https://github.com/crestdsl/CREST>`_.
 
 We also appreciate any other kind of feedback.
 So don't be shy, you're warmly encouraged to leave supportive comments, 

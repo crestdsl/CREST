@@ -5,14 +5,14 @@
 
 |build-badge| |pypi-badge| |doc-badge| |cov-badge| (I know, I know, I'm really busy though...)
 
-.. |build-badge| image:: https://travis-ci.org/stklik/CREST.svg?branch=master
-   :target: https://travis-ci.org/stklik/CREST
+.. |build-badge| image:: https://travis-ci.org/crestdsl/CREST.svg?branch=master
+   :target: https://travis-ci.org/crestdsl/CREST
 
 .. |doc-badge| image:: https://readthedocs.org/projects/crestdsl/badge/?version=latest
    :target: https://crestdsl.readthedocs.io/?badge=latest
 
-.. |cov-badge| image:: https://codecov.io/gh/stklik/CREST/branch/master/graph/badge.svg
-   :target: https://codecov.io/gh/stklik/CREST
+.. |cov-badge| image:: https://codecov.io/gh/crestdsl/CREST/branch/master/graph/badge.svg
+   :target: https://codecov.io/gh/crestdsl/CREST
 
 .. |pypi-badge| image:: https://img.shields.io/pypi/v/crestdsl.svg?color=blue
    :alt: PyPI

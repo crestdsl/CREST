@@ -18,7 +18,7 @@ setuptools.setup(
     description="A Continuous REactive SysTems DSL",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/stklik/CREST",
+    url="https://github.com/crestdsl/CREST",
     packages=setuptools.find_packages(),
     setup_requires=['wheel'],
     install_requires=requires,

@@ -29,10 +29,10 @@ the main form of use is as internal DSL for the Python general purpose programmi
 
 CREST uses [Docker](https://www.docker.com/), [Jupyter](https://jupyter.org) notebooks and [Binder](https://mybinder.readthedocs.io/en/latest/) to create, edit and simulate interactive models online.
 
-You can try CREST yourself by clicking on [this link](https://mybinder.org/v2/gh/stklik/CREST/master) (or on the "launch binder" badge above).
+You can try CREST yourself by clicking on [this link](https://mybinder.org/v2/gh/crestdsl/CREST/master) (or on the "launch binder" badge above).
 
 You will find several notebooks that will introduce CREST's
-[Syntax & Semantics](https://mybinder.org/v2/gh/stklik/CREST/master?filepath=Syntax-Semantics.ipynb) and [Simulation](https://mybinder.org/v2/gh/stklik/CREST/master?filepath=Simulation.ipynb).
+[Syntax & Semantics](https://mybinder.org/v2/gh/crestdsl/CREST/master?filepath=Syntax-Semantics.ipynb) and [Simulation](https://mybinder.org/v2/gh/stklik/CREST/master?filepath=Simulation.ipynb).
 You can also just launch the docker container on binder (click the badge) and create a new notebook. 
 You can then create and simulate your own models.
 
