@@ -4,6 +4,50 @@ import crestdsl.model.meta as meta
 
 import operator
 
+def _replacability_checks(entity, name, obj, existing):
+    # TODO: clean me up ? These are lots of checks, maybe we need to make them look nice
+
+    if isinstance(obj, crest.Entity):
+        for update in crest.get_updates(entity): # check if an update already writes to one of the entity's ports
+            if update.target in crest.get_inputs(existing):
+                raise AttributeError(f"Cannot reassign SubEntity '{name}' since one of its Input ports was used as target of Update '{get_name(update)}'.")
+        for influence in crest.get_influences(entity): # check if an influence already reads from or writes to the entity's ports
+            if influence.source in crest.get_outputs(existing):
+                raise AttributeError(f"Cannot reassign SubEntity '{name}' since one of its Output ports was used as source of Influence '{get_name(influence)}'.")
+            if influence.target in crest.get_inputs(existing):
+                raise AttributeError(f"Cannot reassign SubEntity '{name}' since one of its Input ports was used as target of Influence '{get_name(influence)}'.")
+        for action in crest.get_actions(entity): # check if an action already writes to the entity's ports
+            if action.target in crest.get_inputs(existing):
+                raise AttributeError(f"Cannot reassign SubEntity '{name}' since one of its Input ports was used as target of Action '{get_name(action)}'.")
+
+    elif isinstance(obj, crest.Port):
+        for update in crest.get_updates(entity): # check if an update already writes to the port that we want to override
+            if update.target == existing:
+                raise AttributeError(f"Cannot reassign {obj.__class__.__name__} port '{name}' after it was used as target of Update '{get_name(update)}'.")
+        for influence in crest.get_influences(entity): # check if an influence already reads from or writes to the port that we want to override
+            if influence.source == existing:
+                raise AttributeError(f"Cannot reassign {obj.__class__.__name__} port '{name}' after it was used as source of Influence '{get_name(influence)}'.")
+            if influence.target == existing:
+                raise AttributeError(f"Cannot reassign {obj.__class__.__name__} port '{name}' after it was used as target of Influence '{get_name(influence)}'.")
+        for action in crest.get_actions(entity): # check if an action already writes to the port that we want to override
+            if action.target == existing:
+                raise AttributeError(f"Cannot reassign {obj.__class__.__name__} port '{name}' after it was used as target of Action '{get_name(action)}'.")
+
+    elif isinstance(obj, crest.State):
+        for update in crest.get_updates(entity): # check if an update is already linked to the state that we want to override
+            if update.state == existing:
+                raise AttributeError(f"Cannot reassign {obj.__class__.__name__} '{name}' after it was used in Update '{get_name(update)}'.")
+        for transition in crest.get_transitions(entity): # check if a transition already starts from or goes to the state that we want to override
+            if transition.source == existing:
+                raise AttributeError(f"Cannot reassign {obj.__class__.__name__} '{name}' after it was used as source of Transition '{get_name(transition)}'.")
+            if transition.target == existing:
+                raise AttributeError(f"Cannot reassign {obj.__class__.__name__} '{name}' after it was used as target of Transition '{get_name(transition)}'.")
+    
+    elif isinstance(obj, crest.Transition):
+        # TODO: check here for any action uses the transition already
+        # this is non-trivial however
+        pass
+
 def add(entity, name, obj):
     """
     Adds the object to the entity and register it as the name.
@@ -13,6 +57,10 @@ def add(entity, name, obj):
     
     .. note :: This method requires an entity to be initialised aleady.
         Call this method e.g. from within __init__ and be careful of what you are doing.
+        
+    .. warning :: You cannot use this function to override objects that are already linked before.
+        I.e. You cannot reassign a state that is used in a transition/update or a port that is already used in an influence.
+        Be especially be careful when overriding transitions that are used in actions! We cannot currently detect these issues.
         
     Parameters
     ----------
@@ -35,7 +83,23 @@ def add(entity, name, obj):
     if isinstance(obj, (crest.Update, crest.Action)) and isinstance(obj.state, str):
             obj.state = operator.attrgetter(slice_self(obj.state))(entity)
 
-    setattr(entity, name, obj)
+    try:
+        existing = operator.attrgetter(name)(entity)
+    except AttributeError as exc:
+        """ This happens when the object doesn't exist, thus we can set without issue """
+        setattr(entity, name, obj)
+    else:
+        """ This happens when it exists, so we need to do some checks """
+        _replacability_checks(entity, name, obj, existing)
+        
+        # if we replace the current state just update the current state.
+        # (I don't see why anybody would do this though?)
+        if isinstance(obj, crest.State) and entity.current == existing:
+            entity.current = obj
+        
+        # no object links discovered, therefore we can simply replace the thing
+        # note that setattr makes sure that _parent and _name are set
+        setattr(entity, name, obj)
 
     return obj
 

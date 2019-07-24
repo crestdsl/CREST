@@ -3,6 +3,238 @@ import crestdsl.model as crest
 import crestdsl.model.api as api
 import copy
 
+class ConvenienceAPI_AddTest(unittest.TestCase):
+    
+    """ 
+    The following tests are related to issue #15 https://github.com/stklik/CREST/issues/15 
+    It's about overriding crest objects that are already used in transitions, updates, influences, etc.
+    This is not allowed ! Therefore we check that the errors are thrown
+    """
+    def test_override_port_in__init__throws_error_when_already_used_as_update_target(self):
+        res = crest.Resource("test", crest.REAL)
+        
+        class TestEntity(crest.Entity):
+            port_out = crest.Output(res, 987)
+            state = current = crest.State()
+            update = crest.Update(state=state, target=port_out, function=(lambda self: 12345))
+            
+            def __init__(self):
+                api.add(self, "port_out", crest.Output(res, 7777) )
+        
+        with self.assertRaises(AttributeError) as context:
+            TestEntity()
+        
+        self.assertEqual(str(context.exception), f"Cannot reassign Output port 'port_out' after it was used as target of Update 'update'.")
+
+    def test_override_port_in__init__throws_error_when_already_used_as_influence_source(self):
+        res = crest.Resource("test", crest.REAL)
+        
+        class TestEntity(crest.Entity):
+            port_in = crest.Input(res, 1234)
+            port_out = crest.Output(res, 987)
+            state = current = crest.State()
+            influence = crest.Influence(source=port_in, target=port_out)
+            
+            def __init__(self):
+                api.add(self, "port_in", crest.Input(res, 5555) )
+        
+        with self.assertRaises(AttributeError) as context:
+            TestEntity()
+        
+        self.assertEqual(str(context.exception), f"Cannot reassign Input port 'port_in' after it was used as source of Influence 'influence'.")
+
+    def test_override_port_in__init__throws_error_when_already_used_as_influence_target(self):
+        res = crest.Resource("test", crest.REAL)
+        
+        class TestEntity(crest.Entity):
+            port_in = crest.Input(res, 1234)
+            port_out = crest.Output(res, 987)
+            state = current = crest.State()
+            influence = crest.Influence(source=port_in, target=port_out)
+            
+            def __init__(self):
+                api.add(self, "port_out", crest.Output(res, 5555) )
+        
+        with self.assertRaises(AttributeError) as context:
+            TestEntity()
+        
+        self.assertEqual(str(context.exception), f"Cannot reassign Output port 'port_out' after it was used as target of Influence 'influence'.")
+
+    def test_override_port_in__init__throws_error_when_already_used_as_action_target(self):
+        res = crest.Resource("test", crest.REAL)
+        
+        class TestEntity(crest.Entity):
+            port_out = crest.Output(res, 987)
+            state = current = crest.State()
+            second_state = crest.State()
+            transition = crest.Transition(source=state, target=second_state, guard=(lambda self: True))
+            
+            action = crest.Action(transition=transition, target=port_out, function=(lambda self: 12345))
+            
+            def __init__(self):
+                api.add(self, "port_out", crest.Output(res, 7777) )
+        
+        with self.assertRaises(AttributeError) as context:
+            TestEntity()
+        
+        self.assertEqual(str(context.exception), f"Cannot reassign Output port 'port_out' after it was used as target of Action 'action'.")
+
+    def test_override_state_in__init__updates_current_state_to_new_state(self):
+        res = crest.Resource("test", crest.REAL)
+        
+        newstate = crest.State()
+        
+        class TestEntity(crest.Entity):
+            port_out = crest.Output(res, 987)
+            state = current = crest.State()
+            
+            def __init__(self):
+                api.add(self, "state", newstate )
+        
+        entity = TestEntity()
+        
+        self.assertEqual(newstate, entity.current)
+
+    def test_override_state_in__init__throws_error_when_already_used_in_update(self):
+        res = crest.Resource("test", crest.REAL)
+        
+        class TestEntity(crest.Entity):
+            port_out = crest.Output(res, 987)
+            state = current = crest.State()
+            second_state = crest.State()
+            update = crest.Update(state=second_state, target=port_out, function=(lambda self: 12345))
+            
+            def __init__(self):
+                api.add(self, "second_state", crest.State() )
+        
+        with self.assertRaises(AttributeError) as context:
+            TestEntity()
+        
+        self.assertEqual(str(context.exception), f"Cannot reassign State 'second_state' after it was used in Update 'update'.")
+
+    def test_override_state_in__init__throws_error_when_already_used_as_transition_source(self):
+        res = crest.Resource("test", crest.REAL)
+        
+        class TestEntity(crest.Entity):
+            state = current = crest.State()
+            second_state = crest.State()
+            trans = crest.Transition(source=second_state, target=state, guard=(lambda self: True))
+            
+            def __init__(self):
+                api.add(self, "second_state", crest.State() )
+        
+        with self.assertRaises(AttributeError) as context:
+            TestEntity()
+        
+        self.assertEqual(str(context.exception), f"Cannot reassign State 'second_state' after it was used as source of Transition 'trans'.")
+
+    def test_override_state_in__init__throws_error_when_already_used_as_transition_target(self):
+        res = crest.Resource("test", crest.REAL)
+        
+        class TestEntity(crest.Entity):
+            state = current = crest.State()
+            second_state = crest.State()
+            trans = crest.Transition(source=state, target=second_state, guard=(lambda self: True))
+            
+            def __init__(self):
+                api.add(self, "second_state", crest.State() )
+        
+        with self.assertRaises(AttributeError) as context:
+            TestEntity()
+        
+        self.assertEqual(str(context.exception), f"Cannot reassign State 'second_state' after it was used as target of Transition 'trans'.")
+
+    """ Replacing Subentities """
+
+    def test_override_subentity_in__init__throws_error_when_sub_input_connected_by_update(self):
+        res = crest.Resource("test", crest.REAL)
+        
+        class SubEntity(crest.Entity):
+            state = current = crest.State()
+            sub_in = crest.Input(res, 111)
+        
+        class TestEntity(crest.Entity):
+            port_in = crest.Input(res, 1234)
+            
+            sub = SubEntity()
+            state = current = crest.State()
+            
+            update = crest.Update(state=state, target=sub.sub_in, function=(lambda self: 12345))
+            
+            def __init__(self):
+                api.add(self, "sub", SubEntity() )
+            
+        with self.assertRaises(AttributeError) as context:
+            TestEntity()
+        
+        self.assertEqual(str(context.exception), "Cannot reassign SubEntity 'sub' since one of its Input ports was used as target of Update 'update'.")
+
+    def test_override_subentity_in__init__throws_error_when_sub_input_connected_by_influence_source(self):
+        res = crest.Resource("test", crest.REAL)
+        
+        class SubEntity(crest.Entity):
+            state = current = crest.State()
+            sub_out = crest.Output(res, 111)
+        
+        class TestEntity(crest.Entity):
+            port_out = crest.Output(res, 987)
+            state = current = crest.State()
+            sub = SubEntity()
+            influence = crest.Influence(source=sub.sub_out, target=port_out)
+            
+            def __init__(self):
+                api.add(self, "sub", SubEntity() )
+        
+        with self.assertRaises(AttributeError) as context:
+            TestEntity()
+        
+        self.assertEqual(str(context.exception), "Cannot reassign SubEntity 'sub' since one of its Output ports was used as source of Influence 'influence'.")
+
+    def test_override_subentity_in__init__throws_error_when_sub_input_connected_by_influence_target(self):
+        res = crest.Resource("test", crest.REAL)
+        
+        class SubEntity(crest.Entity):
+            state = current = crest.State()
+            sub_in = crest.Input(res, 111)
+        
+        class TestEntity(crest.Entity):
+            port_in = crest.Input(res, 1234)
+            state = current = crest.State()
+            sub = SubEntity()
+            influence = crest.Influence(source=port_in, target=sub.sub_in)
+            
+            def __init__(self):
+                api.add(self, "sub", SubEntity() )
+        
+        with self.assertRaises(AttributeError) as context:
+            TestEntity()
+        
+        self.assertEqual(str(context.exception), "Cannot reassign SubEntity 'sub' since one of its Input ports was used as target of Influence 'influence'.")
+
+    def test_override_subentity_in__init__throws_error_when_sub_input_connected_by_action(self):
+        res = crest.Resource("test", crest.REAL)
+        
+        class SubEntity(crest.Entity):
+            state = current = crest.State()
+            sub_in = crest.Input(res, 111)
+        
+        class TestEntity(crest.Entity):
+            port_out = crest.Output(res, 987)
+            state = current = crest.State()
+            second_state = crest.State()
+            transition = crest.Transition(source=state, target=second_state, guard=(lambda self: True))
+            sub = SubEntity()
+            action = crest.Action(transition=transition, target=sub.sub_in, function=(lambda self: 12345))
+            
+            def __init__(self):
+                api.add(self, "sub", SubEntity() )
+        
+        with self.assertRaises(AttributeError) as context:
+            TestEntity()
+        
+        self.assertEqual(str(context.exception), "Cannot reassign SubEntity 'sub' since one of its Input ports was used as target of Action 'action'.")
+    
+    
 class ConvenienceAPI_PullupTest(unittest.TestCase):
     """
     These tests checks the api's pullup function.
@@ -245,7 +477,6 @@ class ConvenienceAPI_PullupTest(unittest.TestCase):
         self.assertEqual(testentity.my_port_in2_connect.source, testentity.my_port_in2, "The connection's source is the pulled up port")
         self.assertEqual(testentity.my_port_in2_connect.target, testentity.sub2.port_in, "The connection's target is the subentity's input port")
 
-            
 
 class ConvenienceAPI_RelayTest(unittest.TestCase):
     """
