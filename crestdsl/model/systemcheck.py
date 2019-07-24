@@ -70,7 +70,7 @@ class SystemCheck(object):
                 logger.debug(f"Starting check {check.__name__}")
                 check()
             except AssertionError as exc:
-                logging.error(f"Problem in check '{check.__name__}': {str(exc)}")
+                logger.error(f"Problem in check '{check.__name__}': {str(exc)}")
                 if exit_on_error:
                     raise exc
                 no_problems = False

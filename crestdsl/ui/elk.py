@@ -20,8 +20,8 @@ try:
 except:
     from importlib_resources import read_text
 
-import logging
-logger = logging.getLogger(__name__)
+import logging as _logging
+logger = _logging.getLogger(__name__)
 
 """
 Produces JSON that can be interpreted by the Eclipse Layout Kernel (ELK).
@@ -33,6 +33,7 @@ def show_json(object_to_plot, name='', **kwargs):
     return elkgraph
 
 def plot(object_to_plot, name='', **kwargs):
+    logger.info(f"Plotting object with name {name}. Entity type: {type(object_to_plot)}")
     if isinstance(object_to_plot, MetaEntity):
         logger.warning("You called 'plot' on an Entity type instead of an entity. Will instantiate and plot the instance instead.")
         object_to_plot = object_to_plot()
@@ -42,6 +43,7 @@ def plot(object_to_plot, name='', **kwargs):
         raise ValueError("Cannot plot object of type {type(object_to_plot)}. Make sure to call it with an instance of Entity.")
     
     elkgraph = generate_root(object_to_plot, name)
+    logger.debug(f"Full Json graph to plot {elkgraph}")
     elkgraph = str(elkgraph)
     
     level = kwargs.get("level", '1')
@@ -103,6 +105,8 @@ def gen_MetaEntity(obj, name="", parent=None, **kwargs):
 
 @generate.register(Model.Entity)
 def gen_Entity(obj, name="", parent=None, **kwargs):
+    parentinfo = "" if parent is None else parent._name
+    logger.debug(f"Adding entity '{name}' of type {type(obj)} with parent (id={id(parent)})")
     typename = obj.__class__.__name__ if isinstance(obj, CrestObject) else obj.__name__
     node = {
         'id': str(id(obj)),
@@ -163,6 +167,7 @@ def generate_midpoint(obj, name="", parent=None, **kwargs):
 
 @generate.register(Model.State)
 def gen_State(obj, name="", parent=None, **kwargs):
+    logger.debug(f"Adding state '{name}' (id={id(obj)}) to entity '{parent._name}' (id={id(parent)})")
     node = {
         'id': str(id(obj)),
         'label': {'label': name},
@@ -175,6 +180,7 @@ def gen_State(obj, name="", parent=None, **kwargs):
 
 @generate.register(Model.Port)
 def gen_Port(obj, name='', parent=None, **kwargs):
+    logger.debug(f"Adding {obj.__class__.__name__} port '{name}' (id={id(obj)}) to entity '{parent._name}' (id={id(parent)})")
     value = obj.value if obj.value is not None else "???"
     round_value = round(value, config.ui_display_round) if isinstance(value, numbers.Number) and not isinstance(value, bool) else value
 
@@ -195,6 +201,7 @@ def gen_Port(obj, name='', parent=None, **kwargs):
 
 @generate.register(Model.Transition)
 def gen_Transition(obj, name='', parent=None, **kwargs):
+    logger.debug(f"Adding {obj.__class__.__name__} '{name}' (id={id(obj)}) from {obj.source._name} (id={id(obj.source)}) to {obj.target._name} (id={id(obj.target)}) to entity '{parent._name}' (id={id(parent)})")
     try:
         sourcecode = SH.getsource(obj.guard).replace('"', '\"')
         edge = {
@@ -215,6 +222,7 @@ def gen_Transition(obj, name='', parent=None, **kwargs):
 
 @generate.register(Model.Influence)
 def gen_Influence(obj, name='', parent=None, **kwargs):
+    logger.debug(f"Adding {obj.__class__.__name__} '{name}' (id={id(obj)}) from {obj.source._name} (id={id(obj.source)}) to {obj.target._name} (id={id(obj.target)}) to entity '{parent._name}' (id={id(parent)})")
     sourcecode = SH.getsource(obj.function).replace('"', '\"')
     edge = {
         'id': str(id(obj)),
@@ -231,6 +239,7 @@ def gen_Influence(obj, name='', parent=None, **kwargs):
 
 @generate.register(Model.Update)
 def gen_Update(obj, name='', parent=None, **kwargs):
+    logger.debug(f"Adding {obj.__class__.__name__} '{name}' (id={id(obj)}) from {obj.state._name} (id={id(obj.state)}) to {obj.target._name} (id={id(obj.target)}) to entity '{parent._name}' (id={id(parent)})")
     # edges = []
     # for accessed_attribute in Analyser.analyse_func(obj.function):
     #     accessed = attrgetter(accessed_attribute)(parent)
@@ -260,6 +269,7 @@ def gen_Update(obj, name='', parent=None, **kwargs):
 
 @generate.register(Model.Action)
 def gen_Action(obj, name='', parent=None, **kwargs):
+    logger.debug(f"Adding {obj.__class__.__name__} '{name}' (id={id(obj)}) from {obj.transition._name} (id={id(obj.transition)}) to {obj.target._name} (id={id(obj.target)}) to entity '{parent._name}' (id={id(parent)})")
     sourcecode = SH.getsource(obj.function).replace('"', '\"')
     # print('Problem when plotting actions !!')
     # return []

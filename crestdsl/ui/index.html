@@ -28,6 +28,8 @@
         }
     </style>
     <script type="text/javascript">
+        window.CREST_DEBUG = false;
+    
         let zoomIn_icon = "data:image/gif;base64,R0lGODlhEAAQAOZvAITL9QqWBgCBAI6VmLHiyP+FVOTj4//////6+f7+/v+VbO7u7gCRALvt0+zr64WertfW1ZLR8//9/QiVBQmWBZmhpJPT9pmmpq/jwcrIx7y7u4/S/f+fRrzrxY7L7Im20palq9HPz/+IW4iOkLKRcKShodra2ozQ/H632pejqJzU7crpz/b39v/ab3h0c8vq0Pz49/6DVfr6+rHM1dv92cv3//2JYLzoyv+qToGgs9//2dz//4Wfr7Hr/+Tj4v/aar/v09/p7o22z/+Xbbe7v8fnz3t4dwmVBv+aQ/L//5GgqMHm1/WtXfaSQ5CVmIe72//TYYepwaaprJTV+vD3/9jW1oSrwwCTAKywsdTT07bP1qrgwf/39aClpL2Ta8rwxPDv77C6wJOanfLy8qHf/v+sULSxr5ual7Csqp7Z9/Pz88HvxautsP/5+IfG7f///wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACH5BAEAAG8ALAAAAAAQABAAAAeSgG+Cg4SFgwchXSliaGOGggkaWjtrPSpOC49VM0k6V0tpFiWPUjU0XwEvQFM8YIYgHQxHFBMCGEIQhhVkNysBRQRPUQaGZh4RDQIEbhsDj2oDAABbKCcPRmEwhg5nOR9WIy5UXjEIjz4ZWTJEJFA4Im2Pgyw2HC1lBVzyghIKSD9MlOwbNKRJEDYDB13AYiKhoUAAOw==";
         let zoomOut_icon = "data:image/gif;base64,R0lGODlhEAAQAOZxAPL//46VmITL9f/6+eTj43eXrejm5P7+/oWerv+FVOTj4o7M7YW83IWfr4fG7YTH7JoSAO7u7tTT04iOkJmmpv/ab//9/Xh0c/+fRnt4d//aapLR87y7u7HM1ZPT9oepwYmhsfb39pGgqIXI8ezr64m20rHr/6QVAMrIx9jW1tLz+9HPz6XE2I22z5zU7ZCVmN/p7oGgs/aSQ/6DVbTi9rSxr/z4957Z97KRcJTV+o7O9f/39f+Xbf/5+PDv7+nm5I7L7PLy8tfW1aaprJmhpIzQ/KHf/v+aQ48OAJejqHUFAP+sUJalq/WtXdz//8vb4LC6wI+lsre7v8v3/6ywsYOdsPr6+sr2//+qTnyqyPD3/9ra2v+IW4/S/aShoZual72Ta//TYa7K2pOanZLO7vPz8/+VbLbP1rnr/7jP3KutsISrw/2JYKClpLCsqv///4MKAP///wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACH5BAEAAHEALAAAAAAQABAAAAeSgHGCg4SFg28rbUljbkGGggccZ05XJi4vEY8pHQAAKjQ3Hl6PQ1MGP09pLDkNPoZMaCcQSHBKDC1ChkRGYlEgVQVZHwSGNUAbZAsPDl0Bj2UBAgIjOkUIGVA2hiRfMSVrExdaYDMDjwooElZSOGFYXD2PgyFsGBVLCTvyghZmRxpNROwbxEMGDDUDB1GgsiWhoUAAOw==";
         let zoomDefault_icon = "data:image/gif;base64,R0lGODlhEAAQAOZzAI6VmP+Xbb28vBUdIsjp9////6bb/aTa/Ly7u4m20oiPkvPz8xojJxwiJP+FVKre+6rc+L7l9SAmKKra9qnY8oOJjITL9bXe9JrR7qCem7Hd8SEkJNfW1YSrw9ra2v/aatjW1qywsautsOz7/Y22z/b39o20wvT//3d9fU1qeUhmd0JhdPaSQ4XI8f/9/f/ab/+aQ7C6wPz49//39c3v+YWerv2JYJKQkP/TYYWTmP+IW4+Skv+VbJ2Zl+7u7v/5+Jual/+sUPLy8pCVmJSXmdHPz/+fRo7O9RgfI/r6+qvj/uzr67e7v8Po+PWtXXt4d3iWrNH4/8vKyvD3/9Lz+7rS2t/p7rOysbrj9L7U26nX8r2Ta/7+/hYeI8Ht/+Tj45GgqJmmprHr/47M7Xh0c4aRlcr2/4iOkP6DVfDv74Ggs/+qTrKRcP/6+Z7W963b+Nz//xQcIneNnP///wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACH5BAEAAHMALAAAAAAQABAAAAeSgHOCg4SFgwVFO2UVPUKGglwIWXBmYhpDPo8gVSgnVE0pEDePRFEbIxIEXQ9yaYY5Xg00JhEDEyQchgpKSFgMF3FvUF+GGRgqFGNaKwYAjwsAbhYtRwc1TzEyhktAagkdZ2RTW2htj1JXAklMbDhrOj+PgyU2Ri9BDjPygi48MB9OwOwbFICFFREDB4UJ4SGhoUAAOw==";
@@ -929,8 +931,11 @@
                 }
             }
             elk.layout(elkgraph)
-                .then(function (g) {
-                    plot(g);
+                .then(function (graph_after_layout) {
+                    if(window.CREST_DEBUG){
+                        console.log("Graph after Layout", graph_after_layout);
+                    }
+                    plot(graph_after_layout);
                 });
         }
     </script>
@@ -939,6 +944,9 @@
         main = function () {
             elkgraph = ELKGRAPH;
             level = LEVEL;
+            if(window.CREST_DEBUG){
+                console.log("Graph as JSON", elkgraph);
+            }
             mxgraph_main(elkgraph);
         };
     </script>
