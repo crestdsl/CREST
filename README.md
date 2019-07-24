@@ -5,13 +5,13 @@
 
 # **CREST** - A Continuous REactive SysTems DSL
 
-[![Build Status](https://travis-ci.org/stklik/CREST.svg?branch=master)](https://travis-ci.org/stklik/CREST) 
+[![Build Status](https://travis-ci.org/crestdsl/CREST.svg?branch=master)](https://travis-ci.org/crestdsl/CREST) 
 [![PyPI](https://img.shields.io/pypi/v/crestdsl.svg?color=blue)](https://pypi.org/project/crestdsl/)
 [![Documentation Status](https://readthedocs.org/projects/crestdsl/badge/?version=latest)](https://crestdsl.readthedocs.io/?badge=latest)
-[![codecov](https://codecov.io/gh/stklik/CREST/branch/master/graph/badge.svg)](https://codecov.io/gh/stklik/CREST)
+[![codecov](https://codecov.io/gh/crestdsl/CREST/branch/master/graph/badge.svg)](https://codecov.io/gh/crestdsl/CREST)
 (I know, I know, I'm really busy though...)
 
-[![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/stklik/CREST/master)
+[![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/crestdsl/CREST/master)
 <-- Launch this repository and play with CREST directly in your browser!
 
 ---
