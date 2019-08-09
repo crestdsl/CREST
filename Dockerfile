@@ -26,15 +26,15 @@ RUN mkdir /var/lib/apt/lists/partial && \
 
 # install these through conda
 RUN conda update -n base conda
-RUN conda update numpy
-RUN conda update pandas
-RUN conda update matplotlib
-RUN conda update scipy
+RUN conda install numpy
+RUN conda install pandas
+RUN conda install matplotlib
+RUN conda install scipy
 RUN conda update networkx
 RUN conda install -c conda-forge importnb
 
 # let's also update everything while we're at it!
-# RUN conda update --all  
+RUN conda update --all  
 
 RUN pip install --no-cache-dir --upgrade pip
 RUN pip install --no-cache-dir --upgrade importlib_resources
