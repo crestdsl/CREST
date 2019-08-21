@@ -95,14 +95,17 @@ def get_modifier_map(root_entity, port_list, cache=True):
     logger.debug(f"creating modifier map for ports {[p._name +' (in: '+ p._parent._name+')' for p in port_list]}")
     modifier_map = {port: list() for port in port_list}
     map_change = True
-
+    
+    all_updates = get_all_updates(root_entity)
+    all_influences = get_all_influences(root_entity)
+    
     while map_change:
         map_change = False  # initially we think there are no changes
         for port, modifiers in modifier_map.copy().items():  # iterate over a copy, so we can modify the original list
             # we only look at ports that have no influences (it might be because there exist none, but that small overhead is okay for now)
             if len(modifiers) == 0:
                 logger.debug(f"trying to find modifiers for port '{port._name}' of entity '{port._parent._name} ({port._parent.__class__.__name__})'")
-                influences = [inf for inf in get_all_influences(root_entity) if port == inf.target]
+                influences = [inf for inf in all_influences if port == inf.target]
                 modifier_map[port].extend(influences)
                 for inf in influences:
                     logger.debug(f"'{port._name}' is modified by influence '{inf._name}'")
@@ -111,7 +114,7 @@ def get_modifier_map(root_entity, port_list, cache=True):
                     if inf.source not in modifier_map:
                         modifier_map[inf.source] = list()  # add an empty list, the next iteration will try to fill it
 
-                updates = [up for up in get_all_updates(root_entity)
+                updates = [up for up in all_updates
                            if port == up.target and up.state == up._parent.current]
 
                 modifier_map[port].extend(updates)
