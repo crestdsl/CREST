@@ -70,7 +70,7 @@ RUN jupyter nbextension enable codefolding/main
 # RUN git clone https://github.com/jgraph/mxgraph.git
 
 # Add Live slideshows with RISE
-RUN conda install -c damianavila82 rise
+# RUN conda install -c damianavila82 rise
 
 # copy CREST and tests into the container so we can use it
 COPY crestdsl ${HOME}/crestdsl/
