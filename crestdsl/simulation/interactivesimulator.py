@@ -1,16 +1,21 @@
 from crestdsl.model import *  # bad practice, but used for the evaluation of commands
 from .simulator import Simulator
+
+import logging
+logger = logging.getLogger(__name__)
+
+import io
 try:
     import colored
     from colored import stylize
     color_enabled = True
 except ImportError:
     color_enabled = False
+except io.UnsupportedOperation:
+    color_enabled = False
+    logger.error("There is an error in the 'colored' package. They use 'fileno'. I guess we have to wait for a fix.")
 import random
 import sys
-
-import logging
-logger = logging.getLogger(__name__)
 
 class InteractiveSimulator(Simulator):
     """

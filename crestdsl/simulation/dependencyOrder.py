@@ -158,7 +158,7 @@ def get_entity_modifiers_in_dependency_order(entity):
 
     ordered_modifier_list = []
     for node in topo_list:
-        if MODIFIER in DG.node[node]:
+        if MODIFIER in DG.nodes[node]:
             mod = DG.nodes[node][MODIFIER]
             ordered_modifier_list.append(mod)
 
