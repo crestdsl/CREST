@@ -46,7 +46,23 @@ Alternatively you can use [`repo2docker`](https://github.com/jupyter/repo2docker
 
 **Local install:** You can also use CREST locally and install the dependencies manually. See the [Dockerfile](./Dockerfile) for information about the tools and libraries that are used. CREST also requires Microsoft's [Z3Prover](https://github.com/Z3Prover) to be installed (including the Python API).
 
-**Soon:** A pip-install is in the pipelines but has been delayed due to publication season :-)
+**pip** If you have an installation of Z3 ready, you can install with `pip install crestdsl`.
+
+
+## Contribute
+
+Please let me know if you want to contribute, then I'll create a proper description here. 
+For now, its some information for myself so I don't forget.
+
+**Auto-Build** There are several "magic" things going on here. 
+First, travis builds every push and runs the (smoke-) tests to make sure we're not failing too hard. 
+The tests also trigger a code coverage report.
+
+**Auto-Deploy** Deployments happen automatically on every GitHub release. All you have to do is write a nice description and it will automatically try to deploy to pypi. 
+**REMEMBER TO BUMP THE VERSION IN setup.py!!!!**
+
+**Auto-DockerBuild** The docker image should be built automatically every night from the latest pip-deployed crestdsl version. 
+This makes sure that the latest package-dependencies are taken into account. Its probably not the smartest idea, since these dependencies can break things, but for now it works. Once we have more users, we can maybe create nightly-versions and stable releases. But that's stuff for the future.
 
 
 ---
